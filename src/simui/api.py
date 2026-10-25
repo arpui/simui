@@ -1,19 +1,26 @@
-"""Les respostes de la consola web: un formulari (o un prompt) → els quatre codis.
+"""Les respostes de la consola web: un formulari (o un prompt) → els quatre codis, i els dissenys.
 
 **Què és i què no és.** És una capa PRIMA sobre el que ja fa `gen.py`: la pàgina
 omple un `SimRequest`, el servidor el passa per `parse` → `validate` → `render` de
 cada backend i en retorna el deck o el rebuig, i `lint_files` per a cada deck. No
 executa cap simulació, no escriu cap fitxer i no carrega receptes generades.
 
+La pestanya **Disseny** i la **Resultats** (`design_*`, `results`) són el mateix patró:
+llegeixen els dissenys de neudet (`design_catalog`), els verifiquen i els visualitzen
+(`design`, `design_view`), exporten el paquet (`design_export`) i llegeixen els resultats
+per tub (`results_tub`). Cap d'aquestes funcions no escriu res fora d'un directori temporal.
+
 **La regla que la manté prima.** Aquest mòdul IMPORTA, no implementa: les opcions
 són les tuples de `core.py`, els materials `materials.available()`, els detectors
 `detector_config.available()`, les receptes `factory.capabilities()`; el resultat
 surt de `factory.retarget()` / `validate()` / `render()`, com a `gen.py`. Si algun
-dia cal escriure aquí una línia de física, aquella lògica va a `mcgen/` amb el seu test.
+dia cal escriure aquí una línia de física o de format, aquella lògica va a `mcgen/` amb el seu test.
 """
 from __future__ import annotations
 
 import json
+import tempfile
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,9 +30,13 @@ from ..mcgen import materials as M
 from ..mcgen.backends.base import RenderError
 from ..mcgen.core import SpecError
 from ..mcgen.schema import parse
+from ..mcgen import design as DES
+from ..mcgen import design_catalog as CAT
+from ..mcgen import design_export as EXP
+from ..mcgen import design_view as VIEW
+from ..mcgen import results_tub as RES
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "mcgen" / "examples"
-
 
 
 # ── el que la pàgina necessita saber ─────────────────────────────────────────
@@ -166,6 +177,128 @@ def ask(prompt: str, backend: Optional[str] = None) -> Dict[str, Any]:
     elif res.attempts:
         body["raw"] = res.attempts[-1].raw
     return body
+
+
+# ── disseny (F1) i resultats (F2): la UI IMPORTA de mcgen, no hi calcula res ─────────────
+#
+# Cada cos porta `design` (el JSON de disseny) i, si ve d'un disseny de neudet, `editat`
+# (false = sense tocar: el `.dat`/`.json` originals es donen tal com són), `id` (un
+# `design_catalog.defaults()`) o `dat_text`/`json_text` (un parell pujat).
+
+def _cos_original(body: Dict[str, Any], workdir: Path):
+    """(dat, json) de l'original si el disseny ve de neudet i no s'ha editat; si no, None."""
+    if body.get("editat") is not False:
+        return None
+    return CAT.original_files(workdir, id_=body.get("id"), dat_text=body.get("dat_text"),
+                              json_text=body.get("json_text"))
+
+
+def design_meta() -> Dict[str, Any]:
+    """Els dissenys per defecte, les campanyes i el catàleg de tubs, de neudet i de simphy."""
+    out: Dict[str, Any] = {"dissenys": [], "campanyes": [], "tipus_tub": [], "error": None}
+    try:
+        out["neudet"] = str(DES.neudet_root())
+        out["dissenys"] = CAT.defaults()
+        out["campanyes"] = CAT.campanyes()
+    except DES.DesignError as exc:
+        out["error"] = str(exc)
+    out["tipus_tub"] = [{"nom": e.get("nom"), "alies": e.get("alies")} for e in D.read_catalog()]
+    try:
+        out["llm"] = llm_status()
+    except Exception as exc:                                  # noqa: BLE001
+        out["llm"] = {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+    return out
+
+
+def design_load(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Un disseny per defecte (`id`) o un parell pujat (`dat_text`, `json_text`), sense editar."""
+    if body.get("id"):
+        d, e, notes = CAT.carrega(str(body["id"]))
+        origen = {"id": e["id"], "nom": e["nom"], "origen": e["origen"], "hash": e["hash"]}
+    elif body.get("dat_text"):
+        d, notes = CAT.carrega_text(str(body["dat_text"]), body.get("json_text"))
+        origen = {"id": None, "nom": d.nom, "origen": "pujat", "hash": None}
+    else:
+        raise ValueError("cal un `id` de disseny per defecte o un `dat_text`")
+    return {"design": d.to_dict(), "editat": False, "origen": origen, "notes": notes}
+
+
+def design_check(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Les violacions del disseny (les de neudet, amb les restriccions de la campanya), i el
+    nom i el hash que tindria. Si no hi ha restriccions, ho diu: no es mostra com a vàlid."""
+    d = DES.load(body["design"])
+    orig = body.get("editat") is False
+    with warnings.catch_warnings():
+        # un disseny de neudet sense editar té el nom de neudet al .json; el regenerat el
+        # reanomena (r4_t0 → 1x4). Aquí es mostra el de l'original, no cal el avís.
+        warnings.simplefilter("ignore", UserWarning)
+        if orig and (body.get("id") or body.get("dat_text")):
+            nom, hash_ = CAT.identitat(body.get("id"), body.get("json_text"))
+        else:
+            c = DES.to_candidat(d)
+            nom, hash_ = c.nom, c.hash()
+        try:
+            viol, motiu, verificat = DES.violations(d), "", True
+        except DES.DesignError as exc:
+            viol, motiu, verificat = [], str(exc), False
+    return {"verificat": verificat, "violations": viol, "motiu": motiu,
+            "nom": nom, "hash": hash_, "editat": not orig}
+
+
+def design_view(body: Dict[str, Any]) -> Dict[str, Any]:
+    """El visor (XY i XZ, taula, notes) com a dades. L'original de neudet es llegeix tal com és."""
+    d = DES.load(body["design"])
+    with tempfile.TemporaryDirectory() as tmp, warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return EXP.preview(d, original=_cos_original(body, Path(tmp) / "original"))
+
+
+def design_export(body: Dict[str, Any]):
+    """El paquet zip d'un disseny: visor, config, decks i README. Retorna (bytes, nom)."""
+    d = DES.load(body["design"])
+    energia = body.get("energia_mev")
+    campanya = body.get("campanya") or None
+    with tempfile.TemporaryDirectory() as tmp, warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        orig = _cos_original(body, Path(tmp) / "original")
+        return EXP.bundle(d, Path(tmp), energia_mev=None if energia in (None, "") else energia,
+                          campanya=campanya, original=orig)
+
+
+def design_ask(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Un disseny a partir de text, amb el model local (`design_prompt.generate`, verificat)."""
+    from simphy.mcgen.agent import design_prompt as P
+    from simphy.mcgen.agent.llm import LLMError, LocalLLM
+    text = str(body.get("prompt") or "").strip()
+    if not text:
+        raise ValueError("el prompt és buit")
+    try:
+        res = P.generate(text, LocalLLM(), campanya=body.get("campanya") or None, max_attempts=3)
+    except LLMError as exc:
+        return {"ok": False, "reason": str(exc), "attempts": 0, "errors": []}
+    out: Dict[str, Any] = {"ok": res.ok, "attempts": len(res.attempts), "errors": list(res.errors)}
+    if res.ok and res.design is not None:
+        out["design"] = res.design.to_dict()
+    return out
+
+
+def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = None) -> Dict[str, Any]:
+    """Les etapes de neudet amb aquest hash i el seu resultat per tub (totes les energies).
+
+    Amb `energia` (MeV), a més, el visor XY de l'etapa (`stage`, o la primera amb dades) pintat
+    per ε a aquella energia. Un hash sense cap etapa dona `entries: []`: no és un error.
+    """
+    entries = RES.for_design(hash_)
+    out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None}
+    if energia not in (None, ""):
+        e = next((x for x in entries if x["status"] == RES.OK
+                  and (stage is None or x["path"] == stage)), None)
+        dat = CAT.per_hash(hash_)
+        if e is not None and dat is not None:
+            k = RES.index_of_energy(e["energies_MeV"], float(energia))
+            out["vista"] = VIEW.preview(dat, valors_tubs=e["tubs"], camp="eps", k=k, unitat="ε")
+            out["vista"]["stage"] = e["path"]
+    return out
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────

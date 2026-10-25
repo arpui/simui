@@ -1,8 +1,9 @@
 # La UI de simphy (consola web)
 
-**Estat (2026-10-26):** recuperada i integrada. La consola de simulació funciona
-igual que a la demo i té 33 tests en verd. La part de disseny (F1) i la de resultats
-(F2) estan planificades a sota i encara no són a la UI.
+**Estat (2026-10-26):** hi ha tres pestanyes i les tres funcionen: **Simulació** (la de la
+demo), **Disseny** (F1) i **Resultats** (F2, sobre els `resultats_tub.json` de neudet, R1 i
+R1b). Encàrrec: `docs/site/encarrecs/2026-10-26_UI_disseny_resultats.md`. Pendent: U6, la
+prova a railab amb el model local.
 
 ```bash
 python scripts/ui/serve.py              # http://127.0.0.1:8765  (--host, --port)

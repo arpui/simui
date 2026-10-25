@@ -6,6 +6,7 @@
 :root{--ink:#16191d;--muted:#5f6a75;--line:#ddd9d2;--bg:#fdfcfa;--accent:#2b6b86;
 --warn:#9a6a1e;--bad:#9c3a2e;--good:#2c6b4c;--panel:#f4f1ec}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);
 font:14px/1.45 "DejaVu Sans","Liberation Sans",Arial,Helvetica,sans-serif}
 code,pre,textarea.json{font-family:"DejaVu Sans Mono","Liberation Mono",Consolas,monospace}
@@ -15,6 +16,11 @@ header.top h1{margin:0;font-size:22px;letter-spacing:-.01em}
 header.top .kick{font-size:11px;letter-spacing:.13em;text-transform:uppercase;
 color:var(--accent);font-weight:700}
 header.top .sub{color:var(--muted);font-size:13px}
+.ptabs{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.ptab{background:#fff;color:var(--muted);border:1px solid var(--line);padding:5px 12px;
+border-radius:4px;font-size:13px;font-weight:400;cursor:pointer;font-family:inherit}
+.ptab.on{color:var(--accent);border-color:var(--accent);font-weight:700}
+.pg main{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:0;min-height:calc(100vh - 62px)}
 main{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:0;min-height:calc(100vh - 62px)}
 @media (max-width:900px){main{grid-template-columns:1fr}}
 aside{border-right:1px solid var(--line);padding:18px 22px 40px;overflow:auto}
@@ -22,10 +28,12 @@ section.out{padding:18px 24px 40px;min-width:0}
 h2{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);
 margin:20px 0 8px;font-weight:700}
 h2:first-child{margin-top:0}
+h3{font-size:14px;margin:8px 0 6px}
 label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
 input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);
 border-radius:4px;background:#fff;color:var(--ink)}
 input:focus,select:focus,textarea:focus{outline:2px solid #2b6b8633;border-color:var(--accent)}
+input[type=file]{padding:4px;font-size:12px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .mat{display:grid;grid-template-columns:1.1fr 1fr .8fr 26px;gap:6px;margin-bottom:6px}
@@ -39,6 +47,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .panel{background:var(--panel);border-left:3px solid var(--accent);padding:10px 12px;
 font-size:13px;margin:8px 0}
 .panel.warn{border-left-color:var(--warn)}
+.panel.ok{border-left-color:var(--good)}
+.panel.bad{border-left-color:var(--bad)}
 textarea.json{min-height:220px;font-size:12px;line-height:1.35;white-space:pre}
 textarea.prompt{min-height:62px}
 .err{color:var(--bad);font-size:12px;margin-top:4px}
@@ -48,7 +58,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:12.5px;margin-top:1
 article.card{border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0;
 display:flex;flex-direction:column}
 article.card>header{display:flex;align-items:center;gap:10px;padding:10px 14px;
-border-bottom:1px solid var(--line)}
+border-bottom:1px solid var(--line);flex-wrap:wrap}
 article.card h3{margin:0;font-size:15px}
 .meta{color:var(--muted);font-size:12px;margin-left:auto;text-align:right}
 .msgs{margin:0;padding:10px 14px 0 30px;font-size:12.5px}
@@ -71,14 +81,40 @@ border-radius:4px;font-size:11.5px;line-height:1.4;overflow:auto;max-height:340p
 .bar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .bar .note{color:var(--muted);font-size:12.5px}
 .empty{color:var(--muted);padding:40px 0}
+/* disseny i resultats */
+.ring{border:1px solid var(--line);border-radius:4px;padding:6px 8px;margin-bottom:8px;background:#fff}
+.rrow{display:grid;grid-template-columns:.8fr .5fr .6fr 1.9fr .6fr 22px;gap:6px;align-items:end}
+.rrow.cd{grid-template-columns:1fr 1fr 1fr;margin-top:4px;border-top:1px dashed var(--line);padding-top:4px}
+.rrow label{margin:0;font-size:11px}
+.rrow input,.rrow select{padding:4px 5px;font-size:12.5px}
+.svgbox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;overflow:auto;min-width:0}
+.svgbox svg{max-width:100%;height:auto}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:1100px){.dgrid,.cmp{grid-template-columns:1fr}}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.tblwrap{overflow:auto;max-width:100%;margin:8px 0}
+table.tbl{border-collapse:collapse;font-size:12px;background:#fff}
+table.tbl th,table.tbl td{border:1px solid var(--line);padding:3px 6px;text-align:left;white-space:nowrap}
+table.tbl th{background:var(--panel);font-weight:700}
+table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px 0}
+.chip{font-size:12px;color:var(--muted);background:var(--panel);padding:2px 7px;border-radius:4px}
+.chip b{color:var(--ink);font-weight:700}
+#d-status code{font-size:11.5px}
 </style></head><body>
 
 <header class="top">
   <span class="kick">simphy</span>
-  <h1>Una petició, quatre codis</h1>
-  <span class="sub">Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació.</span>
+  <h1 id="h-title">Una petició, quatre codis</h1>
+  <span class="sub" id="h-sub">Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació.</span>
+  <nav class="ptabs" role="tablist">
+    <button class="ptab on" data-tab="sim">Simulació</button>
+    <button class="ptab" data-tab="disseny">Disseny</button>
+    <button class="ptab" data-tab="resultats">Resultats</button>
+  </nav>
 </header>
 
+<div class="pg" id="pg-sim">
 <main>
 <aside>
   <h2>Demana-ho en text</h2>
@@ -155,6 +191,92 @@ border-radius:4px;font-size:11.5px;line-height:1.4;overflow:auto;max-height:340p
   <div class="grid" id="results"><div class="empty">Tria un exemple o omple el formulari.</div></div>
 </section>
 </main>
+</div>
+
+<div class="pg" id="pg-disseny" hidden>
+<main>
+<aside>
+  <h2>Font del disseny</h2>
+  <label>per defecte <span class="hint">· els <code>export/</code> de neudet</span></label>
+  <select id="d-def"></select>
+  <div class="hint" id="d-neudet"></div>
+  <details>
+    <summary>Un .dat i el seu .json de neudet</summary>
+    <label>.dat</label><input type="file" id="d-datf" accept=".dat,text/plain">
+    <label>.json (sidecar)</label><input type="file" id="d-jsonf" accept=".json,application/json">
+    <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-upload">Carrega els fitxers</button></div>
+  </details>
+  <details open>
+    <summary>Demana-ho en text (model local)</summary>
+    <textarea class="prompt" id="d-prompt" placeholder="p.ex. tres tubs counterUPC a 4 cm del centre, PE 0,95, font al centre"></textarea>
+    <label>campanya de referència</label><select id="d-askcamp"></select>
+    <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-ask" disabled>Proposa el disseny</button><span class="note" id="d-llm">comprovant el model local…</span></div>
+  </details>
+
+  <h2>Anells</h2>
+  <div id="d-anells"></div>
+  <div class="bar" style="margin:6px 0 0"><button class="ghost" id="d-addring" style="padding:4px 10px;font-size:12px">+ anell</button></div>
+  <div class="hint">Cada anell és un radi r amb n tubs repartits a φ (graus, des de l'eix x). Cd: fracció, arc i centre; només amb fracció > 0.</div>
+
+  <h2>JSON del disseny</h2>
+  <textarea class="json" id="d-json" spellcheck="false"></textarea>
+  <div class="err" id="d-jsonerr"></div>
+
+  <h2>Sortida</h2>
+  <label>campanya (font i energies de neudet)</label>
+  <select id="d-camp"></select>
+  <label>o energia única (MeV) <span class="hint">· sense campanya</span></label>
+  <input id="d-energia" placeholder="p.ex. 1.0">
+  <div class="bar" style="margin-top:14px"><button id="d-baixa">Baixa el paquet (.zip)</button></div>
+  <div class="bar"><button class="ghost" id="d-fix">Fixa com a original</button><button class="ghost" id="d-cmp">Compara</button></div>
+  <div class="hint" id="d-fixnote"></div>
+</aside>
+
+<section class="out">
+  <div class="bar"><span class="note" id="d-status">Tria un disseny per defecte, carrega'n un de fitxers o demana'n un en text.</span></div>
+  <div id="d-nota"></div>
+  <div id="d-viol"></div>
+  <div class="dgrid">
+    <div class="svgbox" id="d-xy"></div>
+    <div class="svgbox" id="d-xz"></div>
+  </div>
+  <div id="d-avisos"></div>
+  <h2>Tubs</h2>
+  <div class="tblwrap" id="d-taula"></div>
+  <div id="d-compare" hidden>
+    <h2>Compara: original i actual</h2>
+    <div class="cmp">
+      <div><h3 id="c-o-t">Original</h3><div id="c-o-viol"></div><div class="svgbox" id="c-o-xy"></div></div>
+      <div><h3 id="c-a-t">Actual</h3><div id="c-a-viol"></div><div class="svgbox" id="c-a-xy"></div></div>
+    </div>
+  </div>
+</section>
+</main>
+</div>
+
+<div class="pg" id="pg-resultats" hidden>
+<main>
+<aside>
+  <h2>Disseny</h2>
+  <div id="r-dis" class="panel"></div>
+  <h2>Etapa i energia</h2>
+  <label>etapa</label>
+  <select id="r-stage"></select>
+  <label>energia (MeV)</label>
+  <select id="r-energia"></select>
+  <div class="bar" style="margin-top:12px"><button class="ghost" id="r-go">Actualitza</button></div>
+  <div class="hint">Els números són els de neudet (<code>resultats_tub.json</code>): no es recalculen ni es copien.
+  Una xifra sense procedència citable es mostra igualment, amb el motiu.</div>
+</aside>
+<section class="out">
+  <div id="r-etapes"></div>
+  <div id="r-avisos"></div>
+  <div class="svgbox" id="r-xy"></div>
+  <h2>ε per tub i energia</h2>
+  <div class="tblwrap" id="r-taula"></div>
+</section>
+</main>
+</div>
 
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -328,5 +450,348 @@ async function boot(){
   });
 }
 boot();
+</script>
+
+<script>
+// ── pestanyes ─────────────────────────────────────────────────────────────────
+// La de Disseny i la de Resultats parlen amb `/api/design/*` i `/api/results`. Cap número
+// no es calcula aquí: el que surt és el que diu neudet (vegeu `docs/site/ui.md`).
+const Q = s => document.querySelector(s), QA = s => [...document.querySelectorAll(s)];
+const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const HEAD = {
+  sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
+  disseny: ['Disseny de detectors', "Un disseny de neudet, editable: verificat, visualitzat i exportat. No executa cap simulació."],
+  resultats: ['Resultats per tub', "Els números de neudet per tub i energia, sense recalcular-los. Cada xifra porta la seva procedència."]};
+
+async function api(path, body){
+  const r = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+function showTab(name){
+  if(!HEAD[name]) name = 'sim';
+  QA('.pg').forEach(p => p.hidden = p.id !== 'pg-' + name);
+  QA('.ptab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  Q('#h-title').textContent = HEAD[name][0]; Q('#h-sub').textContent = HEAD[name][1];
+  history.replaceState(null, '', '#' + name);
+  if(name === 'disseny') dInit().catch(e => dErr(e.message));
+  if(name === 'resultats') rLoad().catch(e => rErr(e.message));
+}
+QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+function fmtNum(x){
+  if(x === null || x === undefined || Number.isNaN(x)) return '—';
+  if(x === 0) return '0';
+  const a = Math.abs(x);
+  return (a < 1e-3 || a >= 1e4) ? x.toExponential(2) : String(Number(x.toPrecision(4)));
+}
+
+// ── Disseny ───────────────────────────────────────────────────────────────────
+// DS.cur: {design, editat, id, dat_text, json_text, origen, notes, nom, hash, verificat, violations, motiu}
+// DS.orig: una còpia fixada de DS.cur, per comparar-la amb l'actual.
+const DS = {meta:null, cur:null, orig:null, t:null, seq:0, tipus:[]};
+
+async function dInit(){
+  if(DS.meta) return;
+  DS.meta = await api('/api/design/meta');
+  DS.tipus = [...new Set(DS.meta.tipus_tub.flatMap(t => [t.nom, t.alies].filter(Boolean)))].sort();
+  Q('#d-def').innerHTML = '<option value="">— tria un disseny per defecte —</option>' +
+    DS.meta.dissenys.map(e => `<option value="${escD(e.id)}">${escD(e.origen)} · ${escD(e.nom)}</option>`).join('');
+  const camps = '<option value="">— cap —</option>' + DS.meta.campanyes.map(c => `<option>${escD(c)}</option>`).join('');
+  Q('#d-camp').innerHTML = camps; Q('#d-askcamp').innerHTML = camps;
+  Q('#d-neudet').textContent = DS.meta.error ? 'neudet: ' + DS.meta.error : 'neudet: ' + DS.meta.neudet;
+  const llm = DS.meta.llm || {};
+  Q('#d-llm').textContent = llm.ok ? `model local: ${llm.model || ''}` : 'model local no disponible (la resta funciona igual)';
+  Q('#d-ask').disabled = !llm.ok;
+}
+function dErr(msg){
+  Q('#d-status').innerHTML = `<span class="err">${escD(msg)}</span>`;
+}
+function dCampSet(c){
+  const sel = Q('#d-camp');
+  if(!c) return;
+  if(![...sel.options].some(o => o.value === c)) sel.add(new Option(c, c));
+  sel.value = c;
+}
+function dBody(c = DS.cur){
+  return {design: c.design, editat: c.editat, id: c.id, dat_text: c.dat_text, json_text: c.json_text};
+}
+function ringHtml(a, i){
+  const cd = a.cd || {};
+  const opts = [...new Set([a.tipus, ...DS.tipus])].map(t => `<option ${t === a.tipus ? 'selected' : ''}>${escD(t)}</option>`).join('');
+  return `<div class="ring" data-i="${i}">
+    <div class="rrow">
+      <label>r (cm)<input data-k="r" value="${escD(a.r)}"></label>
+      <label>n<input data-k="n" value="${escD(a.n)}"></label>
+      <label>φ (°)<input data-k="phi" value="${escD(a.phi)}"></label>
+      <label>tipus<select data-k="tipus">${opts}</select></label>
+      <label>z (cm)<input data-k="z" value="${escD(a.z ?? 0)}"></label>
+      <button class="x" data-del="${i}" title="treu l'anell">×</button>
+    </div>
+    <div class="rrow cd">
+      <label>Cd fracció<input data-k="cdf" value="${a.cd ? escD(cd.fraction) : ''}" placeholder="—"></label>
+      <label>Cd arc (°)<input data-k="cda" value="${a.cd ? escD(cd.arc_deg) : '360'}"></label>
+      <label>Cd centre (°)<input data-k="cdc" value="${a.cd ? escD(cd.centre_deg) : '0'}"></label>
+    </div></div>`;
+}
+function dPintaAnells(){
+  Q('#d-anells').innerHTML = (DS.cur.design.anells || []).map(ringHtml).join('') || '<div class="hint">Cap anell.</div>';
+}
+function dPintaJson(){
+  Q('#d-json').value = JSON.stringify(DS.cur.design, null, 2);
+}
+function dSchedule(){
+  clearTimeout(DS.t);
+  DS.t = setTimeout(() => dRefresh(), 280);
+}
+// Els anells del formulari → el disseny. Només canvia el JSON (no es torna a pintar el formulari,
+// per no perdre el cursor).
+function dLeAnells(){
+  const rings = QA('#d-anells .ring').map(el => {
+    const g = k => el.querySelector(`[data-k="${k}"]`).value.trim();
+    const num = v => Number(v.replace(',', '.'));
+    const a = {r: num(g('r')), n: num(g('n')), phi: num(g('phi')), tipus: g('tipus'), z: num(g('z') || '0')};
+    const cdf = g('cdf');
+    if(cdf !== '' && num(cdf) !== 0) a.cd = {fraction: num(cdf), arc_deg: num(g('cda') || '360'), centre_deg: num(g('cdc') || '0')};
+    return a;
+  });
+  DS.cur.design = {...DS.cur.design, anells: rings};
+  DS.cur.editat = true;
+  dPintaJson(); dSchedule();
+}
+function dAdopta(r, extra){
+  DS.cur = {design: r.design, editat: !!r.editat, id: null, dat_text: null, json_text: null,
+            origen: r.origen || null, notes: r.notes || [], nom: null, hash: null,
+            verificat: false, violations: [], motiu: '', ...extra};
+  dCampSet(r.design.restriccions && r.design.restriccions.campanya);
+  dPintaAnells(); dPintaJson();
+  Q('#d-fixnote').textContent = '';
+  dRefresh();
+}
+async function dCarrega(body){
+  try{
+    const r = await api('/api/design/load', body);
+    dAdopta(r, {id: body.id || null, dat_text: body.dat_text || null, json_text: body.json_text || null});
+  } catch(e){ dErr(e.message); }
+}
+function violHtml(verificat, motiu, viol){
+  if(!verificat) return `<div class="panel warn">No verificat: ${escD(motiu)}</div>`;
+  if(!viol || !viol.length) return `<div class="panel ok">Verificat: cap violació de les restriccions de la campanya.</div>`;
+  return `<div class="panel bad"><b>${viol.length} violació${viol.length > 1 ? 's' : ''}</b><ul class="msgs">` +
+    viol.map(v => `<li>${escD(v)}</li>`).join('') + '</ul></div>';
+}
+function badgeHtml(c){
+  if(c.origen && c.editat === false) return '<span class="tag t-ok">de neudet, sense editar</span>';
+  if(c.origen && c.editat) return '<span class="tag t-wa">editat: candidat nou (neudet li posa un nom)</span>';
+  return '<span class="tag t-nt">disseny nou</span>';
+}
+function tableHtml(cols, rows){
+  return `<table class="tbl"><thead><tr>${cols.map(c => `<th>${escD(c)}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(r => `<tr>${r.map(x => `<td>${escD(x)}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+}
+function dPintaCheck(){
+  const c = DS.cur;
+  Q('#d-status').innerHTML = `<b>${escD(c.nom || '—')}</b> · hash <code>${escD(c.hash || '—')}</code> · ${badgeHtml(c)}`;
+  Q('#d-viol').innerHTML = violHtml(c.verificat, c.motiu, c.violations);
+  Q('#d-nota').innerHTML = (c.notes || []).map(n => `<div class="panel">${escD(n)}</div>`).join('');
+}
+function dPintaVista(v){
+  Q('#d-xy').innerHTML = v.xy_svg;
+  Q('#d-xz').innerHTML = v.xz_svg;
+  Q('#d-taula').innerHTML = tableHtml(v.cols, v.rows);
+  const avisos = [...v.notes, ...v.caption];
+  Q('#d-avisos').innerHTML = `<details><summary>Notes del visor (${avisos.length})</summary>` +
+    `<div class="panel">${avisos.map(x => `<div>${escD(x)}</div>`).join('')}</div>` +
+    tableHtml(['Camp', 'Valor'], v.resum) + '</details>';
+}
+async function dRefresh(){
+  if(!DS.cur) return;
+  const seq = ++DS.seq, b = dBody();
+  try{
+    const [c, v] = await Promise.all([api('/api/design/check', b), api('/api/design/view', b)]);
+    if(seq !== DS.seq) return;
+    Object.assign(DS.cur, {nom: c.nom, hash: c.hash, verificat: c.verificat, violations: c.violations, motiu: c.motiu});
+    dPintaCheck(); dPintaVista(v);
+  } catch(e){
+    if(seq === DS.seq){ dErr(e.message); Q('#d-viol').innerHTML = `<div class="panel bad">${escD(e.message)}</div>`; }
+  }
+}
+async function dCompara(){
+  if(!DS.orig){ Q('#d-fixnote').textContent = 'Primer fixa un original amb el botó «Fixa com a original».'; return; }
+  Q('#d-compare').hidden = false;
+  const ob = dBody(DS.orig), ab = dBody();
+  try{
+    const [oc, ov, ac, av] = await Promise.all([api('/api/design/check', ob), api('/api/design/view', ob),
+                                               api('/api/design/check', ab), api('/api/design/view', ab)]);
+    Q('#c-o-t').textContent = 'Original · ' + (oc.nom || '—') + ' · ' + (oc.hash || '—');
+    Q('#c-a-t').textContent = 'Actual · ' + (ac.nom || '—') + ' · ' + (ac.hash || '—');
+    Q('#c-o-viol').innerHTML = violHtml(oc.verificat, oc.motiu, oc.violations);
+    Q('#c-a-viol').innerHTML = violHtml(ac.verificat, ac.motiu, ac.violations);
+    Q('#c-o-xy').innerHTML = ov.xy_svg;
+    Q('#c-a-xy').innerHTML = av.xy_svg;
+    Q('#d-compare').scrollIntoView({behavior: 'smooth', block: 'start'});
+  } catch(e){ Q('#d-fixnote').textContent = e.message; }
+}
+
+Q('#d-def').onchange = () => { if(Q('#d-def').value) dCarrega({id: Q('#d-def').value}); };
+Q('#d-upload').onclick = async () => {
+  const f1 = Q('#d-datf').files[0], f2 = Q('#d-jsonf').files[0];
+  if(!f1){ dErr('tria almenys el .dat'); return; }
+  const dat_text = await f1.text();
+  const json_text = f2 ? await f2.text() : null;
+  await dCarrega({dat_text, json_text});
+};
+Q('#d-anells').addEventListener('input', e => { if(e.target.matches('input,select') && DS.cur) dLeAnells(); });
+Q('#d-anells').addEventListener('change', e => { if(e.target.matches('select') && DS.cur) dLeAnells(); });
+Q('#d-anells').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if(!b || !DS.cur) return;
+  DS.cur.design.anells.splice(Number(b.dataset.del), 1);
+  DS.cur.editat = true; dPintaAnells(); dPintaJson(); dSchedule();
+});
+Q('#d-addring').onclick = () => {
+  if(!DS.cur){ dErr('primer carrega un disseny'); return; }
+  DS.cur.design.anells = [...(DS.cur.design.anells || []), {r: 5, n: 1, phi: 0, tipus: DS.tipus[0] || 'counterUPC', z: 0}];
+  DS.cur.editat = true; dPintaAnells(); dPintaJson(); dSchedule();
+};
+Q('#d-json').addEventListener('input', () => {
+  try{
+    const d = JSON.parse(Q('#d-json').value);
+    Q('#d-jsonerr').textContent = '';
+    if(!DS.cur) DS.cur = {origen: null, notes: [], nom: null, hash: null, verificat: false, violations: [], motiu: '', id: null, dat_text: null, json_text: null};
+    DS.cur.design = d; DS.cur.editat = true;
+    dPintaAnells(); dSchedule();
+  } catch(err){ Q('#d-jsonerr').textContent = 'JSON invàlid: ' + err.message; }
+});
+Q('#d-ask').onclick = async () => {
+  const p = Q('#d-prompt').value.trim(); if(!p) return;
+  Q('#d-ask').disabled = true; Q('#d-llm').textContent = 'demanant al model… (pot trigar)';
+  try{
+    const r = await api('/api/design/ask', {prompt: p, campanya: Q('#d-askcamp').value || null});
+    if(r.ok){
+      dAdopta({design: r.design, editat: true, origen: null,
+               notes: ['Disseny proposat pel model local a partir del text: no és de neudet. Verificat igual que els altres.']});
+      Q('#d-llm').textContent = `proposat en ${r.attempts} intent(s)`;
+    } else {
+      Q('#d-llm').innerHTML = `<span class="err">no ha convergit (${r.attempts} intents)${r.reason ? ': ' + escD(r.reason) : ''}</span>` +
+        (r.errors && r.errors.length ? '<ul class="msgs">' + r.errors.map(e => `<li>${escD(e)}</li>`).join('') + '</ul>' : '');
+    }
+  } catch(e){ dErr(e.message); }
+  finally { Q('#d-ask').disabled = !(DS.meta && DS.meta.llm && DS.meta.llm.ok); }
+};
+Q('#d-fix').onclick = () => {
+  if(!DS.cur) return;
+  DS.orig = JSON.parse(JSON.stringify(DS.cur));
+  Q('#d-fixnote').textContent = `Original fixat: ${DS.orig.nom || '—'}${DS.orig.hash ? ' (' + DS.orig.hash + ')' : ''}`;
+};
+Q('#d-cmp').onclick = dCompara;
+Q('#d-baixa').onclick = async () => {
+  if(!DS.cur) return;
+  const b = {...dBody(), campanya: Q('#d-camp').value || null, energia_mev: Q('#d-energia').value.trim() || null};
+  try{
+    const r = await fetch('/api/design/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
+    if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + r.status)); }
+    const blob = await r.blob();
+    const m = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = m ? m[1] : 'disseny.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch(e){ dErr(e.message); }
+};
+
+// ── Resultats ─────────────────────────────────────────────────────────────────
+const RS = {entries: [], vista: null};
+
+function rErr(msg){ Q('#r-etapes').innerHTML = `<div class="panel bad">${escD(msg)}</div>`; }
+async function rLoad(){
+  const c = DS.cur;
+  if(!c || !c.hash){
+    Q('#r-dis').innerHTML = '<span class="hint">Cap disseny carregat. Carrega’n un a la pestanya Disseny.</span>';
+    Q('#r-etapes').innerHTML = ''; Q('#r-xy').innerHTML = ''; Q('#r-taula').innerHTML = ''; Q('#r-avisos').innerHTML = '';
+    return;
+  }
+  Q('#r-dis').innerHTML = `<b>${escD(c.nom || '—')}</b><br>hash <code>${escD(c.hash)}</code><br>` +
+    (c.editat ? '<span class="tag t-wa">editat: disseny nou</span>' : '<span class="tag t-ok">de neudet</span>');
+  const base = await api('/api/results?hash=' + encodeURIComponent(c.hash));
+  RS.entries = base.entries;
+  const oks = RS.entries.filter(e => e.status === 'ok');
+  const sel = Q('#r-stage'), prev = sel.value;
+  sel.innerHTML = oks.map(e => `<option value="${escD(e.path)}">${escD(e.campanya)} · ${escD(e.etapa)} (${escD(e.motor || '')})</option>`).join('');
+  if(prev && oks.some(e => e.path === prev)) sel.value = prev;
+  rEnergies();
+  await rVista();
+}
+function rEnergies(){
+  const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
+  const en = e ? e.energies_MeV : [];
+  const sel = Q('#r-energia'), prev = sel.value;
+  sel.innerHTML = en.map(x => `<option value="${x}">${x} MeV</option>`).join('');
+  if(prev && en.includes(Number(prev))) sel.value = prev;
+  else if(en.includes(1)) sel.value = '1';
+}
+async function rVista(){
+  const c = DS.cur; if(!c || !c.hash) return;
+  const q = new URLSearchParams({hash: c.hash});
+  const st = Q('#r-stage').value, en = Q('#r-energia').value;
+  if(st) q.set('stage', st);
+  if(en) q.set('energia', en);
+  const r = await api('/api/results?' + q.toString());
+  RS.entries = r.entries; RS.vista = r.vista;
+  rPinta();
+}
+function metricsHtml(m){
+  const keys = ['eps_mitja','cv','eps_min','res_E_k','err_grups','pareto_rang','robusta','ronda','n'];
+  const chips = keys.filter(k => m[k] !== undefined && m[k] !== null && m[k] !== '')
+    .map(k => `<span class="chip">${escD(k)} <b>${escD(typeof m[k] === 'number' ? fmtNum(m[k]) : m[k])}</b></span>`).join('');
+  return chips ? `<div class="chips">${chips}</div>` : '';
+}
+function rCard(e){
+  const ok = e.status === 'ok';
+  const tag = ok ? '<span class="tag t-ok">amb dades per tub</span>' : `<span class="tag t-nt">${escD(e.status)}</span>`;
+  const prov = e.provenance ? (e.provenance.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>') : '';
+  const motius = e.provenance && !e.provenance.citable
+    ? `<ul class="msgs">${e.provenance.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : '';
+  const motiu = !ok && e.motiu ? `<div class="hint" style="padding:8px 14px 0">${escD(e.motiu)}</div>` : '';
+  const warns = (e.warnings || []).map(w => `<div class="panel warn" style="margin:8px 14px 0">${escD(w)}</div>`).join('');
+  return `<article class="card" style="margin-bottom:12px">
+    <header><h3>${escD(e.campanya)} · ${escD(e.etapa)}</h3>${tag}${prov}
+    <span class="meta">${escD(e.motor || '')}${e.nom ? ' · ' + escD(e.nom) : ''}</span></header>
+    ${motiu}${motius}${warns}${e.metrics ? metricsHtml(e.metrics) : ''}</article>`;
+}
+function rTaula(){
+  const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
+  if(!e) return '';
+  const en = e.energies_MeV, sel = Q('#r-energia').value;
+  const hl = k => String(en[k]) === sel ? 'hl' : '';
+  const head = '<th>#</th><th>tipus</th><th>x, y, z (cm)</th>' + en.map((x, k) => `<th class="${hl(k)}">${x} MeV</th>`).join('');
+  const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${t.x}, ${t.y}, ${t.z}</td>` +
+    en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
+  return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+function rPinta(){
+  const c = DS.cur, ents = RS.entries;
+  // primer les que tenen dades per tub (i les de Geant4 sense, que neudet vol veure);
+  // les etapes que només tenen el hash al candidats.csv, plegades en una línia
+  const sols = ents.filter(e => e.status === 'sense resultats per tub');
+  const resta = ents.filter(e => e.status !== 'sense resultats per tub')
+    .sort((a, b) => (a.status === 'ok' ? 0 : 1) - (b.status === 'ok' ? 0 : 1));
+  const plegades = sols.length
+    ? `<details class="panel"><summary>${sols.length} etapes més amb aquest hash al candidats.csv, sense resultats per tub</summary>${sols.map(rCard).join('')}</details>` : '';
+  Q('#r-etapes').innerHTML = ents.length
+    ? resta.map(rCard).join('') + plegades
+    : (c && c.editat
+        ? '<div class="panel warn">disseny nou: sense resultats (no es simula des de la UI)</div>'
+        : '<div class="panel">Cap etapa de neudet té aquest hash.</div>');
+  const v = RS.vista;
+  Q('#r-xy').innerHTML = v ? v.xy_svg : '';
+  Q('#r-avisos').innerHTML = v && v.avisos_valors && v.avisos_valors.length
+    ? `<div class="panel warn">${v.avisos_valors.map(escD).join('<br>')}</div>` : '';
+  Q('#r-taula').innerHTML = rTaula();
+}
+Q('#r-stage').onchange = async () => { rEnergies(); await rVista(); };
+Q('#r-energia').onchange = () => rVista();
+Q('#r-go').onclick = () => rVista();
+
+showTab((location.hash || '#sim').slice(1));
 </script>
 </body></html>
