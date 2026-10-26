@@ -2,7 +2,8 @@
 
 Rutes: `/` (la pàgina), `/api/meta`, `/api/llm`, `/api/render`, `/api/ask` (Simulació) i
 `/api/design/{meta,load,check,view,export,ask}` + `/api/results` (Disseny i Resultats) i
-`/api/campanya/{schema,defaults,yaml,comprova,compta}` (Definició de campanya).
+`/api/campanya/{schema,defaults,yaml,comprova,compta}` (Definició de campanya) i
+`/api/campanyes`, `/api/campanya/{vista,carrega,fitxer}` (Campanyes: la campanya com a conjunt).
 Els errors d'un disseny o d'un resultat són un 400 amb el motiu (`{"error": …}`), no un
 forat: el que la pàgina ha de dir és què falta.
 """
@@ -17,6 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import api
 from .api import ask, llm_status, meta, render_all
+from ..mcgen import campanya_vista as CV
 
 PAGE = (Path(__file__).resolve().parent / "static" / "index.html").read_text()
 
@@ -74,8 +76,36 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/results":
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.results, q.get("hash", ""), q.get("stage") or None, q.get("energia"))
+        elif path == "/api/campanyes":
+            self._tracta(api.campanyes)
+        elif path == "/api/campanya/vista":
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            self._tracta(api.campanya_vista, q.get("id", ""))
+        elif path == "/api/campanya/carrega":
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            self._tracta(api.campanya_carrega, q.get("id", ""))
+        elif path == "/api/campanya/fitxer":
+            self._fitxer_campanya(parse_qs(url.query))
         else:
             self._json({"error": f"no hi ha {path}"}, 404)
+
+    def _fitxer_campanya(self, q: Dict[str, Any]) -> None:
+        """Un fitxer d'una campanya (figura, report, yaml). Fora de la campanya, un 403; sense fitxer, un 404."""
+        try:
+            f = api.campanya_fitxer(q.get("id", [""])[0], q.get("rel", [""])[0])
+        except CV.Prohibit as exc:
+            self._json({"error": str(exc)}, 403)
+            return
+        except _ERRORS_D_ENTRADA as exc:
+            self._json({"error": str(exc) or type(exc).__name__}, 400)
+            return
+        if not f.is_file():
+            self._json({"error": f"no hi ha {f.name} a la campanya"}, 404)
+            return
+        extra = {"X-Content-Type-Options": "nosniff"}
+        if f.suffix.lower() == ".svg":
+            extra["Content-Security-Policy"] = "sandbox"       # un SVG servit no executa res
+        self._send(200, f.read_bytes(), CV.tipus_de(f), extra)
 
     def do_POST(self) -> None:                                 # noqa: N802
         try:

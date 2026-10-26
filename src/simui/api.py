@@ -37,6 +37,7 @@ from ..mcgen import design_view as VIEW
 from ..mcgen import results_tub as RES
 from ..mcgen import campanya_form as CF
 from ..mcgen import campanya_check as CC
+from ..mcgen import campanya_vista as CV
 from ..mcgen.paths import repo_root
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "mcgen" / "examples"
@@ -355,3 +356,31 @@ def campanya_compta(body: Dict[str, Any]) -> Dict[str, Any]:
     text = CF.to_yaml(body.get("form"))
     return CC.compta(text, body.get("etapa") or None)
 
+
+# ── Campanyes (contracte §6, CAMP-2): la campanya com a conjunt, des de neudet ──
+
+def campanyes() -> Dict[str, Any]:
+    """Les campanyes de neudet (`disseny/campanyes/*/campanya.yaml`), amb estat i si tenen manifest."""
+    return {"campanyes": CV.llista()}
+
+
+def campanya_vista(id_: str) -> Dict[str, Any]:
+    """La campanya com a dades: etapes, candidats, Pareto, certificació, judici i report (`campanya_vista.vista`).
+    Sense `campanya_ui.json` és provisional, i ho diu."""
+    return CV.vista(CV.dir_de(id_))
+
+
+def campanya_carrega(id_: str) -> Dict[str, Any]:
+    """El `campanya.yaml` de neudet com a formulari, per obrir-lo a la pestanya Campanya. No escriu res."""
+    d = CV.dir_de(id_)
+    return {"id": id_, "form": CF.de_fitxer(d / "campanya.yaml")}
+
+
+def campanya_fitxer(id_: str, rel: str) -> Path:
+    """El fitxer `rel` de la campanya `id_` (o un report que llista el manifest). Un id que no és cap campanya és
+    un 403: no hi ha res a servir fora de `disseny/campanyes/`."""
+    try:
+        d = CV.dir_de(id_)
+    except CV.CampanyaError as exc:
+        raise CV.Prohibit(str(exc)) from exc
+    return CV.fitxer(d, rel)

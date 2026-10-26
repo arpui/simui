@@ -139,6 +139,17 @@ svg.bloc{width:200px;height:200px;background:#fff;border:1px solid var(--line);m
 .compta{margin:8px 0}
 details.fold{margin:8px 0}
 details.fold summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+/* campanyes */
+a.btn{display:inline-block;border:1px solid var(--accent);color:var(--accent);background:#fff;padding:6px 12px;
+border-radius:4px;text-decoration:none;margin:4px 8px 4px 0;font-weight:700;font-size:13px}
+a.btn:hover{background:#eef5f8}
+table.tbl tr.kc:hover td{background:#f1f6f9}
+.kgal{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.kgal a{display:block;border:1px solid var(--line);border-radius:4px;background:#fff;padding:4px;
+text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
+.kgal img{display:block;height:150px;width:auto;max-width:100%;object-fit:contain}
+.svgbox text.ax{font-size:11px;fill:var(--muted)}
+.svgbox text.ax2{font-size:12px;fill:var(--ink)}
 </style></head><body>
 
 <header class="top">
@@ -148,6 +159,7 @@ details.fold summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
   <nav class="ptabs" role="tablist">
     <button class="ptab on" data-tab="sim">Simulació</button>
     <button class="ptab" data-tab="campanya">Campanya</button>
+    <button class="ptab" data-tab="campanyes">Campanyes</button>
     <button class="ptab" data-tab="disseny">Disseny</button>
     <button class="ptab" data-tab="resultats">Resultats</button>
   </nav>
@@ -251,6 +263,21 @@ details.fold summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
   <h2>Comprovació de neudet</h2>
   <div id="c-res"><div class="hint">Encara no s'ha comprovat. Premeu «Comprova amb neudet».</div></div>
 </section>
+</main>
+</div>
+<div class="pg" id="pg-campanyes" hidden>
+<main>
+<aside>
+  <h2>Campanya</h2>
+  <label>de neudet <span class="hint">· <code>disseny/campanyes/</code></span></label>
+  <select id="k-camp"></select>
+  <div class="hint" id="k-info"></div>
+  <h2>Què es mostra</h2>
+  <p class="hint">La campanya tal com la deixa neudet: definició, certificació, les etapes (xarxa i Geant4) amb els seus candidats,
+  el Pareto, les figures, el judici i el report.</p>
+  <p class="hint">Cap número es recalcula aquí. Un clic a un candidat obre el seu resultat per tub a la pestanya Resultats.</p>
+</aside>
+<section class="out" id="k-out"><div class="hint">Carregant les campanyes de neudet…</div></section>
 </main>
 </div>
 <div class="pg" id="pg-disseny" hidden>
@@ -1080,6 +1107,210 @@ Q('#c-baixa').onclick = cBaixa;
 });
 </script>
 <script>
+// ── Campanyes (contracte §6): la campanya com a conjunt, des de `campanya_ui.json` de neudet (o provisional) ──
+// Cap número es recalcula aquí: el Pareto, la robustesa, els ε i les sigmes són els del candidats.csv de neudet.
+const KC = {lista: [], id: null, v: null, ordre: {}};
+const kEnc = encodeURIComponent;
+function kFit(rel){ return '/api/campanya/fitxer?id=' + kEnc(KC.id) + '&rel=' + kEnc(rel); }
+function kErr(msg){ document.getElementById('k-out').innerHTML = `<div class="panel bad pre">${escD(msg)}</div>`; }
+function kTagEstat(e){
+  return e === 'draft' ? '<span class="tag t-wa">draft</span>'
+    : e === 'definitiva' ? '<span class="tag t-ok">definitiva</span>'
+    : `<span class="tag t-nt">${escD(e)}</span>`;
+}
+async function kInit(){
+  if(KC.lista.length) return;
+  KC.lista = (await api('/api/campanyes')).campanyes;
+  const sel = document.getElementById('k-camp');
+  if(!KC.lista.length){ kErr('neudet no té cap campanya a disseny/campanyes/ (cal un campanya.yaml).'); return; }
+  sel.innerHTML = KC.lista.map(c => `<option value="${escD(c.id)}">${escD(c.id)} · ${escD(c.estat)}${c.provisional ? ' · provisional' : ''}</option>`).join('');
+  // per defecte: la que té manifest; si no n'hi ha, la que és en draft (el flux que s'està provant); si no, la primera
+  const per_defecte = KC.lista.find(c => c.manifest) || KC.lista.find(c => c.estat === 'draft') || KC.lista[0];
+  await kCarrega(per_defecte.id);
+}
+async function kCarrega(id){
+  KC.id = id;
+  document.getElementById('k-camp').value = id;
+  document.getElementById('k-out').innerHTML = '<div class="hint">Llegint la campanya de neudet…</div>';
+  KC.v = await api('/api/campanya/vista?id=' + kEnc(id));
+  kPinta();
+}
+function kPinta(){
+  const v = KC.v, out = [];
+  out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${kTagEstat(v.estat)}` +
+    (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
+  if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
+  v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
+  out.push(kDefinicio(v));
+  out.push('<h2>Certificació</h2>' + kCert(v));
+  out.push('<h2>Etapes</h2>' + (v.etapes.map(kEtapa).join('') || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
+  out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
+  out.push('<h2>Report</h2>' + kReport(v));
+  document.getElementById('k-out').innerHTML = out.join('');
+  document.getElementById('k-info').innerHTML = `${kTagEstat(v.estat)} · ${v.etapes.length} etapes` +
+    (v.provisional ? '<br>provisional: sense <code>campanya_ui.json</code>' : '<br>amb <code>campanya_ui.json</code>');
+}
+function kDefinicio(v){
+  const d = v.definicio || {};
+  const links = [d.yaml && ['campanya.yaml', d.yaml], d.md && ['DEFINICIO.md', d.md]].filter(Boolean)
+    .map(([t, rel]) => `<a class="btn" href="${kFit(rel)}" target="_blank" rel="noopener">${escD(t)}</a>`).join('');
+  return `<h2>Definició</h2><div>${links}<button class="ghost" data-k="formulari">obre al formulari</button>` +
+    (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>' +
+    '<div class="hint">Carrega el campanya.yaml a la pestanya Campanya. Des d\'allà es pot comprovar amb neudet i desar un esborrany a simphy; no es desa res a neudet.</div>';
+}
+function kCert(v){
+  const c = v.certificacio;
+  if(!c || !c.disponible) return `<div class="panel warn">Certificació no disponible: ${escD((c && c.motiu) || '')}</div>`;
+  const etapes = Object.entries(c.etapes || {}).map(([k, x]) => `${escD(k)}: ${x.valids} vàlids, ${x.invalids} invàlids`).join(' · ');
+  return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cPintaCert(c);
+}
+function kEtapa(e){
+  const eix = KC.v.pareto.eixos;
+  const meta = [`${e.n_candidats} candidats`, e.n_csv !== e.n_candidats ? `${e.n_csv} al csv` : null,
+    e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null]
+    .filter(Boolean).join(' · ');
+  return `<article class="card" style="margin-bottom:14px">
+    <header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span>` +
+    (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>') +
+    `<span class="meta">${escD(meta)}</span></header>
+    ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
+    <div class="tblw">${kTaula(e)}</div>
+    ${eix ? kPareto(e, eix) : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`}
+    ${e.figures.length ? kGaleria(e.figures) : ''}
+  </article>`;
+}
+function kTaula(e){
+  const cols = [{k: 'nom', t: 'nom'}, {k: 'hash', t: 'hash'}, {k: 'ronda', t: 'ronda'}, {k: 'n', t: 'n'}, {k: 'pareto_rang', t: 'rang Pareto'},
+    {k: 'robusta', t: 'robusta'},
+    ...KC.v.metriques.filter(m => e.columnes.includes(m))
+      .map(m => ({k: m, t: m, sig: e.columnes.includes(m + '_sig') ? m + '_sig' : null})),
+    {k: 'g4', t: 'verificat a G4'}];
+  const ord = KC.ordre[e.nom] || {k: 'pareto_rang', asc: true};
+  const val = (c, k) => k === 'g4' ? (c.g4 || []).length : c[k];
+  const rows = [...e.candidats].sort((a, b) => kCmp(val(a, ord.k), val(b, ord.k), ord.asc));
+  const head = cols.map(c => `<th data-st="${escD(e.nom)}" data-c="${escD(c.k)}" style="cursor:pointer" title="ordena">${escD(c.t)}${ord.k === c.k ? (ord.asc ? ' ▲' : ' ▼') : ''}</th>`).join('');
+  const body = rows.map(c => `<tr class="kc" data-h="${escD(c.hash)}" data-n="${escD(c.nom)}" title="obre el resultat per tub">` +
+    cols.map(col => `<td>${kCel(c, col)}</td>`).join('') + '</tr>').join('');
+  return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function kCel(c, col){
+  if(col.k === 'g4') return (c.g4 || []).length
+    ? c.g4.map(g => `<span class="tag t-ok">${escD(g.etapa)}</span> <span class="hint">ε ${fmtNum(g.eps_mitja)}</span>`).join(' ')
+    : '<span class="hint">—</span>';
+  const v = c[col.k];
+  if(col.k === 'nom' || col.k === 'hash') return escD(v ?? '—');
+  if(typeof v !== 'number') return v == null || v === '' ? '<span class="hint">—</span>' : escD(v);
+  let s = fmtNum(v);
+  if(col.sig && typeof c[col.sig] === 'number') s += ` <span class="hint">± ${fmtNum(c[col.sig])}</span>`;
+  return s;
+}
+function kCmp(a, b, asc){
+  const na = a == null || a === '', nb = b == null || b === '';
+  if(na || nb) return na === nb ? 0 : (na ? 1 : -1);              // els buits, sempre al final
+  const r = (typeof a === 'number' && typeof b === 'number') ? a - b : String(a).localeCompare(String(b));
+  return asc ? r : -r;
+}
+function kPareto(e, eix){
+  const [ex, ey] = eix, W = 560, H = 340, L = 64, R = 30, T = 14, B = 46;
+  const pts = e.candidats.map(c => ({c, x: c[ex.metrica], y: c[ey.metrica]}))
+    .filter(p => typeof p.x === 'number' && typeof p.y === 'number');
+  const sense = e.candidats.length - pts.length;
+  if(!pts.length) return `<div class="panel">Cap candidat amb ${escD(ex.metrica)} i ${escD(ey.metrica)}.</div>`;
+  const dom = vals => {
+    const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1;
+    return [lo - pad, hi + pad];
+  };
+  const [x0, x1] = dom(pts.map(p => p.x)), [y0, y1] = dom(pts.map(p => p.y));
+  const sx = v => L + (v - x0) / (x1 - x0) * (W - L - R), sy = v => H - B - (v - y0) / (y1 - y0) * (H - T - B);
+  let g = '';
+  for(let k = 0; k <= 4; k++){
+    const vx = x0 + (x1 - x0) * k / 4, px = sx(vx);
+    const anc = k === 0 ? 'start' : k === 4 ? 'end' : 'middle';   // l'últim rètol no es talla pel marge
+    g += `<line x1="${px}" x2="${px}" y1="${T}" y2="${H - B}" style="stroke:var(--line)"/>` +
+      `<text x="${px}" y="${H - B + 16}" text-anchor="${anc}" class="ax">${fmtNum(vx)}</text>`;
+    const vy = y0 + (y1 - y0) * k / 4, py = sy(vy);
+    g += `<line x1="${L}" x2="${W - R}" y1="${py}" y2="${py}" style="stroke:var(--line)"/>` +
+      `<text x="${L - 6}" y="${py + 4}" text-anchor="end" class="ax">${fmtNum(vy)}</text>`;
+  }
+  const sentit = s => s === 'max' ? 'màx.' : 'mín.';
+  g += `<text x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle" class="ax2">${escD(ex.metrica)} (${sentit(ex.sentit)})</text>`;
+  g += `<text transform="translate(14 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="ax2">${escD(ey.metrica)} (${sentit(ey.sentit)})</text>`;
+  const dots = pts.map(({c, x, y}) => {
+    const fr = c.pareto_rang === 0, g4 = (c.g4 || []).length > 0;
+    const ring = g4 ? `<circle cx="${sx(x)}" cy="${sy(y)}" r="9" style="fill:none;stroke:var(--warn);stroke-width:2;pointer-events:none"/>` : '';
+    const tip = `${c.nom} · ${ex.metrica} ${fmtNum(x)} · ${ey.metrica} ${fmtNum(y)}` +
+      (c.pareto_rang != null ? ` · rang ${c.pareto_rang}` : '') + (g4 ? ' · verificat a G4' : '');
+    return ring + `<circle class="kpt" data-h="${escD(c.hash)}" data-n="${escD(c.nom)}" cx="${sx(x)}" cy="${sy(y)}" r="${fr ? 6 : 4.5}" ` +
+      `style="fill:${fr ? 'var(--accent)' : 'var(--muted)'};opacity:${fr ? 1 : .6};cursor:pointer"><title>${escD(tip)}</title></circle>`;
+  }).join('');
+  return `<div class="svgbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pareto de ${escD(e.nom)}">${g}${dots}</svg></div>` +
+    `<div class="hint">Pareto: ${escD(ex.metrica)} ${sentit(ex.sentit)} contra ${escD(ey.metrica)} ${sentit(ey.sentit)} ` +
+    `Blau: rang Pareto 0 (frontera). Gris: la resta. Anell taronja: verificat a Geant4.` +
+    (sense ? ` ${sense} candidats sense valor en aquests eixos.` : '') + '</div>';
+}
+function kGaleria(figs){
+  return `<div class="hint" style="margin-top:8px">Figures de l'etapa</div><div class="kgal">` +
+    figs.map(f => `<a href="${kFit(f)}" target="_blank" rel="noopener" title="${escD(f)}"><img loading="lazy" src="${kFit(f)}" alt="${escD(f)}"><span>${escD(f.split('/').pop())}</span></a>`).join('') +
+    '</div>';
+}
+function kReport(v){
+  if(!v.report.length) return '<div class="hint">Sense report a docs/site/report/ que nomeni la campanya.</div>';
+  const botons = v.report.map(r => `<a class="btn" href="${kFit(r)}" target="_blank" rel="noopener">${r.endsWith('.pdf') ? 'obre el PDF' : r.endsWith('.md') ? 'obre el .md' : escD(r)}</a>`).join('');
+  return `<div>${botons}</div><div class="hint">${escD(v.report.join(' · '))}</div>`;
+}
+// Markdown mínim per al judici: títols, llistes, negreta i codi. El text ja és escapat abans.
+function kMd(t){
+  const inl = s => s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const out = [];
+  let para = [], lst = null;
+  const fin = () => {
+    if(para.length){ out.push(`<p>${inl(para.join(' '))}</p>`); para = []; }
+    if(lst){ out.push(`</${lst}>`); lst = null; }
+  };
+  for(const raw of escD(t).split('\n')){
+    const l = raw.trim();
+    let m;
+    if(!l){ fin(); continue; }
+    if((m = /^(#{1,3})\s+(.*)$/.exec(l))){ fin(); const h = m[1].length + 3; out.push(`<h${h}>${inl(m[2])}</h${h}>`); continue; }
+    if((m = /^[-*]\s+(.*)$/.exec(l))){
+      if(lst !== 'ul'){ fin(); out.push('<ul>'); lst = 'ul'; }
+      out.push(`<li>${inl(m[1])}</li>`); continue;
+    }
+    if(lst){ fin(); }
+    para.push(l);
+  }
+  fin();
+  return out.join('');
+}
+function kObreResultats(hash, nom){
+  RS.extern = {nom, hash, editat: false, origen: 'campanya ' + KC.id};
+  showTab('resultats');
+}
+async function kObreFormulari(){
+  const r = await api('/api/campanya/carrega?id=' + kEnc(KC.id));
+  await cInit();
+  CP.f = r.form; CP.etapa = Object.keys(r.form.etapes || {})[0] || null; CP.res = null;
+  cPintaForm(); cYaml();
+  document.getElementById('c-res').innerHTML = '';
+  document.getElementById('c-desat').innerHTML = `<div class="panel">Carregada la campanya <code>${escD(KC.id)}</code> de neudet. ` +
+    'Els canvis no es desen a neudet: «Desa l\'esborrany» els escriu a simphy.</div>';
+  showTab('campanya');
+}
+document.getElementById('k-out').addEventListener('click', e => {
+  const th = e.target.closest('th[data-st]');
+  if(th){
+    const st = th.dataset.st, c = th.dataset.c, o = KC.ordre[st] || {k: 'pareto_rang', asc: true};
+    KC.ordre[st] = o.k === c ? {k: c, asc: !o.asc} : {k: c, asc: true};
+    kPinta(); return;
+  }
+  const tr = e.target.closest('tr.kc, circle.kpt');
+  if(tr){ kObreResultats(tr.dataset.h, tr.dataset.n); return; }
+  const b = e.target.closest('button[data-k="formulari"]');
+  if(b) kObreFormulari().catch(err => kErr(err.message));
+});
+document.getElementById('k-camp').addEventListener('change', e => kCarrega(e.target.value).catch(err => kErr(err.message)));
+</script>
+<script>
 // ── pestanyes ─────────────────────────────────────────────────────────────────
 // La de Disseny i la de Resultats parlen amb `/api/design/*` i `/api/results`. Cap número
 // no es calcula aquí: el que surt és el que diu neudet (vegeu `docs/site/ui.md`).
@@ -1087,6 +1318,7 @@ const Q = s => document.querySelector(s), QA = s => [...document.querySelectorAl
 const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const HEAD = {
   sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
+  campanyes: ['Campanyes', "La campanya com a conjunt, tal com la deixa neudet: definició, certificació, etapes amb el Pareto, figures, judici i report. Res no es recalcula aquí."],
   campanya: ['Definició de campanya', "Un campanya.yaml d'esborrany, amb les claus de neudet. neudet en diu quins candidats són vàlids; aquí no es calcula res."],
   disseny: ['Disseny de detectors', "Un disseny de neudet, editable: verificat, visualitzat i exportat. No executa cap simulació."],
   resultats: ['Resultats per tub', "Els números de neudet per tub i energia, sense recalcular-los. Cada xifra porta la seva procedència."]};
@@ -1104,6 +1336,7 @@ function showTab(name){
   Q('#h-title').textContent = HEAD[name][0]; Q('#h-sub').textContent = HEAD[name][1];
   history.replaceState(null, '', '#' + name);
   if(name === 'campanya') cInit().catch(e => cErr(e.message));
+  if(name === 'campanyes') kInit().catch(e => kErr(e.message));
   if(name === 'disseny') dInit().catch(e => dErr(e.message));
   if(name === 'resultats') rLoad().catch(e => rErr(e.message));
 }
@@ -1189,6 +1422,7 @@ function dLeAnells(){
   dPintaJson(); dSchedule();
 }
 function dAdopta(r, extra){
+  RS.extern = null;
   DS.cur = {design: r.design, editat: !!r.editat, id: null, dat_text: null, json_text: null,
             origen: r.origen || null, notes: r.notes || [], nom: null, hash: null,
             verificat: false, violations: [], motiu: '', ...extra};
@@ -1329,11 +1563,11 @@ Q('#d-baixa').onclick = async () => {
 };
 
 // ── Resultats ─────────────────────────────────────────────────────────────────
-const RS = {entries: [], vista: null, comp: null};
+const RS = {entries: [], vista: null, comp: null, extern: null};
 
 function rErr(msg){ Q('#r-etapes').innerHTML = `<div class="panel bad">${escD(msg)}</div>`; }
 async function rLoad(){
-  const c = DS.cur;
+  const c = RS.extern || DS.cur;
   if(!c || !c.hash){
     Q('#r-dis').innerHTML = '<span class="hint">Cap disseny carregat. Carrega’n un a la pestanya Disseny.</span>';
     Q('#r-etapes').innerHTML = ''; Q('#r-xy').innerHTML = ''; Q('#r-taula').innerHTML = ''; Q('#r-avisos').innerHTML = '';
@@ -1341,7 +1575,8 @@ async function rLoad(){
     return;
   }
   Q('#r-dis').innerHTML = `<b>${escD(c.nom || '—')}</b><br>hash <code>${escD(c.hash)}</code><br>` +
-    (c.editat ? '<span class="tag t-wa">editat: disseny nou</span>' : '<span class="tag t-ok">de neudet</span>');
+    (c.editat ? '<span class="tag t-wa">editat: disseny nou</span>' : '<span class="tag t-ok">de neudet</span>') +
+    (c.origen && String(c.origen).startsWith('campanya ') ? `<br><span class="tag t-nt">des de Campanyes: ${escD(c.origen.slice(9))}</span>` : '');
   const base = await api('/api/results?hash=' + encodeURIComponent(c.hash));
   RS.entries = base.entries;
   const oks = RS.entries.filter(e => e.status === 'ok');
@@ -1360,7 +1595,7 @@ function rEnergies(){
   else if(en.includes(1)) sel.value = '1';
 }
 async function rVista(){
-  const c = DS.cur; if(!c || !c.hash) return;
+  const c = RS.extern || DS.cur; if(!c || !c.hash) return;
   const q = new URLSearchParams({hash: c.hash});
   const st = Q('#r-stage').value, en = Q('#r-energia').value;
   if(st) q.set('stage', st);

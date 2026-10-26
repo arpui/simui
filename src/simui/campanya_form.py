@@ -276,15 +276,20 @@ def _jsonable(x: Any) -> Any:
     return x
 
 
-def defaults() -> Dict[str, Any]:
-    """El `campanya.yaml` de c04_draft tal com és a neudet (dict, dates com a text ISO)."""
-    f = DES.neudet_root() / C04_YAML
+def de_fitxer(f: Path) -> Dict[str, Any]:
+    """Un `campanya.yaml` de neudet com a dict per al formulari (dates com a text ISO). Mai no l'escriu."""
+    f = Path(f)
     if not f.exists():
-        raise DES.DesignError(f"no trobo {f}: la campanya de referència de neudet (c04_draft) falta")
+        raise DES.DesignError(f"no trobo {f}: cal un campanya.yaml de neudet")
     data = yaml.safe_load(f.read_text())
     if not isinstance(data, dict):
         raise DES.DesignError(f"{f}: el campanya.yaml no és un diccionari")
     return _jsonable(data)
+
+
+def defaults() -> Dict[str, Any]:
+    """El `campanya.yaml` de c04_draft tal com és a neudet (dict, dates com a text ISO)."""
+    return de_fitxer(DES.neudet_root() / C04_YAML)
 
 
 def _fitxa():
