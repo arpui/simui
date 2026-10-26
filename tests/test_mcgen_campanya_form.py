@@ -16,6 +16,8 @@ Sense neudet, els tests que en necessiten es salten; els de forma (errors, agrup
 """
 from __future__ import annotations
 
+import json
+
 import datetime as dt
 import sys
 from pathlib import Path
@@ -180,15 +182,18 @@ def test_tubs_del_catalog_sense_registre_de_validacio():
         assert all("CAMP-1" in t["estat"] for t in s["tipus_tub"])
 
 
-def test_registre_de_validacio_si_existeix(tmp_path, monkeypatch):
-    """Si hi ha `validacions.json`, la marca surt del fitxer; les que no hi són no es marquen."""
+def test_registre_de_validacio_ve_de_neudet(tmp_path, monkeypatch):
+    """La marca de cada tub la decideix neudet (`fitxa._entrada_tub`: àlies i patrons), del seu registre."""
     _neudet_o_skip()
-    (tmp_path / "validacions.json").write_text('{"lnd_252285": {"validat": true}}')
+    (tmp_path / "validacions.json").write_text(json.dumps({"versio": 1, "entrades": {
+        "tub:lnd_252285": {"estat": "validat", "motiu": "V-TUB"},
+        "tub:lnd_sk*": {"estat": "no_validat", "motiu": "cal banc"}}}))
     monkeypatch.setattr(DC, "config_dir", lambda: tmp_path)
     s = CF.schema()
-    marques = {t["nom"]: t["validat"] for t in s["tipus_tub"]}
-    assert marques["lnd_252285"] is True
-    assert all(v is None for n, v in marques.items() if n != "lnd_252285")
+    t = {x["nom"]: x for x in s["tipus_tub"]}
+    assert t["lnd_252285"]["estat"] == "validat" and t["lnd_252285"]["validat"] is True
+    sk = [n for n in t if n.startswith("lnd_sk")]
+    assert sk and all(t[n]["estat"] == "no_validat" and t[n]["motiu"] == "cal banc" for n in sk)
     assert s["validacio"]["registre"] is True
 
 
@@ -215,18 +220,32 @@ def test_motius_agrupa_per_text_i_conta_candidats():
     assert CC._motius([]) == []
 
 
-def test_script_de_certificacio_es_torna_sense_interpretar(tmp_path):
-    """Si neudet té `scripts/disseny/comprova_campanya.py`, es corre i la seva sortida és el veredicte."""
+def _script(tmp_path, cos):
     script = tmp_path / "scripts" / "disseny" / "comprova_campanya.py"
     script.parent.mkdir(parents=True)
-    script.write_text("import sys\nprint('ARGS', sys.argv[1:])\nprint('AVÍS: Cd no validat')\n")
-    dir_ = tmp_path / "dir"
-    dir_.mkdir()
-    r = CC._amb_script(script, dir_, "S1")
-    assert r["via"] == "script" and r["llegible_per_maquina"] is False
-    assert "ARGS" in r["sortida"] and "--etapa" in r["sortida"] and "S1" in r["sortida"]
-    assert "AVÍS: Cd no validat" in r["sortida"]
-    assert r["n_valids"] is None
+    script.write_text(cos)
+    dir_ = tmp_path / "w" / "campanya"
+    dir_.mkdir(parents=True)
+    return script, dir_
+
+
+def test_certificacio_es_el_json_de_neudet_tal_com_ve(tmp_path):
+    """`comprova_campanya.py <dir> --json <fitxer>`: el que escriu és la certificació (sense reinterpretar)."""
+    script, dir_ = _script(tmp_path, (
+        "import json, sys\n"
+        "assert sys.argv[2] == '--json'\n"
+        "json.dump({'atura': False, 'draft': True, 'etapes': {'S1': {'valids': 3}},\n"
+        "           'elements': [{'element': 'Cd sobre lnd_252285', 'estat': 'no_validat',\n"
+        "                         'motiu': 'TUB-4', 'document': ''}]}, open(sys.argv[3], 'w'))\n"))
+    c = CC._certifica(script, dir_)
+    assert c["disponible"] is True and c["atura"] is False and c["draft"] is True
+    assert c["elements"][0]["estat"] == "no_validat" and c["elements"][0]["motiu"] == "TUB-4"
+
+
+def test_si_el_script_peta_es_mostra_el_seu_error(tmp_path):
+    script, dir_ = _script(tmp_path, "raise ModuleNotFoundError(\"No module named 'torch'\")\n")
+    c = CC._certifica(script, dir_)
+    assert c["disponible"] is False and "torch" in c["error_sortida"]
 
 
 def test_comprova_buit_es_rebutja():

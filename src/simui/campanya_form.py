@@ -174,6 +174,16 @@ def defaults() -> Dict[str, Any]:
     return _jsonable(data)
 
 
+def _fitxa():
+    """`neudet.disseny.fitxa` (registre i regla de validació de neudet), o None si no hi és."""
+    try:
+        DES._neudet()
+        from neudet.disseny import fitxa
+        return fitxa
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
 def _validacions() -> Optional[Dict[str, Any]]:
     """`validacions.json` del config de neudet, si existeix (CAMP-1). Si no, None: no hi ha registre."""
     f = DC.config_dir() / "validacions.json"
@@ -196,17 +206,20 @@ def schema() -> Dict[str, Any]:
                                "gap": "neudet té aquest generador però simphy no té els seus camps: "
                                       "cal afegir-los a campanya_form.CAMPS"})
     reg = _validacions()
+    F = _fitxa()
     tubs = []
     for e in DC.read_catalog():
         nom = e.get("nom")
-        if reg is None:
-            validat, estat = None, SENSE_REGISTRE
-        elif nom not in reg or not isinstance(reg[nom], dict) or not isinstance(reg[nom].get("validat"), bool):
-            validat, estat = None, "no és al registre de validacions"
+        if reg is None or F is None:
+            validat, estat, motiu = None, SENSE_REGISTRE, ""
         else:
-            validat = reg[nom]["validat"]
-            estat = "validat per a la xarxa" if validat else "no validat"
-        tubs.append({"nom": nom, "alies": e.get("alies"), "validat": validat, "estat": estat})
+            # la regla de quina entrada val (àlies, patrons «lnd_sk*») és de neudet: `fitxa._entrada_tub`
+            _, v = F._entrada_tub(reg, nom)
+            estat = (v or {}).get("estat") or "no_validat"
+            motiu = (v or {}).get("motiu") or ("no hi ha veredicte al registre" if v is None else "")
+            validat = estat == "validat"
+        tubs.append({"nom": nom, "alies": e.get("alies"), "validat": validat, "estat": estat,
+                     "motiu": motiu})
     return {
         "neudet": str(DES.neudet_root()),
         "generadors": generadors,

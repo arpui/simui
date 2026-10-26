@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import re
+import json
 import subprocess
 import sys
 import tempfile
@@ -56,15 +57,31 @@ def _motiu_de(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def _amb_script(script: Path, dir_: Path, etapa: str) -> Dict[str, Any]:
+def _python_neudet() -> str:
+    """El Python que corre neudet (cal `torch` per a la certificació): `NEUDET_PYTHON`, o el de la UI."""
+    return os.environ.get("NEUDET_PYTHON") or sys.executable
+
+
+def _certifica(script: Path, dir_: Path) -> Dict[str, Any]:
+    """`comprova_campanya.py <dir> --json <fitxer>` (contracte §5, pas 2). El veredicte és el de neudet:
+    `atura`, els `elements` (validat / no_validat / prohibit, amb motiu) i, si falten camps, quins.
+    Si el script peta abans d'escriure el JSON, es dona la seva sortida tal com és."""
     root = script.parents[2]
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(root / "src"), env.get("PYTHONPATH", "")) if p)
-    p = subprocess.run([sys.executable, str(script), str(dir_), "--etapa", etapa], cwd=str(root), env=env,
+    out = dir_.parent / "certificacio.json"
+    p = subprocess.run([_python_neudet(), str(script), str(dir_), "--json", str(out)], cwd=str(root), env=env,
                        capture_output=True, text=True, timeout=600)
-    return {"via": "script", "etapa": etapa, "codi_sortida": p.returncode,
-            "llegible_per_maquina": False, "sortida": p.stdout, "error_sortida": p.stderr,
-            "n_valids": None, "n_invalids": None, "motius": [], "candidats": [], "certificacio": None}
+    base = {"disponible": False, "ordre": f"PYTHONPATH=src python3 {SCRIPT_REL} <dir> --json <fitxer>",
+            "codi_sortida": p.returncode, "sortida": p.stdout, "error_sortida": p.stderr[-4000:]}
+    if not out.exists():
+        base["motiu"] = "comprova_campanya.py no ha escrit el JSON: vegeu la sortida d'error de neudet"
+        return base
+    inf = json.loads(out.read_text(encoding="utf-8"))
+    base.update(disponible=True, motiu="", atura=bool(inf.get("atura")), draft=inf.get("draft"),
+                camps_falten=inf.get("camps_falten"), etapes=inf.get("etapes") or {},
+                elements=inf.get("elements") or [])
+    return base
 
 
 def _motius(invalids) -> List[Dict[str, Any]]:
@@ -99,14 +116,15 @@ def _candidats(valids, tmp: Path, font: Optional[Dict[str, Any]]) -> List[Dict[s
     return out
 
 
-def _amb_candidats(dir_: Path, etapa: str, tmp: Path) -> Dict[str, Any]:
+def _amb_candidats(dir_: Path, etapa: str, tmp: Path, script: Optional[Path] = None) -> Dict[str, Any]:
     from neudet.disseny.campanya import Campanya            # neudet importat de NEUDET_ROOT/src
     camp = Campanya(dir_)
     valids, invalids = camp.candidats(etapa)
     return {"via": "candidats", "etapa": etapa, "llegible_per_maquina": True,
             "n_valids": len(valids), "n_invalids": len(invalids), "motius": _motius(invalids),
             "candidats": _candidats(valids, tmp, camp.font),
-            "certificacio": {"disponible": False, "motiu": NO_CERTIFICAT, "avisos": []}}
+            "certificacio": _certifica(script, dir_) if script is not None
+                            else {"disponible": False, "motiu": NO_CERTIFICAT, "elements": []}}
 
 
 def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
@@ -127,8 +145,7 @@ def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             if etapa is None:
                 etapa = _primera_etapa_de_xarxa(yaml_text)
             script = root / SCRIPT_REL
-            if script.exists():
-                return _amb_script(script, dir_, etapa)
-            return _amb_candidats(dir_, etapa, Path(tmp))
+            # els candidats (per al visor) surten sempre de neudet; la certificació, del seu script
+            return _amb_candidats(dir_, etapa, Path(tmp), script if script.exists() else None)
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None

@@ -505,7 +505,7 @@ const CP = {schema: null, f: null, etapa: null, res: null, t: null, seq: 0};
 const cTxt = v => Array.isArray(v) ? v.join(', ') : (v === undefined || v === null ? '' : String(v));
 const cIn = (p, v, t, ph = '') => `<input data-p="${escD(p)}" data-t="${t}" value="${escD(cTxt(v))}" placeholder="${escD(ph)}">`;
 const cLab = (txt, html) => `<label>${escD(txt)}${html}</label>`;
-const cMarca = t => t.validat === true ? '✓ validat' : t.validat === false ? '✗ no validat' : '⚠ sense registre de validació';
+const cMarca = t => t.estat === 'validat' ? '✓ validat' : t.estat === 'prohibit' ? '⛔ prohibit' : t.validat === false ? '✗ no validat' : '⚠ ' + t.estat;
 function cTubOpts(valor){
   const tubs = CP.schema.tipus_tub, trobat = tubs.some(t => t.nom === valor);
   const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}</option>`);
@@ -768,17 +768,28 @@ async function cInit(){
 
 function cPintaRes(r){
   let h = '';
-  if(r.via === 'script'){
-    h += `<div class="panel warn">Sortida del script de neudet (<code>comprova_campanya.py</code>): no és llegible per màquina, es mostra tal com és.</div>
-      <pre class="pre">${escD(r.sortida + (r.error_sortida ? '\n' + r.error_sortida : ''))}</pre>`;
-  } else {
-    h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
-    if(r.motius.length) h += `<table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table>`;
-  }
-  if(r.certificacio) h += `<div class="panel warn"><b>Certificació:</b> ${escD(r.certificacio.motiu)}</div>`;
+  h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
+  if(r.motius.length) h += `<table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table>`;
+  h += cPintaCert(r.certificacio);
   if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo a Disseny</h2>
     <div class="cgrid">${r.candidats.map((c, i) => `<button class="cand" data-cand="${i}" title="${escD(c.hash)}"><div class="cn">${escD(c.nom)}</div>${c.xy_svg}<div class="hint">${escD(c.hash)} · ${c.tubs.length} tubs</div></button>`).join('')}</div>`;
   Q('#c-res').innerHTML = h;
+}
+// La certificació és la de neudet (`comprova_campanya.py --json`, contracte §5 pas 2): es mostra tal com ve.
+function cPintaCert(c){
+  if(!c) return '';
+  if(!c.disponible){
+    const err = (c.error_sortida || c.sortida || '').trim();
+    return `<div class="panel warn"><b>Certificació no disponible:</b> ${escD(c.motiu)}${err ? `<pre class="pre">${escD(err)}</pre>` : ''}</div>`;
+  }
+  const marca = {validat: '✅', no_validat: '⚠', prohibit: '⛔'};
+  let h = c.atura
+    ? `<div class="panel bad"><b>⛔ neudet diu: cal aturar</b>${c.draft ? '' : ' (sense <code>draft: true</code>, el que no està validat atura)'}</div>`
+    : `<div class="panel ok"><b>Certificació de neudet:</b> es pot córrer${c.draft ? ' (draft: el que no està validat només avisa)' : ''}.</div>`;
+  if(c.camps_falten) h += `<div class="panel bad"><b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre></div>`;
+  if(c.elements && c.elements.length) h += `<table class="tbl"><thead><tr><th></th><th>element</th><th>estat</th><th>motiu</th><th>document</th></tr></thead><tbody>${
+    c.elements.map(e => `<tr><td>${marca[e.estat] || '?'}</td><td>${escD(e.element)}</td><td>${escD(e.estat)}</td><td>${escD(e.motiu || '')}</td><td>${escD(e.document || '')}</td></tr>`).join('')}</tbody></table>`;
+  return h;
 }
 async function cComprova(){
   Q('#c-res').innerHTML = '<div class="hint">neudet comprova la campanya…</div>';
