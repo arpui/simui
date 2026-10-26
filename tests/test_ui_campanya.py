@@ -64,14 +64,16 @@ def _json(url_base, path, body=None):
 
 # ── la pàgina ───────────────────────────────────────────────────────────────
 
-def test_pagina_te_la_pestanya_campanya(url):
+def test_pagina_te_el_formulari_de_proposta_dins_de_neudet(url):
+    """El formulari de la proposta és al nivell 1 de Neudet, a la dreta de la llista, amb «+ Nova»."""
     code, raw = _req(url, "/")
     html = raw.decode()
     assert code == 200
-    assert 'data-tab="campanya"' in html and 'id="pg-campanya"' in html
-    assert html.index('data-tab="campanya"') < html.index('data-tab="disseny"'), "Campanya va abans de Disseny"
-    for ident in ('id="c-form"', 'id="c-yaml"', 'id="c-res"', 'id="c-comprova"', 'id="c-desa"', 'id="c-baixa"'):
+    assert 'data-tab="neudet"' in html and 'id="pg-neudet"' in html
+    for ident in ('id="n-bread"', 'id="n-camp"', 'id="n-form"', 'id="c-form"', 'id="c-yaml"', 'id="c-res"',
+                  'id="c-comprova"', 'id="c-desa"', 'id="c-baixa"'):
         assert ident in html, ident
+    assert '+ Nova' in html and 'data-k="nova"' in html
 
 
 # ── rutes d'entrada ─────────────────────────────────────────────────────────

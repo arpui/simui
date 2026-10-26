@@ -93,8 +93,9 @@ def test_pagina_te_desa_tanteja_i_llista_amb_altres(url):
     code, raw = _req(url, "/")
     html = raw.decode()
     assert code == 200
-    for ident in ('id="c-desa"', 'id="k-altres-box"', 'id="k-camp-altres"', 'id="r-tanteja"', 'id="d-tanteja"'):
+    for ident in ('id="c-desa"', 'id="n-camps"', 'id="d-tanteja"'):
         assert ident in html, ident
+    assert 'id="n-altres"' in html and "altres campanyes" in html   # les «altres» van plegades
     assert "Desa la proposta" in html and 'data-k="tanteja"' in html
     assert "/api/campanya/desa" in html and "/api/campanya/tanteig" in html
     assert "campanyes_esborrany" not in html and "esborrany desat" not in html

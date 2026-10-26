@@ -5,7 +5,7 @@ Què es fixa
 - `/api/campanyes`, `/api/campanya/vista` i `/api/campanya/carrega` responen per a c04_draft, amb el provisional.
 - `/api/campanya/fitxer` serveix el PDF com a `application/pdf`, el `.md` i les figures; i rebutja amb 403
   els traversals, els camins absoluts, els reports que el manifest no llista i els ids que no són campanyes.
-- La pàgina té la pestanya «Campanyes» i els identificadors que el JS usa.
+- La pàgina té la pestanya «Neudet», amb la llista de campanyes i la vista, i els identificadors que el JS usa.
 Sense neudet, els tests amb dades reals es salten.
 """
 from __future__ import annotations
@@ -58,11 +58,11 @@ def test_la_pagina_te_la_pestanya_i_els_identificadors(url):
     code, _, body = _get(url, "/")
     html = body.decode()
     assert code == 200
-    assert 'data-tab="campanyes"' in html
-    assert 'id="pg-campanyes"' in html
-    assert 'id="k-out"' in html and 'id="k-camp"' in html
-    # la pestanya és després de Campanya
-    assert html.index('data-tab="campanya"') < html.index('data-tab="campanyes"') < html.index('data-tab="disseny"')
+    assert 'data-tab="neudet"' in html and 'id="pg-neudet"' in html
+    # la llista de campanyes (agrupades, «altres» plegades) i la vista de la campanya seleccionada
+    assert 'id="n-camps"' in html and 'id="k-out"' in html
+    assert 'data-k="solt"' in html and 'Obre un disseny' in html
+    assert html.index('data-tab="sim"') < html.index('data-tab="neudet"')
 
 
 def test_llista_inclou_c04_com_a_provisional(url):

@@ -5,7 +5,7 @@ omple un `SimRequest`, el servidor el passa per `parse` → `validate` → `rend
 cada backend i en retorna el deck o el rebuig, i `lint_files` per a cada deck. No
 executa cap simulació, no escriu cap fitxer i no carrega receptes generades.
 
-La pestanya **Disseny** i la **Resultats** (`design_*`, `results`) són el mateix patró:
+El full de disseny de Neudet (`design_*`, `results`) és el mateix patró:
 llegeixen els dissenys de neudet (`design_catalog`), els verifiquen i els visualitzen
 (`design`, `design_view`), exporten el paquet (`design_export`) i llegeixen els resultats
 per tub (`results_tub`). Cap d'aquestes funcions no escriu res fora d'un directori temporal.

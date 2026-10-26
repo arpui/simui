@@ -96,15 +96,22 @@ def _ruta_inexistent_o_pagina(url_base: str):
 
 
 # ── la pàgina i les rutes sense neudet ─────────────────────────────────────
-def test_la_pagina_te_les_tres_pestanyes_i_els_ids_del_js(url):
+def test_la_pagina_te_nomes_dues_pestanyes_i_el_full_del_disseny(url):
+    """Simulació i Neudet són les dues pestanyes. Dins de Neudet, el full del disseny té les seves seccions:
+    el visor i la taula, els resultats per tub, els inputs dels quatre codis, i (només al disseny solt)
+    les fonts i l'editor d'anells."""
     status, _, data = _get(url, "/")
     txt = data.decode()
     assert status == 200
-    for tab in ("sim", "disseny", "resultats"):
+    assert txt.count('data-tab="') == 2
+    for tab in ("sim", "neudet"):
         assert f'data-tab="{tab}"' in txt
-    for ident in ("d-def", "d-anells", "d-json", "d-xy", "d-xz", "d-baixa", "d-fix", "d-cmp",
+    for ident in ("n-bread", "d-status", "d-tanteja", "d-font", "d-def", "d-anells", "d-json", "d-visor",
+                  "d-xy", "d-xz", "d-taula", "d-edit", "d-baixa", "d-fix", "d-cmp", "d-camp",
                   "r-stage", "r-energia", "r-etapes", "r-xy", "r-taula"):
         assert f'id="{ident}"' in txt, ident
+    for seccio in ("Font del disseny", "Resultats per tub", "Inputs dels quatre codis", "Obre un disseny"):
+        assert seccio in txt, seccio
 
 
 def test_ruta_desconeguda_dona_404(url):

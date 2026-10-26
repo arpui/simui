@@ -22,7 +22,7 @@ border-radius:4px;font-size:13px;font-weight:400;cursor:pointer;font-family:inhe
 .ptab.on{color:var(--accent);border-color:var(--accent);font-weight:700}
 .pg main{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:0;min-height:calc(100vh - 62px)}
 main{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:0;min-height:calc(100vh - 62px)}
-@media (max-width:900px){main{grid-template-columns:1fr}}
+@media (max-width:900px){main,.pg main{grid-template-columns:minmax(0,1fr)}}
 aside{border-right:1px solid var(--line);padding:18px 22px 40px;overflow:auto}
 section.out{padding:18px 24px 40px;min-width:0}
 h2{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);
@@ -150,6 +150,18 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
 .kgal img{display:block;height:150px;width:auto;max-width:100%;object-fit:contain}
 .svgbox text.ax{font-size:11px;fill:var(--muted)}
 .svgbox text.ax2{font-size:12px;fill:var(--ink)}
+/* neudet: migadetes, llista de campanyes i el full del disseny */
+.bread{padding:10px 28px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted);
+display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+.bread button{background:none;border:none;color:var(--accent);padding:0;font-weight:400;cursor:pointer;font-size:13px}
+.bread b{color:var(--ink);font-weight:700}
+#n-err:not(:empty){padding:10px 28px 0}
+.cl{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;
+background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 8px;margin:4px 0;font-weight:400}
+.cl:hover{border-color:var(--accent)}
+.cl.on{border-color:var(--accent);background:#eef5f8;font-weight:700}
+.cl.nova{color:var(--accent);font-weight:700;margin:0 0 10px}
+.cl .tag{font-size:10.5px;padding:1px 6px}
 </style></head><body>
 
 <header class="top">
@@ -158,10 +170,7 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
   <span class="sub" id="h-sub">Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació.</span>
   <nav class="ptabs" role="tablist">
     <button class="ptab on" data-tab="sim">Simulació</button>
-    <button class="ptab" data-tab="campanya">Campanya</button>
-    <button class="ptab" data-tab="campanyes">Campanyes</button>
-    <button class="ptab" data-tab="disseny">Disseny</button>
-    <button class="ptab" data-tab="resultats">Resultats</button>
+    <button class="ptab" data-tab="neudet">Neudet</button>
   </nav>
 </header>
 
@@ -244,135 +253,126 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
 </main>
 </div>
 
-<div class="pg" id="pg-campanya" hidden>
+<div class="pg" id="pg-neudet" hidden>
+<div id="n-err"></div>
+<nav class="bread" id="n-bread" aria-label="on ets"></nav>
 <main>
-<aside>
-  <div id="c-err"></div>
-  <div id="c-form"><div class="hint">Carregant la campanya de c04_draft des de neudet…</div></div>
-</aside>
-<section class="out">
-  <div class="bar">
-    <button id="c-desa">Desa la proposta</button>
-    <button class="ghost" id="c-baixa">Descarrega .yaml</button>
-    <button class="ghost" id="c-comprova">Comprova amb neudet</button>
-    <span class="note">«Desa la proposta» escriu a neudet (<code>campanya.yaml</code> i <code>comprova.json</code>) només si neudet
-    la certifica. «Descarrega» i «Comprova» no escriuen res.</span>
-  </div>
-  <div id="c-desat"></div>
-  <h2>campanya.yaml (en viu)</h2>
-  <pre class="yamlbox" id="c-yaml"></pre>
-  <h2>Comprovació de neudet</h2>
-  <div id="c-res"><div class="hint">Encara no s'ha comprovat. Premeu «Comprova amb neudet».</div></div>
-</section>
-</main>
-</div>
-<div class="pg" id="pg-campanyes" hidden>
-<main>
-<aside>
-  <h2>Campanya</h2>
-  <label>de neudet <span class="hint">· <code>disseny/campanyes/</code></span></label>
-  <select id="k-camp"></select>
-  <details id="k-altres-box"><summary>altres campanyes</summary><select id="k-camp-altres"></select></details>
-  <div class="hint" id="k-info"></div>
-  <h2>Què es mostra</h2>
-  <p class="hint">La campanya tal com la deixa neudet: definició, certificació, les etapes (xarxa i Geant4) amb els seus candidats,
-  el Pareto, les figures, el judici i el report.</p>
-  <p class="hint">Cap número es recalcula aquí. Un clic a un candidat obre el seu resultat per tub a la pestanya Resultats.</p>
-  <p class="hint">«Tanteja» obre la campanya al formulari com a campanya nova (id derivat); l'original no es toca.</p>
-</aside>
-<section class="out" id="k-out"><div class="hint">Carregant les campanyes de neudet…</div></section>
-</main>
-</div>
-<div class="pg" id="pg-disseny" hidden>
-<main>
-<aside>
-  <h2>Font del disseny</h2>
-  <label>per defecte <span class="hint">· els <code>export/</code> de neudet</span></label>
-  <select id="d-def"></select>
-  <div class="hint" id="d-neudet"></div>
-  <details>
-    <summary>Un .dat i el seu .json de neudet</summary>
-    <label>.dat</label><input type="file" id="d-datf" accept=".dat,text/plain">
-    <label>.json (sidecar)</label><input type="file" id="d-jsonf" accept=".json,application/json">
-    <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-upload">Carrega els fitxers</button></div>
-  </details>
-  <details open>
-    <summary>Demana-ho en text (model local)</summary>
-    <textarea class="prompt" id="d-prompt" placeholder="p.ex. tres tubs counterUPC a 4 cm del centre, PE 0,95, font al centre"></textarea>
-    <label>campanya de referència</label><select id="d-askcamp"></select>
-    <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-ask" disabled>Proposa el disseny</button><span class="note" id="d-llm">comprovant el model local…</span></div>
-  </details>
-
-  <h2>Anells</h2>
-  <div id="d-anells"></div>
-  <div class="bar" style="margin:6px 0 0"><button class="ghost" id="d-addring" style="padding:4px 10px;font-size:12px">+ anell</button></div>
-  <div class="hint">Cada anell és un radi r amb n tubs repartits a φ (graus, des de l'eix x). Cd: fracció, arc i centre; només amb fracció > 0.</div>
-
-  <h2>JSON del disseny</h2>
-  <textarea class="json" id="d-json" spellcheck="false"></textarea>
-  <div class="err" id="d-jsonerr"></div>
-
-  <h2>Sortida</h2>
-  <label>campanya (font i energies de neudet)</label>
-  <select id="d-camp"></select>
-  <label>o energia única (MeV) <span class="hint">· sense campanya</span></label>
-  <input id="d-energia" placeholder="p.ex. 1.0">
-  <div class="bar" style="margin-top:14px"><button id="d-baixa">Baixa el paquet (.zip)</button></div>
-  <div class="bar"><button class="ghost" id="d-fix">Fixa com a original</button><button class="ghost" id="d-cmp">Compara</button>
-    <button class="ghost" id="d-tanteja" disabled title="Un candidat d'una campanya (sense editar): obre-la com a tanteig">Tanteja</button></div>
-  <div class="hint" id="d-fixnote"></div>
-</aside>
-
-<section class="out">
-  <div class="bar"><span class="note" id="d-status">Tria un disseny per defecte, carrega'n un de fitxers o demana'n un en text.</span></div>
-  <div id="d-nota"></div>
-  <div id="d-viol"></div>
-  <div class="dgrid">
-    <div class="svgbox" id="d-xy"></div>
-    <div class="svgbox" id="d-xz"></div>
-  </div>
-  <div id="d-avisos"></div>
-  <h2>Tubs</h2>
-  <div class="tblwrap" id="d-taula"></div>
-  <div id="d-compare" hidden>
-    <h2>Compara: original i actual</h2>
-    <div class="cmp">
-      <div><h3 id="c-o-t">Original</h3><div id="c-o-viol"></div><div class="svgbox" id="c-o-xy"></div></div>
-      <div><h3 id="c-a-t">Actual</h3><div id="c-a-viol"></div><div class="svgbox" id="c-a-xy"></div></div>
-    </div>
-  </div>
-</section>
-</main>
-</div>
-
-<div class="pg" id="pg-resultats" hidden>
-<main>
-<aside>
+<aside id="n-llista">
+  <button class="cl nova" data-k="nova">+ Nova</button>
+  <div class="hint">Una proposta nova, amb els valors per defecte de neudet i un id que cal triar abans de desar.</div>
+  <h2>Campanyes</h2>
+  <div id="n-camps"><div class="hint">Carregant les campanyes de neudet…</div></div>
   <h2>Disseny</h2>
-  <div id="r-dis" class="panel"></div>
-  <h2>Etapa i energia</h2>
-  <label>etapa</label>
-  <select id="r-stage"></select>
-  <label>energia (MeV)</label>
-  <select id="r-energia"></select>
-  <div class="bar" style="margin-top:12px"><button class="ghost" id="r-go">Actualitza</button>
-    <button class="ghost" id="r-tanteja" disabled title="Un candidat d'una campanya: obre-la al formulari com a tanteig">Tanteja</button></div>
-  <div class="hint">Els números són els de neudet (<code>resultats_tub.json</code>): no es recalculen ni es copien.
-  Una xifra sense procedència citable es mostra igualment, amb el motiu.</div>
+  <button class="cl" data-k="solt">Obre un disseny</button>
+  <div class="hint">Un disseny sense campanya: un <code>export/</code> de neudet, un <code>.dat</code> amb el seu <code>.json</code>, o un text.</div>
 </aside>
 <section class="out">
-  <div id="r-etapes"></div>
-  <div id="r-avisos"></div>
-  <div class="svgbox" id="r-xy"></div>
-  <h2>ε per tub i energia</h2>
-  <div class="tblwrap" id="r-taula"></div>
-  <h2>Comparativa per tub entre motors</h2>
-  <div id="r-comp-avisos"></div>
-  <div class="tblwrap" id="r-comp"></div>
+  <div id="n-camp">
+    <div id="n-form">
+      <div class="bar">
+        <button id="c-desa">Desa la proposta</button>
+        <button class="ghost" id="c-baixa">Descarrega .yaml</button>
+        <button class="ghost" id="c-comprova">Comprova amb neudet</button>
+        <span class="note">«Desa la proposta» escriu a neudet (<code>campanya.yaml</code> i <code>comprova.json</code>) només si neudet
+        la certifica. «Descarrega» i «Comprova» no escriuen res.</span>
+      </div>
+      <div id="c-err"></div>
+      <div id="c-desat"></div>
+      <div id="c-form"><div class="hint">Carregant la proposta…</div></div>
+      <h2>campanya.yaml (en viu)</h2>
+      <pre class="yamlbox" id="c-yaml"></pre>
+      <h2>Comprovació de neudet</h2>
+      <div id="c-res"><div class="hint">Encara no s'ha comprovat. Premeu «Comprova amb neudet».</div></div>
+    </div>
+    <div id="k-out"><div class="hint">Carregant les campanyes de neudet…</div></div>
+  </div>
+
+  <div id="n-dis" hidden>
+    <div class="bar"><span class="note" id="d-status"></span></div>
+    <div class="bar">
+      <button id="d-tanteja" disabled title="Un candidat d'una campanya, o un disseny de neudet sense editar: obre una proposta nova amb el candidat com a etapa llista">Tanteja</button>
+      <span class="hint" id="d-tantenota"></span>
+    </div>
+
+    <div id="d-font" hidden>
+      <h2>Font del disseny</h2>
+      <label>per defecte <span class="hint">· els <code>export/</code> de neudet</span></label>
+      <select id="d-def"></select>
+      <div class="hint" id="d-neudet"></div>
+      <details>
+        <summary>Un .dat i el seu .json de neudet</summary>
+        <label>.dat</label><input type="file" id="d-datf" accept=".dat,text/plain">
+        <label>.json (sidecar)</label><input type="file" id="d-jsonf" accept=".json,application/json">
+        <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-upload">Carrega els fitxers</button></div>
+      </details>
+      <details open>
+        <summary>Demana-ho en text (model local)</summary>
+        <textarea class="prompt" id="d-prompt" placeholder="p.ex. tres tubs counterUPC a 4 cm del centre, PE 0,95, font al centre"></textarea>
+        <label>campanya de referència</label><select id="d-askcamp"></select>
+        <div class="bar" style="margin:8px 0 0"><button class="ghost" id="d-ask" disabled>Proposa el disseny</button><span class="note" id="d-llm">comprovant el model local…</span></div>
+      </details>
+    </div>
+
+    <h2>Disseny</h2>
+    <div id="d-nota"></div>
+    <div id="d-viol"></div>
+    <div id="d-visor">
+      <div class="dgrid">
+        <div class="svgbox" id="d-xy"></div>
+        <div class="svgbox" id="d-xz"></div>
+      </div>
+      <div id="d-avisos"></div>
+      <h3>Tubs</h3>
+      <div class="tblwrap" id="d-taula"></div>
+    </div>
+
+    <div id="d-edit" hidden>
+      <h2>Anells</h2>
+      <div id="d-anells"></div>
+      <div class="bar" style="margin:6px 0 0"><button class="ghost" id="d-addring" style="padding:4px 10px;font-size:12px">+ anell</button></div>
+      <div class="hint">Cada anell és un radi r amb n tubs repartits a φ (graus, des de l'eix x). Cd: fracció, arc i centre; només amb fracció > 0.</div>
+      <h2>JSON del disseny</h2>
+      <textarea class="json" id="d-json" spellcheck="false"></textarea>
+      <div class="err" id="d-jsonerr"></div>
+      <div class="bar"><button class="ghost" id="d-fix">Fixa com a original</button><button class="ghost" id="d-cmp">Compara amb l'original</button></div>
+      <div class="hint" id="d-fixnote"></div>
+      <div id="d-compare" hidden>
+        <h2>Compara: original i actual</h2>
+        <div class="cmp">
+          <div><h3 id="c-o-t">Original</h3><div id="c-o-viol"></div><div class="svgbox" id="c-o-xy"></div></div>
+          <div><h3 id="c-a-t">Actual</h3><div id="c-a-viol"></div><div class="svgbox" id="c-a-xy"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Resultats per tub</h2>
+    <div class="row">
+      <div><label>etapa</label><select id="r-stage"></select></div>
+      <div><label>energia (MeV)</label><select id="r-energia"></select></div>
+    </div>
+    <div class="bar" style="margin-top:8px"><button class="ghost" id="r-go">Actualitza</button></div>
+    <div class="hint">Els números són els de neudet (<code>resultats_tub.json</code>): no es recalculen ni es copien.
+    Una xifra sense procedència citable es mostra igualment, amb el motiu.</div>
+    <div id="r-etapes"></div>
+    <div id="r-avisos"></div>
+    <div class="svgbox" id="r-xy"></div>
+    <h3>ε per tub i energia</h3>
+    <div class="tblwrap" id="r-taula"></div>
+    <h3>Comparativa per tub entre motors</h3>
+    <div id="r-comp-avisos"></div>
+    <div class="tblwrap" id="r-comp"></div>
+
+    <h2>Inputs dels quatre codis</h2>
+    <div class="hint">La part de simphy: el paquet amb els decks de FLUKA, MCNP, OpenMC i Geant4 i el visor. No és de neudet.</div>
+    <div class="row">
+      <div><label>campanya (font i energies de neudet)</label><select id="d-camp"></select></div>
+      <div><label>o energia única (MeV) <span class="hint">· sense campanya</span></label><input id="d-energia" placeholder="p.ex. 1.0"></div>
+    </div>
+    <div class="bar" style="margin-top:12px"><button id="d-baixa" disabled>Baixa el paquet (.zip)</button><span class="hint" id="d-inputsnota"></span></div>
+  </div>
 </section>
 </main>
 </div>
-
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 let META = null, SPEC = {};
@@ -905,12 +905,11 @@ function cFormHtml(){
   <h2>Cerca · etapa ${escD(E)}</h2>
   ${cCercaHtml(E, et)}`;
 }
-const cBlocWrap = () => `<div id="c-bloc-wrap">${cBlocSvg()}</div>`;
 
 function cPintaForm(){
-  const aside = Q('#c-form').parentElement, y = aside.scrollTop;
+  const y = window.scrollY;
   Q('#c-form').innerHTML = cFormHtml();
-  aside.scrollTop = y;
+  window.scrollTo(0, y);
 }
 function cErr(msg){ Q('#c-err').innerHTML = msg ? `<div class="panel bad pre">${escD(msg)}</div>` : ''; }
 
@@ -1035,9 +1034,9 @@ async function cInit(){
 function cPintaRes(r){
   let h = '';
   h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
-  if(r.motius.length) h += `<table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table>`;
+  if(r.motius.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table></div>`;
   h += cPintaCert(r.certificacio);
-  if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo a Disseny</h2>
+  if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo com a disseny</h2>
     <div class="cgrid">${r.candidats.map((c, i) => `<button class="cand" data-cand="${i}" title="${escD(c.hash)}"><div class="cn">${escD(c.nom)}</div>${c.xy_svg}<div class="hint">${escD(c.hash)} · ${c.tubs.length} tubs</div></button>`).join('')}</div>`;
   Q('#c-res').innerHTML = h;
 }
@@ -1053,8 +1052,8 @@ function cPintaCert(c){
     ? `<div class="panel bad"><b>⛔ neudet diu: cal aturar</b>${c.draft ? '' : ' (sense <code>draft: true</code>, el que no està validat atura)'}</div>`
     : `<div class="panel ok"><b>Certificació de neudet:</b> es pot córrer${c.draft ? ' (draft: el que no està validat només avisa)' : ''}.</div>`;
   if(c.camps_falten) h += `<div class="panel bad"><b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre></div>`;
-  if(c.elements && c.elements.length) h += `<table class="tbl"><thead><tr><th></th><th>element</th><th>estat</th><th>motiu</th><th>document</th></tr></thead><tbody>${
-    c.elements.map(e => `<tr><td>${marca[e.estat] || '?'}</td><td>${escD(e.element)}</td><td>${escD(e.estat)}</td><td>${escD(e.motiu || '')}</td><td>${escD(e.document || '')}</td></tr>`).join('')}</tbody></table>`;
+  if(c.elements && c.elements.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th></th><th>element</th><th>estat</th><th>motiu</th><th>document</th></tr></thead><tbody>${
+    c.elements.map(e => `<tr><td>${marca[e.estat] || '?'}</td><td>${escD(e.element)}</td><td>${escD(e.estat)}</td><td>${escD(e.motiu || '')}</td><td>${escD(e.document || '')}</td></tr>`).join('')}</tbody></table></div>`;
   return h;
 }
 async function cComprova(){
@@ -1071,9 +1070,9 @@ async function cComprova(){
 async function cObre(i){
   const c = CP.res && CP.res.candidats[i];
   if(!c) return;
-  showTab('disseny');
-  await dInit();
-  await dCarrega({dat_text: c.dat_text, json_text: c.json_text});
+  // una proposta que no és a neudet encara no té campanya: el candidat s'obre sense «Tanteja»
+  const de = KC.lista.some(x => x.id === CP.f.id) ? CP.f.id : null;
+  await nzObreCandidat({hash: c.hash, nom: c.nom, de, dat_text: c.dat_text, json_text: c.json_text}).catch(err => dErr(err.message));
 }
 // «Desa la proposta»: neudet escriu campanya.yaml (estat: proposta) i comprova.json, i només si certifica.
 async function cDesa(){
@@ -1084,6 +1083,9 @@ async function cDesa(){
     Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada</b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
       <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
       <div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(r.missatge)}</pre></div>`;
+    // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
+    await nzLlegeixLlista().catch(() => {});
+    NZ.dis = null; NZ.sel = {k: 'form', id: CP.f.id}; nzVeu();
   } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
 }
 // Un formulari carregat (de neudet o d'un tanteig): substitueix el que hi havia.
@@ -1093,20 +1095,15 @@ function cCarrega(form, nota){
   Q('#c-res').innerHTML = '<div class="hint">Encara no s\'ha comprovat. Premeu «Comprova amb neudet».</div>';
   Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>`;
 }
-// «Edita la proposta»: el mateix id; «Desa la proposta» la sobreescriu (només perquè és una proposta).
-async function cPrenForm(id){
-  const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
-  await cInit();
-  cCarrega(r.form, `Edites la proposta <code>${escD(id)}</code>. «Desa la proposta» la sobreescriu: només una proposta es torna a escriure.`);
-  showTab('campanya');
-}
-// «Tanteja»: la campanya (o un candidat seu) com a campanya nova amb id derivat. L'original no es toca.
+// «Tanteja»: la campanya (o un candidat seu) com a proposta nova amb id derivat. L'original no es toca.
+// Torna al nivell 1: el formulari d'aquesta proposta.
 async function cPrenTanteig(body){
   const r = await api('/api/campanya/tanteig', body);
   await cInit();
   const cand = r.candidat ? ` · candidat <code>${escD(r.candidat.nom)}</code> (etapa ${escD(r.candidat.etapa)}, ${r.candidat.tubs_n} tubs) com a etapa <code>${escD(r.etapa)}</code>` : '';
   cCarrega(r.form, `Tanteig de <code>${escD(r.de)}</code>${cand}. El nou id és <code>${escD(r.id)}</code>; l'original no es toca.`);
-  showTab('campanya');
+  NZ.dis = null; NZ.sel = {k: 'form', id: r.id};
+  nzVeu();
 }
 async function cBaixa(){
   try{
@@ -1139,8 +1136,9 @@ Q('#c-baixa').onclick = cBaixa;
 });
 </script>
 <script>
-// ── Campanyes (contracte §6): la campanya com a conjunt, des de `campanya_ui.json` de neudet (o provisional) ──
+// ── Campanyes de neudet (contracte §6): la campanya com a conjunt, des de `campanya_ui.json` de neudet (o provisional) ──
 // Cap número es recalcula aquí: el Pareto, la robustesa, els ε i les sigmes són els del candidats.csv de neudet.
+// Només és la vista d'una campanya que no és proposta: una proposta és el formulari (vegeu la secció de Definició).
 const KC = {lista: [], id: null, v: null, ordre: {}, seq: 0};
 const kEnc = encodeURIComponent;
 function kFit(rel){ return '/api/campanya/fitxer?id=' + kEnc(KC.id) + '&rel=' + kEnc(rel); }
@@ -1155,32 +1153,12 @@ function kTagEstat(e){
     : e === 'definitiva' ? '<span class="tag t-ok" title="estat del manifest (CAMP-2)">manifest: definitiva</span>'
     : `<span class="tag t-nt" title="estat del manifest (CAMP-2)">manifest: ${escD(e)}</span>`;
 }
-function kOpcio(c){
-  return `<option value="${escD(c.id)}">${escD(c.id)} · ${escD(c.estat_yaml ?? 'sense estat')}${c.provisional ? '' : ' · manifest'}</option>`;
-}
-// La llista es torna a llegir en cada visita: una proposta desada des de la pestanya Campanya hi ha d'aparèixer.
-// Es manté la campanya que ja es veia, si encara hi és; si no, la primera principal (o la primera de les altres).
-async function kInit(){
-  KC.lista = (await api('/api/campanyes')).campanyes;
-  if(!KC.lista.length){ kErr('neudet no té cap campanya a disseny/campanyes/ (cal un campanya.yaml).'); return; }
-  const princ = KC.lista.filter(c => c.grup === 'principal'), altres = KC.lista.filter(c => c.grup !== 'principal');
-  document.getElementById('k-camp').innerHTML = princ.length ? princ.map(kOpcio).join('')
-    : '<option value="">— cap campanya amb manifest ni proposta —</option>';
-  const box = document.getElementById('k-altres-box');
-  document.getElementById('k-camp-altres').innerHTML = altres.map(kOpcio).join('');
-  box.hidden = !altres.length;
-  box.open = !princ.length;                     // si no n'hi ha de principals, les altres es veuen de primer
-  const veu = KC.id && KC.lista.some(c => c.id === KC.id) ? KC.id : (princ[0] || altres[0]).id;
-  await kCarrega(veu);
-}
+// Una aprovada o executada sense manifest només mostra la definició i la certificació: els resultats
+// per etapa no existeixen fins que neudet publica el campanya_ui.json.
+function kBasica(v){ return ['aprovada', 'executada'].includes(v.estat_yaml) && !!v.provisional; }
 async function kCarrega(id){
   const seq = ++KC.seq;                        // una resposta antiga no pot pintar una campanya que ja no és la seleccionada
   KC.id = id;
-  const hi = KC.lista.find(c => c.id === id);
-  const enAltres = !!hi && hi.grup !== 'principal';
-  document.getElementById('k-camp').value = enAltres ? '' : id;
-  document.getElementById('k-camp-altres').value = enAltres ? id : '';
-  if(enAltres) document.getElementById('k-altres-box').open = true;
   document.getElementById('k-out').innerHTML = '<div class="hint">Llegint la campanya de neudet…</div>';
   const v = await api('/api/campanya/vista?id=' + kEnc(id));
   if(seq !== KC.seq) return;
@@ -1188,41 +1166,33 @@ async function kCarrega(id){
   kPinta();
 }
 function kPinta(){
-  const v = KC.v, out = [];
-  const proposta = v.estat_yaml === 'proposta';
+  const v = KC.v, out = [], basica = kBasica(v);
   out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
     (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
-  out.push(kAccions(v, proposta));
-  if(proposta) out.push(kProposta(v));
-  if(v.provisional && !proposta) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
+  out.push(kAccions());
+  if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
   v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
   out.push(kDefinicio(v));
   out.push('<h2>Certificació</h2>' + kCert(v));
-  out.push('<h2>Etapes</h2>' + (v.etapes.map(kEtapa).join('') || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
-  out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
-  out.push('<h2>Report</h2>' + kReport(v));
+  if(basica) out.push('<div class="panel">Sense manifest: els resultats per etapa, el judici i el report s\'hi afegeixen quan neudet publiqui la campanya.</div>');
+  else {
+    out.push('<h2>Etapes</h2>' + (v.etapes.map(kEtapa).join('') || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
+    out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
+    out.push('<h2>Report</h2>' + kReport(v));
+  }
   document.getElementById('k-out').innerHTML = out.join('');
-  document.getElementById('k-info').innerHTML = `${kTagYaml(v.estat_yaml)} ${kTagEstat(v.estat)} · ${v.etapes.length} etapes` +
-    (v.provisional ? '<br>provisional: sense <code>campanya_ui.json</code>' : '<br>amb <code>campanya_ui.json</code>');
 }
-// Les accions d'una campanya: «Edita la proposta» només si és una proposta; «Tanteja» sempre.
-function kAccions(v, proposta){
-  return `<div class="bar">${proposta ? '<button data-k="edita">Edita la proposta</button>' : ''}` +
-    '<button class="ghost" data-k="tanteja">Tanteja</button></div>';
-}
-// Una proposta: el missatge que Albert envia al planificador (flux, «Missatges»).
-function kProposta(v){
-  const sense = v.certificacio && v.certificacio.disponible ? '' : ' <span class="hint">Sense comprova.json: neudet no n\'ha certificat la proposta.</span>';
-  return `<div class="panel ok"><b>Proposta</b> (estat: proposta), a la carpeta de neudet.${sense}
-    <div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${v.id}\` proposta`)}</pre></div>`;
+// «Tanteja»: una proposta nova amb el contingut d'aquesta campanya (id derivat). L'original no es toca.
+function kAccions(){
+  return '<div class="bar"><button class="ghost" data-k="tanteja">Tanteja</button>' +
+    '<span class="hint">Obre una proposta nova amb el contingut d\'aquesta campanya (id derivat). L\'original no es toca.</span></div>';
 }
 function kDefinicio(v){
   const d = v.definicio || {};
   const links = [d.yaml && ['campanya.yaml', d.yaml], d.md && ['DEFINICIO.md', d.md]].filter(Boolean)
     .map(([t, rel]) => `<a class="btn" href="${kFit(rel)}" target="_blank" rel="noopener">${escD(t)}</a>`).join('');
   return `<h2>Definició</h2><div>${links}` +
-    (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>' +
-    '<div class="hint">«Tanteja» la porta a la pestanya Campanya com a campanya nova (id derivat). «Desa la proposta» escriu a neudet només si neudet certifica.</div>';
+    (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>';
 }
 function kCert(v){
   const c = v.certificacio;
@@ -1348,10 +1318,7 @@ function kMd(t){
   fin();
   return out.join('');
 }
-function kObreResultats(hash, nom){
-  RS.extern = {nom, hash, editat: false, origen: 'campanya ' + KC.id};
-  showTab('resultats');
-}
+// Un candidat (fila de la taula o punt del Pareto) obre el seu full de disseny, al nivell 2 de Neudet.
 document.getElementById('k-out').addEventListener('click', e => {
   const th = e.target.closest('th[data-st]');
   if(th){
@@ -1360,27 +1327,29 @@ document.getElementById('k-out').addEventListener('click', e => {
     kPinta(); return;
   }
   const tr = e.target.closest('tr.kc, circle.kpt');
-  if(tr){ kObreResultats(tr.dataset.h, tr.dataset.n); return; }
-  const b = e.target.closest('button[data-k]');
-  if(!b) return;
-  if(b.dataset.k === 'edita') cPrenForm(KC.id).catch(err => kErr(err.message));
-  if(b.dataset.k === 'tanteja') cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
+  if(tr){ nzObreCandidat({hash: tr.dataset.h, nom: tr.dataset.n, de: KC.id}).catch(err => dErr(err.message)); return; }
+  const b = e.target.closest('button[data-k="tanteja"]');
+  if(b) cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
 });
-document.getElementById('k-camp').addEventListener('change', e => e.target.value && kCarrega(e.target.value).catch(err => kErr(err.message)));
-document.getElementById('k-camp-altres').addEventListener('change', e => kCarrega(e.target.value).catch(err => kErr(err.message)));
 </script>
+
 <script>
-// ── pestanyes ─────────────────────────────────────────────────────────────────
-// La de Disseny i la de Resultats parlen amb `/api/design/*` i `/api/results`. Cap número
-// no es calcula aquí: el que surt és el que diu neudet (vegeu `docs/site/ui.md`).
+// ── Neudet: un espai amb tres nivells ─────────────────────────────────────────
+// 1. Campanyes: la llista de l'esquerra. A la dreta, la proposta com a formulari, o la campanya com a vista.
+// 2. El full d'un candidat: s'obre clicant-lo a una etapa, a un punt del Pareto o a la comprovació. Mostra el
+//    visor i els resultats per tub de neudet; «Tanteja» fa una proposta nova amb el candidat (etapa llista).
+// 3. El full d'un disseny solt, sense campanya («Obre un disseny»): les fonts, l'editor d'anells i la comparació.
+// NZ.sel: què és a la dreta, sense el full: {k:'camp',id} | {k:'form',id} | {k:'nova'} | {k:'solt'}.
+// NZ.dis: el full d'un candidat obert (nivell 2): {hash, nom, editat:false, de, volta}. `volta` és on torna la migadeta.
+// Cap número es calcula aquí: tot ve de `/api/*`, que ho llegeix de neudet.
 const Q = s => document.querySelector(s), QA = s => [...document.querySelectorAll(s)];
 const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const NZ = {sel: null, dis: null, ultima: null};
 const HEAD = {
   sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
-  campanyes: ['Campanyes', "La campanya com a conjunt, tal com la deixa neudet: definició, certificació, etapes amb el Pareto, figures, judici i report. Res no es recalcula aquí."],
-  campanya: ['Definició de campanya', "Una proposta de campanya, amb les claus de neudet. neudet en diu quins candidats són vàlids i la certifica; aquí no es calcula res."],
-  disseny: ['Disseny de detectors', "Un disseny de neudet, editable: verificat, visualitzat i exportat. No executa cap simulació."],
-  resultats: ['Resultats per tub', "Els números de neudet per tub i energia, sense recalcular-los. Cada xifra porta la seva procedència."]};
+  neudet: ['Neudet', "Campanyes, dissenys i resultats tal com els deixa neudet. Cada xifra porta la seva procedència; res no es recalcula aquí."]};
+// Els enllaços antics (#campanya, #campanyes, #disseny, #resultats) obren el nivell que els tocava.
+const VELL = {campanya: ['neudet', 'nova'], campanyes: ['neudet', null], disseny: ['neudet', 'solt'], resultats: ['neudet', 'solt']};
 
 async function api(path, body){
   const r = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
@@ -1388,18 +1357,15 @@ async function api(path, body){
   if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
-function showTab(name){
+function showTab(name, sub){
+  if(VELL[name]) [name, sub] = VELL[name];
   if(!HEAD[name]) name = 'sim';
   QA('.pg').forEach(p => p.hidden = p.id !== 'pg-' + name);
   QA('.ptab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   Q('#h-title').textContent = HEAD[name][0]; Q('#h-sub').textContent = HEAD[name][1];
-  history.replaceState(null, '', '#' + name);
-  if(name === 'campanya') cInit().catch(e => cErr(e.message));
-  if(name === 'campanyes') kInit().catch(e => kErr(e.message));
-  if(name === 'disseny') dInit().catch(e => dErr(e.message));
-  if(name === 'resultats') rLoad().catch(e => rErr(e.message));
+  if(name === 'sim') history.replaceState(null, '', '#sim');
+  else nzInicia(sub).catch(e => nzErr(e.message));
 }
-QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 function fmtNum(x){
   if(x === null || x === undefined || Number.isNaN(x)) return '—';
   if(x === 0) return '0';
@@ -1407,10 +1373,152 @@ function fmtNum(x){
   return (a < 1e-3 || a >= 1e4) ? x.toExponential(2) : String(Number(x.toPrecision(4)));
 }
 
-// ── Disseny ───────────────────────────────────────────────────────────────────
+// ── Neudet: els tres nivells ──────────────────────────────────────────────────
+function nzErr(msg){ Q('#n-err').innerHTML = `<div class="panel bad pre">${escD(msg)}</div>`; }
+function nzPrincipal(){ const p = KC.lista.find(c => c.grup === 'principal') || KC.lista[0]; return p ? p.id : null; }
+async function nzInicia(sub){
+  await nzLlegeixLlista();
+  if(sub === 'nova') return nzNova();
+  if(sub === 'solt') return nzSolt();
+  if(sub) return nzCampanya(KC.lista.some(c => c.id === sub) ? sub : nzPrincipal());
+  if(NZ.sel) return nzVeu();                       // tornar a la pestanya: el mateix lloc
+  return nzCampanya(NZ.ultima || nzPrincipal());
+}
+// La llista es torna a llegir en cada visita: una proposta desada des del formulari hi ha d'aparèixer.
+async function nzLlegeixLlista(){
+  KC.lista = (await api('/api/campanyes')).campanyes;
+  const oberta = !!(Q('#n-altres') && Q('#n-altres').open);
+  const item = c => `<button class="cl" data-id="${escD(c.id)}"><span>${escD(c.id)}</span>${kTagYaml(c.estat_yaml)}</button>`;
+  const princ = KC.lista.filter(c => c.grup === 'principal'), altres = KC.lista.filter(c => c.grup !== 'principal');
+  const selAltres = altres.some(c => c.id === (NZ.sel && NZ.sel.id));
+  Q('#n-camps').innerHTML = (princ.map(item).join('') || '<div class="hint">Cap campanya amb manifest ni proposta.</div>') +
+    (altres.length ? `<details id="n-altres" class="fold"${oberta || selAltres || !princ.length ? ' open' : ''}>` +
+      `<summary>altres campanyes (${altres.length})</summary>${altres.map(item).join('')}</details>` : '');
+  nzMarcaLlista();
+}
+function nzMarcaLlista(){
+  const s = NZ.sel || {}, d = NZ.dis;
+  const cur = d ? (d.volta || {}).id : (['camp', 'form'].includes(s.k) ? s.id : null);
+  const kind = d ? (d.volta || {}).k : s.k;
+  QA('#n-llista [data-id]').forEach(b => b.classList.toggle('on', !!cur && b.dataset.id === cur));
+  QA('#n-llista [data-k]').forEach(b => b.classList.toggle('on', b.dataset.k === kind));
+}
+function nzHash(){
+  const s = NZ.sel || {}, d = NZ.dis;
+  if(d) return 'neudet/' + ((d.volta || {}).id || '');
+  if(s.k === 'solt') return 'neudet/solt';
+  if(s.k === 'nova') return 'neudet/nova';
+  if(s.k === 'camp' || s.k === 'form') return 'neudet/' + (s.id || '');
+  return 'neudet';
+}
+function nzBread(){
+  const s = NZ.sel || {}, d = NZ.dis, arrel = '<button data-go="neudet">Neudet</button><span>›</span>';
+  let h;
+  if(d) h = `${arrel}<button data-go="volta">${escD((d.volta || {}).id || 'sense campanya')}</button><span>›</span><b>${escD(d.nom || '—')}</b>`;
+  else if(s.k === 'solt') h = `${arrel}<b>Disseny solt</b>` + (DS.cur && DS.cur.design ? `<span>›</span><b>${escD(DS.cur.nom || '—')}</b>` : '');
+  else if(s.k === 'nova') h = `${arrel}<b>proposta nova</b>`;
+  else h = `${arrel}<b>${escD(s.id || '—')}</b>`;
+  Q('#n-bread').innerHTML = h;
+}
+// Quina part de la pantalla es veu: la campanya (formulari o vista), el full del disseny, o el disseny solt.
+function nzVeu(){
+  const s = NZ.sel || {k: 'camp', id: null}, d = NZ.dis;
+  const formul = !d && (s.k === 'form' || s.k === 'nova'), sheet = !!d || s.k === 'solt';
+  Q('#n-err').innerHTML = '';
+  Q('#n-dis').hidden = !sheet;
+  Q('#n-camp').hidden = sheet;
+  Q('#n-form').hidden = !formul;
+  Q('#k-out').hidden = !!(d || s.k === 'solt' || formul);
+  dVisibilitat();
+  nzMarcaLlista(); nzBread();
+  history.replaceState(null, '', '#' + nzHash());
+}
+async function nzCampanya(id){
+  NZ.dis = null;
+  if(!id){
+    NZ.sel = {k: 'camp', id: null}; nzVeu();
+    return kErr('neudet no té cap campanya a disseny/campanyes/ (cal un campanya.yaml).');
+  }
+  NZ.ultima = id;
+  const hi = KC.lista.find(c => c.id === id);
+  if(hi && hi.estat_yaml === 'proposta'){
+    await cInit();
+    const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
+    cCarrega(r.form, `Proposta de neudet <code>${escD(id)}</code> (estat: proposta). «Desa la proposta» la torna a escriure: només una proposta es pot sobreescriure.` +
+      `<div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${id}\` proposta`)}</pre>`);
+    NZ.sel = {k: 'form', id};
+    return nzVeu();
+  }
+  NZ.sel = {k: 'camp', id};
+  nzVeu();
+  return kCarrega(id);
+}
+// «+ Nova»: els valors per defecte de neudet (c04_draft), amb un id que cal triar abans de desar.
+async function nzNova(){
+  NZ.dis = null;
+  await cInit();
+  const d = await api('/api/campanya/defaults');
+  NZ.sel = {k: 'nova'};
+  cCarrega(d, `Proposta nova, amb els valors per defecte de neudet (<code>${escD(d.id)}</code>). Tria un id nou abans de desar: «Desa la proposta» no sobreescriu una campanya que ja no és una proposta.`);
+  return nzVeu();
+}
+// «Obre un disseny» (nivell 3): un disseny solt. Entrar-hi des de fora de la pantalla el buida; re-entrar, no.
+async function nzSolt(){
+  if(NZ.sel && NZ.sel.k === 'solt' && !NZ.dis) return nzVeu();
+  NZ.dis = null; NZ.sel = {k: 'solt'};
+  dBuit();
+  await dInit();
+  nzVeu();
+  return rLoad();
+}
+// Nivell 2: el full d'un candidat. `c`: {hash, nom, de (campanya per a «Tanteja» i les energies), dat_text?, json_text?}.
+// Amb el .dat (el de la comprovació, o el de `export/` d'aquell hash) hi ha visor i inputs; sense ell, només resultats.
+async function nzObreCandidat(c){
+  const volta = NZ.dis ? NZ.dis.volta : {...(NZ.sel || {k: 'camp', id: null})};
+  NZ.dis = {hash: c.hash, nom: c.nom, editat: false, de: c.de || null, volta};
+  DS.cur = null; DS.orig = null;
+  nzVeu();
+  await dInit();
+  const vigent = () => NZ.dis && NZ.dis.hash === c.hash;
+  if(c.dat_text) await dCarrega({dat_text: c.dat_text, json_text: c.json_text || null});
+  else {
+    const e = DS.meta.dissenys.find(x => x.hash === c.hash);
+    if(e) await dCarrega({id: e.id});
+    else dSenseDisseny();
+  }
+  if(!vigent()) return;
+  Q('#d-camp').value = '';
+  dCampSet(c.de);
+  dTantejaEstat();
+  return rLoad();
+}
+async function nzTorna(){
+  const v = NZ.dis ? NZ.dis.volta : null;
+  NZ.dis = null;
+  if(!v) return nzCampanya(NZ.ultima || nzPrincipal());
+  if(v.k === 'form'){ NZ.sel = {k: 'form', id: v.id}; return nzVeu(); }
+  return nzCampanya(v.id);
+}
+Q('#n-llista').addEventListener('click', e => {
+  const b = e.target.closest('button[data-id],button[data-k]');
+  if(!b) return;
+  if(b.dataset.k === 'nova') return nzNova().catch(err => cErr(err.message));
+  if(b.dataset.k === 'solt') return nzSolt().catch(err => dErr(err.message));
+  nzCampanya(b.dataset.id).catch(err => kErr(err.message));
+});
+Q('#n-bread').addEventListener('click', e => {
+  const b = e.target.closest('button[data-go]');
+  if(!b) return;
+  if(b.dataset.go === 'volta') return nzTorna().catch(err => nzErr(err.message));
+  nzCampanya(NZ.ultima || nzPrincipal()).catch(err => nzErr(err.message));
+});
+
+// ── Disseny: el full d'un disseny (nivells 2 i 3) ─────────────────────────────
 // DS.cur: {design, editat, id, dat_text, json_text, origen, notes, nom, hash, verificat, violations, motiu}
 // DS.orig: una còpia fixada de DS.cur, per comparar-la amb l'actual.
-const DS = {meta:null, cur:null, orig:null, t:null, seq:0, tipus:[]};
+const DS = {meta: null, cur: null, orig: null, t: null, seq: 0, tipus: []};
+// El disseny que el full mostra: el carregat (si n'hi ha), o el candidat obert, que pot no tenir .dat.
+const dCtx = () => (DS.cur && DS.cur.design) ? DS.cur : NZ.dis;
 
 async function dInit(){
   if(DS.meta) return;
@@ -1481,13 +1589,13 @@ function dLeAnells(){
   dPintaJson(); dSchedule();
 }
 function dAdopta(r, extra){
-  RS.extern = null;
   DS.cur = {design: r.design, editat: !!r.editat, id: null, dat_text: null, json_text: null,
             origen: r.origen || null, notes: r.notes || [], nom: null, hash: null,
             verificat: false, violations: [], motiu: '', ...extra};
   dCampSet(r.design.restriccions && r.design.restriccions.campanya);
   dPintaAnells(); dPintaJson();
   Q('#d-fixnote').textContent = '';
+  dVisibilitat();
   dRefresh();
 }
 async function dCarrega(body){
@@ -1495,6 +1603,32 @@ async function dCarrega(body){
     const r = await api('/api/design/load', body);
     dAdopta(r, {id: body.id || null, dat_text: body.dat_text || null, json_text: body.json_text || null});
   } catch(e){ dErr(e.message); }
+}
+// Nivell 3 sense disseny: l'estat net de «Obre un disseny».
+function dBuit(){
+  DS.cur = null; DS.orig = null;
+  Q('#d-status').innerHTML = '<span class="note">Tria un disseny per defecte, carrega’n un de fitxers o demana’n un en text.</span>';
+  ['#d-nota', '#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz', '#c-o-xy', '#c-a-xy'].forEach(s => Q(s).innerHTML = '');
+  Q('#d-compare').hidden = true; Q('#d-fixnote').textContent = '';
+  dVisibilitat();
+}
+// Nivell 2 d'un candidat sense .dat a neudet: es diu per què no hi ha visor ni inputs, i els resultats per tub sí.
+function dSenseDisseny(){
+  const c = NZ.dis;
+  Q('#d-status').innerHTML = `<b>${escD(c.nom || '—')}</b> · hash <code>${escD(c.hash || '—')}</code> · <span class="tag t-nt">sense .dat a neudet</span>`;
+  ['#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz'].forEach(s => Q(s).innerHTML = '');
+  Q('#d-nota').innerHTML = '<div class="panel">Aquest candidat no té <code>.dat</code> a neudet: el visor i els inputs dels quatre codis ' +
+    'només es generen d\'un disseny amb <code>.dat</code> (els de <code>export/</code>, o el de la comprovació). Els resultats per tub sí es mostren.</div>';
+  dVisibilitat();
+}
+// Qui es veu al full: l'editor d'anells només és a «Obre un disseny» (nivell 3), i els inputs només amb un .dat.
+function dVisibilitat(){
+  const s = NZ.sel || {}, solt = !NZ.dis && s.k === 'solt', amb = !!(DS.cur && DS.cur.design);
+  Q('#d-font').hidden = !solt;
+  Q('#d-edit').hidden = !(solt && amb);
+  Q('#d-visor').hidden = !amb;
+  Q('#d-baixa').disabled = !amb;
+  Q('#d-inputsnota').textContent = amb ? '' : (NZ.dis ? 'Sense .dat no hi ha inputs: vegeu el que diu el full.' : 'Carrega un disseny per generar-ne els inputs.');
 }
 function violHtml(verificat, motiu, viol){
   if(!verificat) return `<div class="panel warn">No verificat: ${escD(motiu)}</div>`;
@@ -1508,8 +1642,8 @@ function badgeHtml(c){
   return '<span class="tag t-nt">disseny nou</span>';
 }
 function tableHtml(cols, rows){
-  return `<table class="tbl"><thead><tr>${cols.map(c => `<th>${escD(c)}</th>`).join('')}</tr></thead><tbody>` +
-    rows.map(r => `<tr>${r.map(x => `<td>${escD(x)}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+  return `<div class="tblwrap"><table class="tbl"><thead><tr>${cols.map(c => `<th>${escD(c)}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(r => `<tr>${r.map(x => `<td>${escD(x)}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>';
 }
 function dPintaCheck(){
   const c = DS.cur;
@@ -1527,13 +1661,14 @@ function dPintaVista(v){
     tableHtml(['Camp', 'Valor'], v.resum) + '</details>';
 }
 async function dRefresh(){
-  if(!DS.cur) return;
+  if(!DS.cur || !DS.cur.design) return;
   const seq = ++DS.seq, b = dBody();
   try{
     const [c, v] = await Promise.all([api('/api/design/check', b), api('/api/design/view', b)]);
     if(seq !== DS.seq) return;
     Object.assign(DS.cur, {nom: c.nom, hash: c.hash, verificat: c.verificat, violations: c.violations, motiu: c.motiu});
-    dPintaCheck(); dPintaVista(v); dTantejaEstat();
+    dPintaCheck(); dPintaVista(v); dTantejaEstat(); nzBread();
+    rLoad();                                             // els resultats són els del hash que diu ara el disseny
   } catch(e){
     if(seq === DS.seq){ dErr(e.message); Q('#d-viol').innerHTML = `<div class="panel bad">${escD(e.message)}</div>`; }
   }
@@ -1555,6 +1690,23 @@ async function dCompara(){
   } catch(e){ Q('#d-fixnote').textContent = e.message; }
 }
 
+// «Tanteja»: només un candidat (o un disseny de neudet sense editar), amb una campanya triada a «Inputs».
+function dTantejaEstat(){
+  const c = dCtx(), de = Q('#d-camp').value;
+  const ok = !!(c && c.hash && !c.editat && de);
+  Q('#d-tanteja').disabled = !ok;
+  Q('#d-tantenota').textContent = ok || !c || !c.hash ? '' : c.editat
+    ? 'Editat: ja no és un candidat de neudet.' : 'Tria la campanya a «Inputs dels quatre codis».';
+}
+Q('#d-tanteja').onclick = () => {
+  const c = dCtx(), de = Q('#d-camp').value;
+  if(!c || !c.hash || c.editat || !de) return;
+  // Sense etapa: neudet busca el candidat a les etapes de xarxa de la campanya. La carpeta de l'etapa
+  // (S1_draft) no és la clau del campanya.yaml (S1), i per això no es passa.
+  cPrenTanteig({de, hash: c.hash}).catch(err => dErr(err.message));
+};
+Q('#d-camp').addEventListener('change', dTantejaEstat);
+
 Q('#d-def').onchange = () => { if(Q('#d-def').value) dCarrega({id: Q('#d-def').value}); };
 Q('#d-upload').onclick = async () => {
   const f1 = Q('#d-datf').files[0], f2 = Q('#d-jsonf').files[0];
@@ -1571,7 +1723,7 @@ Q('#d-anells').addEventListener('click', e => {
   DS.cur.editat = true; dPintaAnells(); dPintaJson(); dSchedule();
 });
 Q('#d-addring').onclick = () => {
-  if(!DS.cur){ dErr('primer carrega un disseny'); return; }
+  if(!DS.cur || !DS.cur.design){ dErr('primer carrega un disseny'); return; }
   DS.cur.design.anells = [...(DS.cur.design.anells || []), {r: 5, n: 1, phi: 0, tipus: DS.tipus[0] || 'counterUPC', z: 0}];
   DS.cur.editat = true; dPintaAnells(); dPintaJson(); dSchedule();
 };
@@ -1600,25 +1752,14 @@ Q('#d-ask').onclick = async () => {
   } catch(e){ dErr(e.message); }
   finally { Q('#d-ask').disabled = !(DS.meta && DS.meta.llm && DS.meta.llm.ok); }
 };
-// «Tanteja»: un disseny de neudet sense editar, que és un candidat (hash) de la campanya de la sortida.
-function dTantejaEstat(){
-  const c = DS.cur;
-  Q('#d-tanteja').disabled = !(c && c.hash && !c.editat && Q('#d-camp').value);
-}
-Q('#d-camp').addEventListener('change', dTantejaEstat);
-Q('#d-tanteja').onclick = () => {
-  const c = DS.cur, de = Q('#d-camp').value;
-  if(!c || !c.hash || c.editat || !de) return;
-  cPrenTanteig({de, hash: c.hash}).catch(err => dErr(err.message));
-};
 Q('#d-fix').onclick = () => {
-  if(!DS.cur) return;
+  if(!DS.cur || !DS.cur.design) return;
   DS.orig = JSON.parse(JSON.stringify(DS.cur));
   Q('#d-fixnote').textContent = `Original fixat: ${DS.orig.nom || '—'}${DS.orig.hash ? ' (' + DS.orig.hash + ')' : ''}`;
 };
 Q('#d-cmp').onclick = dCompara;
 Q('#d-baixa').onclick = async () => {
-  if(!DS.cur) return;
+  if(!DS.cur || !DS.cur.design) return;
   const b = {...dBody(), campanya: Q('#d-camp').value || null, energia_mev: Q('#d-energia').value.trim() || null};
   try{
     const r = await fetch('/api/design/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
@@ -1632,30 +1773,32 @@ Q('#d-baixa').onclick = async () => {
   } catch(e){ dErr(e.message); }
 };
 
-// ── Resultats ─────────────────────────────────────────────────────────────────
-const RS = {entries: [], vista: null, comp: null, extern: null};
+// ── Resultats per tub: els de neudet per al disseny del full (dCtx) ───────────
+const RS = {entries: [], vista: null, comp: null, seq: 0};
 
 function rErr(msg){ Q('#r-etapes').innerHTML = `<div class="panel bad">${escD(msg)}</div>`; }
+function rBuit(msg){
+  Q('#r-etapes').innerHTML = `<div class="hint">${msg}</div>`;
+  ['#r-avisos', '#r-xy', '#r-taula', '#r-comp', '#r-comp-avisos'].forEach(s => Q(s).innerHTML = '');
+}
 async function rLoad(){
-  const c = RS.extern || DS.cur;
+  const c = dCtx(), seq = ++RS.seq;
   if(!c || !c.hash){
-    Q('#r-dis').innerHTML = '<span class="hint">Cap disseny carregat. Carrega’n un a la pestanya Disseny.</span>';
-    Q('#r-etapes').innerHTML = ''; Q('#r-xy').innerHTML = ''; Q('#r-taula').innerHTML = ''; Q('#r-avisos').innerHTML = '';
-    Q('#r-comp').innerHTML = ''; Q('#r-comp-avisos').innerHTML = '';
+    rBuit('Cap disseny carregat: obre un candidat d’una campanya, o carrega un disseny a «Obre un disseny».');
     return;
   }
-  Q('#r-dis').innerHTML = `<b>${escD(c.nom || '—')}</b><br>hash <code>${escD(c.hash)}</code><br>` +
-    (c.editat ? '<span class="tag t-wa">editat: disseny nou</span>' : '<span class="tag t-ok">de neudet</span>') +
-    (c.origen && String(c.origen).startsWith('campanya ') ? `<br><span class="tag t-nt">des de Campanyes: ${escD(c.origen.slice(9))}</span>` : '');
-  const base = await api('/api/results?hash=' + encodeURIComponent(c.hash));
-  RS.entries = base.entries;
-  const oks = RS.entries.filter(e => e.status === 'ok');
-  const sel = Q('#r-stage'), prev = sel.value;
-  sel.innerHTML = oks.map(e => `<option value="${escD(e.path)}">${escD(e.campanya)} · ${escD(e.etapa)} (${escD(e.motor || '')})</option>`).join('');
-  if(prev && oks.some(e => e.path === prev)) sel.value = prev;
-  rEnergies();
-  await rVista();
-  rTantejaEstat();
+  try{
+    const base = await api('/api/results?hash=' + encodeURIComponent(c.hash));
+    if(seq !== RS.seq) return;
+    RS.entries = base.entries;
+    const oks = RS.entries.filter(e => e.status === 'ok');
+    const sel = Q('#r-stage'), prev = sel.value;
+    sel.innerHTML = oks.map(e => `<option value="${escD(e.path)}">${escD(e.campanya)} · ${escD(e.etapa)} (${escD(e.motor || '')})</option>`).join('');
+    if(prev && oks.some(e => e.path === prev)) sel.value = prev;
+    rEnergies();
+    await rVista();
+  } catch(e){ if(seq === RS.seq) rErr(e.message); }
+  dTantejaEstat();
 }
 function rEnergies(){
   const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
@@ -1666,7 +1809,7 @@ function rEnergies(){
   else if(en.includes(1)) sel.value = '1';
 }
 async function rVista(){
-  const c = RS.extern || DS.cur; if(!c || !c.hash) return;
+  const c = dCtx(); if(!c || !c.hash) return;
   const q = new URLSearchParams({hash: c.hash});
   const st = Q('#r-stage').value, en = Q('#r-energia').value;
   if(st) q.set('stage', st);
@@ -1700,7 +1843,7 @@ function rTaula(){
   const en = e.energies_MeV, sel = Q('#r-energia').value;
   const hl = k => String(en[k]) === sel ? 'hl' : '';
   const head = '<th>#</th><th>tipus</th><th>x, y, z (cm)</th>' + en.map((x, k) => `<th class="${hl(k)}">${x} MeV</th>`).join('');
-  const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${t.x}, ${t.y}, ${t.z}</td>` +
+  const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${fmtPos(t)}</td>` +
     en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
   return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1722,13 +1865,15 @@ function rComp(){
       const r = x.ratio == null ? '' : ` <span class="hint">(${fmtNum(x.ratio)}×)</span>`;
       return `<td>${fmtNum(x.eps)} ± ${fmtNum(x.sig)}${r}</td>`;
     }).join('');
-    return `<tr><td>${f.i + 1}</td><td>${escD(f.tipus)}</td><td>${f.pos.join(', ')}</td>${cells}</tr>`;
+    return `<tr><td>${f.i + 1}</td><td>${escD(f.tipus)}</td><td>${fmtPos({x: f.pos[0], y: f.pos[1], z: f.pos[2]})}</td>${cells}</tr>`;
   }).join('');
   const ref = c.referencia ? `<div class="hint">quocient (×) respecte a <b>${escD(c.referencia)}</b></div>` : '<div class="hint">sense referència (ni Geant4 ni xarxa B1 a aquesta energia): sense quocient</div>';
   return `${ref}<table class="tbl"><thead><tr><th>#</th><th>tipus</th><th>x, y, z (cm)</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
+// posició d'un tub per llegir (no per calcular): 3 decimals i sense -0
+const fmtPos = t => [t.x, t.y, t.z].map(v => { const r = Math.round(Number(v) * 1000) / 1000; return String(Object.is(r, -0) ? 0 : r); }).join(', ');
 function rPinta(){
-  const c = DS.cur, ents = RS.entries;
+  const c = dCtx(), ents = RS.entries;
   // primer les que tenen dades per tub (i les de Geant4 sense, que neudet vol veure);
   // les etapes que només tenen el hash al candidats.csv, plegades en una línia
   const sols = ents.filter(e => e.status === 'sense resultats per tub');
@@ -1752,21 +1897,12 @@ function rPinta(){
     ...(cc.avisos || []).map(a => `<div class="panel warn">${escD(a)}</div>`),
     cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : ''].join('');
 }
-// «Tanteja» d'un candidat: el hash del disseny carregat, dins l'etapa triada (de la campanya de l'etapa).
-function rTantejaEstat(){
-  const e = RS.entries.find(x => x.path === Q('#r-stage').value);
-  const c = RS.extern || DS.cur;
-  Q('#r-tanteja').disabled = !(e && e.campanya && c && c.hash);
-}
-Q('#r-tanteja').onclick = () => {
-  const e = RS.entries.find(x => x.path === Q('#r-stage').value), c = RS.extern || DS.cur;
-  if(!e || !e.campanya || !c || !c.hash) return;
-  cPrenTanteig({de: e.campanya, hash: c.hash, etapa: e.etapa}).catch(err => rErr(err.message));
-};
-Q('#r-stage').onchange = async () => { rEnergies(); await rVista(); rTantejaEstat(); };
-Q('#r-energia').onchange = () => rVista();
-Q('#r-go').onclick = () => rVista();
+Q('#r-stage').onchange = () => { rEnergies(); rVista().then(dTantejaEstat).catch(e => rErr(e.message)); };
+Q('#r-energia').onchange = () => rVista().catch(e => rErr(e.message));
+Q('#r-go').onclick = () => rVista().catch(e => rErr(e.message));
 
-showTab((location.hash || '#sim').slice(1));
+QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+const [n0, sub0] = (location.hash || '#sim').slice(1).split('/');
+showTab(n0, sub0);
 </script>
 </body></html>

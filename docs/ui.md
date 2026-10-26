@@ -1,9 +1,10 @@
 # La UI de simphy (consola web)
 
-**Estat (2026-10-26):** hi ha tres pestanyes i les tres funcionen: **Simulació** (la de la
-demo), **Disseny** (F1) i **Resultats** (F2, sobre els `resultats_tub.json` de neudet, R1 i
-R1b). Encàrrec: `docs/site/encarrecs/2026-10-26_UI_disseny_resultats.md`. Pendent: U6, la
-prova a railab amb el model local.
+**Estat (2026-10-26):** dues pestanyes: **Simulació** (la de la demo) i **Neudet**. Neudet té tres
+nivells dins la mateixa pantalla: campanyes (llista + formulari de proposta o vista), el full d'un
+candidat (visor, resultats per tub, Tanteja, inputs dels quatre codis) i el disseny solt («Obre un
+disseny»: fonts, editor d'anells, comparació). Els enllaços antics (`#campanya`, `#campanyes`,
+`#disseny`, `#resultats`) obren el nivell que els tocava. Pendent: U6, la prova a railab amb el model local.
 
 ```bash
 python scripts/ui/serve.py              # http://127.0.0.1:8765  (--host, --port)
@@ -38,13 +39,12 @@ materials, els detectors i el resultat surten de `mcgen`. Si cal escriure una l�
 física, va a `src/simphy/mcgen/` amb el seu test. Sense dependències externes.
 No executa simulacions ni escriu fitxers.
 
-## On va: tres pestanyes
+## Pestanyes
 
 ```
- ┌──────────────┬────────────────────────┬──────────────────────┐
- │ 1 Simulació  │ 2 Disseny de detectors │ 3 Resultats          │
- │ (ja hi és)   │ (F1)                   │ (F2)                 │
- └──────────────┴────────────────────────┴──────────────────────┘
+ ┌──────────────┬──────────────────────────────────────────────────────────┐
+ │ Simulació    │ Neudet: campanyes · full del candidat · disseny solt     │
+ └──────────────┴──────────────────────────────────────────────────────────┘
 ```
 
 ### 1 · Simulació (la consola actual)

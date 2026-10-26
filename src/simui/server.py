@@ -1,7 +1,7 @@
 """El servidor de la consola: `http.server` de la stdlib, sense dependències.
 
 Rutes: `/` (la pàgina), `/api/meta`, `/api/llm`, `/api/render`, `/api/ask` (Simulació) i
-`/api/design/{meta,load,check,view,export,ask}` + `/api/results` (Disseny i Resultats) i
+`/api/design/{meta,load,check,view,export,ask}` + `/api/results` (el full de disseny) i
 `/api/campanya/{schema,defaults,yaml,comprova,compta,desa,tanteig}` (Definició de campanya) i
 `/api/campanyes`, `/api/campanya/{vista,carrega,fitxer}` (Campanyes: la campanya com a conjunt).
 Els errors d'un disseny o d'un resultat són un 400 amb el motiu (`{"error": …}`), no un
