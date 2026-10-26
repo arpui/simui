@@ -130,7 +130,12 @@ def test_comprova_c04_dona_259_valids(url):
     assert r["n_valids"] == 259, f"neudet diu {r['n_valids']} vàlids (DEFINICIO.md: 259)"
     assert len(r["candidats"]) == 50
     assert all(c["xy_svg"].lstrip().startswith("<svg") for c in r["candidats"])
-    assert r["certificacio"]["disponible"] is False             # no hi ha comprova_campanya.py
+    c = r["certificacio"]
+    # amb torch (railab) neudet certifica; sense (núvol) la UI ha de dir per què no, amb l'error de neudet
+    if c["disponible"]:
+        assert c["atura"] is False and any(e["element"] == "tub lnd_252285" for e in c["elements"])
+    else:
+        assert c["motiu"] and (c.get("error_sortida") or "comprova_campanya.py" in c["motiu"])
 
 
 def test_candidat_de_la_llista_es_obre_al_disseny(url):
