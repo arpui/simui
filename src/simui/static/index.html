@@ -1232,7 +1232,7 @@ function kCert(v){
 }
 function kEtapa(e){
   const eix = KC.v.pareto.eixos;
-  const meta = [`${e.n_candidats} candidats`, e.n_csv !== e.n_candidats ? `${e.n_csv} al csv` : null,
+  const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
     e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null]
     .filter(Boolean).join(' · ');
   return `<article class="card" style="margin-bottom:14px">

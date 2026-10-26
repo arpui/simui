@@ -57,14 +57,14 @@ def _provisional(c04: Path) -> dict:
 # ── el provisional, sobre c04 real ──────────────────────────────────────────
 
 def test_provisional_de_c04_te_les_dues_etapes(c04):
-    m = V.manifest(c04)
+    m = V.manifest_provisional(c04)
     assert m["provisional"] is True
     assert m["motiu"] == MOTIU
     assert [e["nom"] for e in m["etapes"]] == ["S1_draft", "S1_draft_g4"]
 
 
 def test_provisional_motors_i_comptes(c04):
-    et = {e["nom"]: e for e in V.manifest(c04)["etapes"]}
+    et = {e["nom"]: e for e in V.manifest_provisional(c04)["etapes"]}
     assert et["S1_draft"]["motor"] == "xarxa B1"
     assert et["S1_draft_g4"]["motor"] == "geant4"
     assert et["S1_draft"]["n_candidats"] == 8
@@ -74,20 +74,20 @@ def test_provisional_motors_i_comptes(c04):
 
 
 def test_provisional_g4_verifica_la_xarxa_del_mateix_nom(c04):
-    et = {e["nom"]: e for e in V.manifest(c04)["etapes"]}
+    et = {e["nom"]: e for e in V.manifest_provisional(c04)["etapes"]}
     assert et["S1_draft_g4"]["verifica"] == "S1_draft"
     assert et["S1_draft"]["verifica"] is None
 
 
 def test_provisional_citable_i_figures(c04):
-    et = {e["nom"]: e for e in V.manifest(c04)["etapes"]}
+    et = {e["nom"]: e for e in V.manifest_provisional(c04)["etapes"]}
     assert et["S1_draft"]["citable"] is True
     assert et["S1_draft_g4"]["citable"] is True
     assert "etapes/S1_draft/figures/pareto.png" in et["S1_draft"]["figures"]
 
 
 def test_provisional_judici_report_i_estat(c04):
-    m = V.manifest(c04)
+    m = V.manifest_provisional(c04)
     assert m["estat"] == "draft"
     assert m["judici"] and "No és un resultat de disseny" in m["judici"]
     assert m["judici"].startswith("Flux provat")          # el títol «## Judici» no hi és
@@ -105,7 +105,7 @@ def test_el_manifest_real_guanya_i_conserva_camps_extra(c04, tmp_path):
     real = dict(_provisional(dst), generat_per="neudet-test")
     (dst / "campanya_ui.json").write_text(json.dumps(real, ensure_ascii=False), encoding="utf-8")
     m = V.manifest(dst)
-    assert "provisional" not in m
+    assert m["provisional"] is False
     assert m["generat_per"] == "neudet-test"
     assert V.vista(dst)["provisional"] is False
 
@@ -250,3 +250,19 @@ def test_fitxer_no_segueix_un_enllac_que_surt_de_la_campanya(c04, tmp_path):
     (dst / "enllac.png").symlink_to(secret)
     with pytest.raises(V.Prohibit):
         V.fitxer(dst, "enllac.png")
+
+
+def test_el_manifest_real_de_c04_amb_les_claus_del_6b(c04):
+    """neudet 711addf: c04 ja porta campanya_ui.json; les claus del §6b es tradueixen a les de la vista."""
+    if not (c04 / "campanya_ui.json").is_file():
+        pytest.skip("c04 sense campanya_ui.json")
+    m = V.manifest(c04)
+    assert m["provisional"] is False and m["flux"] == "jutjada"
+    et = {e["nom"]: e for e in m["etapes"]}
+    assert et["S1_draft"]["candidats"] == "etapes/S1_draft/candidats.csv" and et["S1_draft"]["dir"] == "etapes/S1_draft"
+    assert et["S1_draft_g4"]["verifica"] == "S1_draft" and et["S1_draft"]["verifica"] is None
+    assert all(f.startswith("etapes/S1_draft/figures/") for f in et["S1_draft"]["figures"]) and et["S1_draft"]["figures"]
+    assert m["definicio"] == {"yaml": "campanya.yaml", "md": "DEFINICIO.md"}
+    assert [r.rsplit(".", 1)[1] for r in m["report"]] == ["md", "pdf"]
+    v = V.vista(c04)
+    assert [len(e["candidats"]) for e in v["etapes"]] == [10, 2]

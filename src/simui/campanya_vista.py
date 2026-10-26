@@ -341,9 +341,46 @@ def manifest(dir_: PathLike) -> Dict[str, Any]:
     f = d / MANIFEST
     if not f.is_file():
         return manifest_provisional(d)
-    doc = _json(f)
+    doc = _de_6b(_json(f), f)
     _valida_manifest(doc, f)
     return doc
+
+
+def _de_6b(doc: Dict[str, Any], f: Path) -> Dict[str, Any]:
+    """Les claus definitives del manifest (contracte §6b, neudet 711addf) → les de la vista. El fitxer de
+    neudet mana; aquí només es tradueix (correspondència escrita al §6b):
+    `candidats_csv` → `candidats`, `verificada_per` → `verifica`, `dir` = la carpeta de `candidats_csv`,
+    `definicio.{campanya_yaml, definicio}` → `definicio.{yaml, md}`, `report.{md, pdf}` → llista, `flux` es manté."""
+    if not isinstance(doc, dict):
+        raise CampanyaError(f"{f}: l'arrel ha de ser un objecte")
+    out = dict(doc)
+    out.setdefault("provisional", False)
+    etapes = []
+    for i, e in enumerate(doc.get("etapes") or []):
+        if not isinstance(e, dict):
+            raise CampanyaError(f"{f}: etapes[{i}] ha de ser un objecte")
+        e = dict(e)
+        if "candidats_csv" in e:
+            csv = e.pop("candidats_csv")
+            e["candidats"] = csv
+            e.setdefault("dir", str(PurePosixPath(csv).parent) if csv else None)
+        if "verificada_per" in e:
+            e["verifica"] = e.pop("verificada_per")
+        fig = e.get("figures")
+        if isinstance(fig, str):                          # §6b: la carpeta; la vista vol els fitxers
+            fd = f.parent / fig
+            e["figures"] = sorted(str(PurePosixPath(fig) / p.name) for p in fd.iterdir()
+                                  if p.is_file() and p.suffix.lower() in (".png", ".svg", ".jpg", ".jpeg")) \
+                if fd.is_dir() else []
+        etapes.append(e)
+    out["etapes"] = etapes
+    dfn = doc.get("definicio")
+    if isinstance(dfn, dict) and "campanya_yaml" in dfn:
+        out["definicio"] = {"yaml": dfn.get("campanya_yaml"), "md": dfn.get("definicio")}
+    rep = doc.get("report")
+    if isinstance(rep, dict):
+        out["report"] = [r for r in (rep.get("md"), rep.get("pdf")) if r]
+    return out
 
 
 # ── la vista ────────────────────────────────────────────────────────────────

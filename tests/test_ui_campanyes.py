@@ -72,15 +72,14 @@ def test_llista_inclou_c04_com_a_provisional(url):
     c04 = next(c for c in d["campanyes"] if c["id"] == "c04_draft")
     assert c04["estat_manifest"] == "draft" and c04["estat_yaml"] == "jutjada"   # dos estats, no un
     assert c04["grup"] == "principal"                                              # flux nou (fitxa: 1), manifest provisional
-    assert c04["manifest"] is False and c04["provisional"] is True
+    assert c04["manifest"] is True and c04["provisional"] is False          # neudet 711addf: ja hi és
 
 
-def test_vista_de_c04_es_provisional_i_te_les_dues_etapes(url):
+def test_vista_de_c04_ve_del_manifest_i_te_les_dues_etapes(url):
     code, _, body = _get(url, "/api/campanya/vista?id=c04_draft")
     v = json.loads(body)
     assert code == 200
-    assert v["provisional"] is True
-    assert "campanya_ui.json encara no hi és" in v["motiu"]
+    assert v["provisional"] is False                                     # campanya_ui.json de neudet
     assert [e["nom"] for e in v["etapes"]] == ["S1_draft", "S1_draft_g4"]
     assert v["pareto"]["eixos"][0] == {"metrica": "eps_mitja", "sentit": "max"}
     assert v["judici"]
