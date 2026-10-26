@@ -149,3 +149,27 @@ def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             return _amb_candidats(dir_, etapa, Path(tmp), script if script.exists() else None)
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None
+
+
+def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
+    """Quants candidats genera la regla de l'etapa, ABANS de les restriccions. És `Campanya.candidats` de
+    neudet (que crida `generadors.genera` amb el bloc i el context de la campanya): valids + invalids.
+    Qualsevol error de neudet arriba tal com és (`ValueError` amb el seu missatge)."""
+    if not isinstance(yaml_text, str) or not yaml_text.strip():
+        raise ValueError("el campanya.yaml és buit")
+    try:
+        DES._neudet()
+    except DES.DesignError as exc:
+        raise ValueError(str(exc)) from None
+    with tempfile.TemporaryDirectory(prefix="simphy_campanya_") as tmp:
+        dir_ = Path(tmp) / "campanya"
+        dir_.mkdir()
+        (dir_ / "campanya.yaml").write_text(yaml_text)
+        try:
+            if etapa is None:
+                etapa = _primera_etapa_de_xarxa(yaml_text)
+            from neudet.disseny.campanya import Campanya     # neudet importat de NEUDET_ROOT/src
+            valids, invalids = Campanya(dir_).candidats(etapa)
+            return {"etapa": etapa, "n": len(valids) + len(invalids)}
+        except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
+            raise ValueError(_motiu_de(exc)) from None

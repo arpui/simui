@@ -280,3 +280,176 @@ def test_comprova_etapa_que_no_hi_es_mostra_el_missatge_de_neudet():
     _neudet_o_skip()
     with pytest.raises(ValueError, match="no és a campanya.yaml"):
         CC.comprova(_c04_text(), "S9")
+
+
+# ── llistes tancades: cada valor és on neudet el diu ────────────────────────
+
+def _linies(fitxer: str, dir_=CF._DIS) -> list:
+    """Les línies d'un fitxer de neudet (per defecte, el paquet src/neudet/disseny)."""
+    return _neudet_o_skip().joinpath(*dir_, fitxer).read_text(encoding="utf-8").splitlines()
+
+
+def test_metriques_citades_a_objectius_py():
+    """Cada mètrica de la llista és a objectius.py, a la línia que diu, i la descripció és la del registre."""
+    linies = _linies(CF.OBJECTIUS_PY)
+    fallades = [f'{n} no és a objectius.py:{ln}' for n, ln in CF.METRIQUES_LINIA.items()
+                if f'"{n}"' not in linies[ln - 1]]
+    assert not fallades, "\n".join(fallades)
+    DES._neudet()
+    from neudet.disseny import objectius as O
+    s = CF.schema()["objectius"]
+    assert [m["nom"] for m in s["metriques"]] == list(CF.METRIQUES_LINIA)
+    reg = {**O.METRIQUES, **O.METRIQUES_GRUP, **O.METRIQUES_GRUP2, **O.METRIQUES_GRUP3}
+    for m in s["metriques"]:
+        r = reg[m["nom"]]
+        desc = r[2] if m["nom"] in O.METRIQUES else r[1]
+        assert m["descripcio"] == desc, m["nom"]           # la frase és la de neudet, no una còpia
+    err = [m for m in s["metriques"] if m["nom"] == "err_grups"][0]
+    assert err["requereix"]["clau"] == "objectius.grups_MeV"
+
+
+def test_sentits_pesos_energies_k_sigma_citats():
+    _neudet_o_skip()
+    lo = _linies(CF.OBJECTIUS_PY)
+    assert '"max"' in lo[CF.SENTITS_LINIA - 1]
+    assert 'cfg.get("pesos", "uniforme")' in lo[CF.PESOS_DEFECTE_LINIA - 1]
+    assert 'w == "uniforme"' in lo[CF.PESOS_LINIA["uniforme"] - 1]
+    assert 'w == "letargia"' in lo[CF.PESOS_LINIA["letargia"] - 1]
+    assert 'sel == "totes"' in lo[CF.ENERGIES_LINIA - 1]
+    assert "pareto_k_sigma" in lo[CF.K_SIGMA_LINIA - 1]
+    assert "for n in [p[0] for p in self.pareto]" in lo[CF.AUTO_LINIA - 1]
+    assert "err_grups: cal objectius.grups_MeV" in lo[CF.ERR_GRUPS_CAL_LINIA - 1]
+    assert 'cfg.get("restriccio")' in lo[CF.RESTRICCIO_LINIA - 1]
+    s = CF.schema()["objectius"]
+    assert [p["valor"] for p in s["pesos"]] == ["uniforme", "letargia"]           # neudet només accepta aquests
+    assert s["pesos_defecte"]["valor"] == "uniforme"
+    assert s["pareto"]["defecte"] == [["eps_mitja", "max"], ["cv", "min"]]
+    assert s["pareto_k_sigma"]["defecte"] == 2.0 and s["pareto_k_sigma"]["minim"] == 0
+    assert s["energies"]["totes"]["linia"] == CF.ENERGIES_LINIA
+
+
+def test_cerca_i_avaluacio_citades():
+    _neudet_o_skip()
+    lc = _linies(CF.CERCA_PY)
+    for nom, ln in CF.CERQUES_LINIA.items():
+        assert f'registra("{nom}")' in lc[ln - 1], nom
+    for tipus, camps in CF.CERCA_CAMPS.items():
+        for c in camps:
+            assert f'"{c["clau"]}"' in lc[c["linia"] - 1], f'{tipus}.{c["clau"]}'
+    la = _linies(CF.AVALUADOR_PY)
+    for nom, ln in {**CF.XARXES_LINIA, **CF.MODES_LINIA}.items():
+        assert f'"{nom}"' in la[ln - 1], nom
+    lcamp = _linies(CF.CAMPANYA_PY)
+    for k, c in CF.AVALUACIO_CAMPS.items():
+        assert k in lcamp[c["linia"] - 1], k
+    assert 'mode != "continu"' in lcamp[CF.CD_MODE_REGLA_LINIA - 1]
+    assert "geom_vect" in lcamp[CF.GEOM_VECT_LINIA - 1]
+    s = CF.schema()
+    assert [t["valor"] for t in s["cerca"]["tipus"]] == ["exhaustiva", "aleatoria", "halving"]
+    assert s["cerca"]["defecte"]["valor"] == "exhaustiva"
+    halv = [t for t in s["cerca"]["tipus"] if t["valor"] == "halving"][0]["ajuda"]
+    assert "Successive halving" in halv and "min_finalistes" in halv   # paràgraf de cerca.py (línies 9-10)
+    assert [x["valor"] for x in s["avaluacio"]["xarxa"]["valors"]] == ["A", "B1"]
+    assert [x["valor"] for x in s["avaluacio"]["mode"]["valors"]] == ["lots", "per_energia", "continu"]
+
+
+def test_ajuda_del_generador_es_el_paragraf_del_docstring():
+    """L'ajuda és el text de generadors.py: la línia citada és l'entrada del generador, i el paràgraf hi és."""
+    _neudet_o_skip()
+    lg = _linies(CF.GENERADORS_PY)
+    for g in CF.schema()["generadors"]:
+        a = g["ajuda"]
+        assert lg[a["linia"] - 1].startswith("    " + g["tipus"]), g["tipus"]
+        primer = lg[a["linia"] - 1].split("·", 1)[1].strip().split(" ")[0]
+        assert a["text"].startswith(primer), g["tipus"]                 # el text comença per la frase de neudet
+    anells = [g for g in CF.schema()["generadors"] if g["tipus"] == "anells"][0]["ajuda"]["text"]
+    assert "producte cartesià" in anells and "mig_pas" in anells      # text de neudet
+
+
+def test_objectius_valids_passen_to_yaml():
+    _neudet_o_skip()
+    f = CF.defaults()
+    f["objectius"] = {"metriques": ["eps_mitja", "cv", "res_E"], "energies_MeV": [0.1, 1.0],
+                      "pareto": [["res_E", "min"], ["eps_mitja", "max"]], "pesos": "uniforme", "pareto_k_sigma": 0}
+    f["etapes"]["S1"]["cerca"] = {"tipus": "aleatoria", "mostres": 10}
+    yaml.safe_load(CF.to_yaml(f))
+    f["objectius"]["pareto"] = [["cd_cm2", "min"], ["eps_mitja", "max"]]     # geomètrica: neudet l'afegeix sola
+    yaml.safe_load(CF.to_yaml(f))
+    f["objectius"] = {"metriques": ["eps_mitja", "cv"], "pareto": [["res_E", "min"], ["eps_mitja", "max"]]}
+    yaml.safe_load(CF.to_yaml(f))                                           # de grup: l'afegeix sola (objectius.py:228)
+
+
+@pytest.mark.parametrize("canvi, camp", [
+    (lambda f: f["objectius"].__setitem__("metriques", ["inventada"]), "objectius.metriques"),
+    (lambda f: f["objectius"].__setitem__("metriques", []), "objectius.metriques"),
+    (lambda f: f["objectius"].__setitem__("pesos", "trapezi"), "objectius.pesos"),
+    (lambda f: f["objectius"].__setitem__("pesos", [0.5, 0.5]), "objectius.pesos"),
+    (lambda f: f["objectius"].__setitem__("energies_MeV", [0.123]), "objectius.energies_MeV"),
+    (lambda f: f["objectius"].__setitem__("pareto", [["eps_mitja", "maxim"], ["cv", "min"]]), "objectius.pareto"),
+    (lambda f: f["objectius"].__setitem__("pareto", [["cv", "min"]]), "objectius.pareto"),
+    (lambda f: (f["objectius"].__setitem__("metriques", ["eps_mitja", "cv"]),
+                f["objectius"].__setitem__("pareto", [["eps_mitja", "max"], ["eps_min", "max"]])), "objectius.pareto"),
+    (lambda f: f["objectius"].__setitem__("pareto_k_sigma", -1), "pareto_k_sigma"),
+    (lambda f: f["avaluacio"].__setitem__("xarxa", "C"), "avaluacio.xarxa"),
+    (lambda f: f["avaluacio"].__setitem__("mode", "lots2"), "avaluacio.mode"),
+    (lambda f: f["avaluacio"].__setitem__("n_final", 0), "avaluacio.n_final"),
+    (lambda f: f["avaluacio"].__setitem__("geom_vect", "si"), "avaluacio.geom_vect"),
+    (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "recuit"}), "cerca.tipus"),
+    (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "aleatoria"}), "mostres"),
+    (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "halving", "fraccio": 0}), "fraccio"),
+    (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "halving", "min_finalistes": 0}), "min_finalistes"),
+    (lambda f: f["etapes"]["S1"]["generador"]["anells"][0].__setitem__("cd", {"fraction": 2}), "fraction"),
+    (lambda f: f["etapes"]["S1"]["generador"]["anells"][0].__setitem__("cd", {"fraction": 0.5, "arc": 400}), "arc"),
+])
+def test_llista_tancada_fora_de_neudet_diu_el_camp(canvi, camp):
+    """to_yaml no escriu un valor fora de les llistes de neudet, i diu quin camp és."""
+    _neudet_o_skip()
+    f = CF.defaults()
+    canvi(f)
+    with pytest.raises(CF.FormError) as exc:
+        CF.to_yaml(f)
+    assert camp in str(exc.value), str(exc.value)
+
+
+def test_llistes_tancades_de_simphy_son_les_de_neudet():
+    """Les llistes que to_yaml fa servir (les constants) són les que neudet té en els seus registres."""
+    _neudet_o_skip()
+    from neudet.disseny import cerca as C, objectius as O
+    assert set(CF.CERQUES_LINIA) == set(C.CERQUES)
+    assert set(CF.METRIQUES_LINIA) == set(O.METRIQUES) | set(O.METRIQUES_GRUP) | set(O.METRIQUES_GRUP2) | set(O.METRIQUES_GRUP3)
+    assert set(CF.AUTO_NOMS) == O.GEOMETRIQUES | O.GRUP | O.GRUP2 | O.GRUP3
+    assert set(CF.DEFECTE_NOMS) == {n for n in O.METRIQUES if n not in O.GEOMETRIQUES}
+
+
+@pytest.mark.parametrize("tipus", ["anells", "mapa_un_tub", "llista", "slots"])
+def test_plantilla_de_generador_passa_to_yaml_i_fitxa(tipus):
+    """Les plantilles que el formulari posa en triar un generador: to_yaml les accepta, i neudet (fitxa)
+    no en falta cap camp en aquella etapa."""
+    _neudet_o_skip()
+    from neudet.disseny import fitxa
+    f = CF.defaults()
+    tub = f["domini"]["tipus_tub"][0]
+    f["etapes"]["S1"]["generador"] = json.loads(json.dumps(CF.schema()["plantilles"][tipus]).replace("__TUB__", tub))
+    cfg = yaml.safe_load(CF.to_yaml(f))
+    falten = [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.generador")]
+    assert falten == [], falten
+
+
+def test_compta_es_el_que_genera_neudet():
+    """`compta` és el recompte de `generadors.genera` (valids + invalids de la campanya)."""
+    neudet = _neudet_o_skip()
+    from neudet.disseny.campanya import Campanya
+    from neudet.disseny.generadors import genera
+    import tempfile
+    f = CF.defaults()
+    txt = CF.to_yaml(f)
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "campanya.yaml").write_text(txt)
+        c = Campanya(Path(tmp))
+        e = c.etapa("S1")
+        ctx = dict(tipus=c.tipus, n_tubs=e.get("n_tubs", c.restr.get("n_tubs")), restriccions=c.restr, arrel=c.dir)
+        direct = len(genera(e["generador"], c.bloc, ctx))
+    r = CC.compta(txt, "S1")
+    assert r == {"etapa": "S1", "n": direct}
+    assert r["n"] == 287                                       # 259 vàlids + 28 invàlids (DEFINICIO.md, comprova)
+    assert r["n"] == CC.comprova(txt, "S1")["n_valids"] + CC.comprova(txt, "S1")["n_invalids"]

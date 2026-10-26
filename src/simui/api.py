@@ -348,3 +348,10 @@ def campanya_comprova(body: Dict[str, Any]) -> Dict[str, Any]:
     """La comprovació de neudet del yaml (`yaml_text`, i `etapa` opcional). Vegeu `campanya_check`."""
     return CC.comprova(str(body.get("yaml_text") or ""), body.get("etapa") or None)
 
+
+def campanya_compta(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Quants candidats genera la regla d'una etapa del formulari (`form`, `etapa`), abans de les
+    restriccions. La forma la valida `to_yaml` (400 amb el motiu); el recompte i els errors són de neudet."""
+    text = CF.to_yaml(body.get("form"))
+    return CC.compta(text, body.get("etapa") or None)
+

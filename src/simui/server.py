@@ -2,7 +2,7 @@
 
 Rutes: `/` (la pàgina), `/api/meta`, `/api/llm`, `/api/render`, `/api/ask` (Simulació) i
 `/api/design/{meta,load,check,view,export,ask}` + `/api/results` (Disseny i Resultats) i
-`/api/campanya/{schema,defaults,yaml,comprova}` (Definició de campanya).
+`/api/campanya/{schema,defaults,yaml,comprova,compta}` (Definició de campanya).
 Els errors d'un disseny o d'un resultat són un 400 amb el motiu (`{"error": …}`), no un
 forat: el que la pàgina ha de dir és què falta.
 """
@@ -100,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_yaml, body)
         elif path == "/api/campanya/comprova":
             self._tracta(api.campanya_comprova, body)
+        elif path == "/api/campanya/compta":
+            self._tracta(api.campanya_compta, body)
         elif path == "/api/design/export":
             try:
                 data, nom = api.design_export(body)
