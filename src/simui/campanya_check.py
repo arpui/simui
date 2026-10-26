@@ -26,7 +26,7 @@ import sys
 import tempfile
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import design as DES
 from . import design_view as VIEW
@@ -62,16 +62,23 @@ def _python_neudet() -> str:
     return os.environ.get("NEUDET_PYTHON") or sys.executable
 
 
+def _executa_comprova(script: Path, dir_: Path, out: Path) -> subprocess.CompletedProcess:
+    """`comprova_campanya.py <dir> --json <out>` amb el Python de neudet i `src` de neudet al path.
+    Un veredicte d'aturada (codi 1) no és un error d'aquí: el decideix qui llegeix el `out`."""
+    root = script.parents[2]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in (str(root / "src"), env.get("PYTHONPATH", "")) if p)
+    return subprocess.run([_python_neudet(), str(script), str(dir_), "--json", str(out)], cwd=str(root), env=env,
+                          capture_output=True, text=True, timeout=600)
+
+
 def _certifica(script: Path, dir_: Path) -> Dict[str, Any]:
     """`comprova_campanya.py <dir> --json <fitxer>` (contracte §5, pas 2). El veredicte és el de neudet:
     `atura`, els `elements` (validat / no_validat / prohibit, amb motiu) i, si falten camps, quins.
     Si el script peta abans d'escriure el JSON, es dona la seva sortida tal com és."""
     root = script.parents[2]
-    env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(p for p in (str(root / "src"), env.get("PYTHONPATH", "")) if p)
     out = dir_.parent / "certificacio.json"
-    p = subprocess.run([_python_neudet(), str(script), str(dir_), "--json", str(out)], cwd=str(root), env=env,
-                       capture_output=True, text=True, timeout=600)
+    p = _executa_comprova(script, dir_, out)
     base = {"disponible": False, "ordre": f"PYTHONPATH=src python3 {SCRIPT_REL} <dir> --json <fitxer>",
             "codi_sortida": p.returncode, "sortida": p.stdout, "error_sortida": p.stderr[-4000:]}
     if not out.exists():
@@ -125,6 +132,75 @@ def _amb_candidats(dir_: Path, etapa: str, tmp: Path, script: Optional[Path] = N
             "candidats": _candidats(valids, tmp, camp.font),
             "certificacio": _certifica(script, dir_) if script is not None
                             else {"disponible": False, "motiu": NO_CERTIFICAT, "elements": []}}
+
+
+def certifica_proposta(yaml_text: str, id_: str) -> Dict[str, Any]:
+    """La certificació de neudet d'UN `campanya.yaml` (el que es vol desar): el mateix JSON que
+    `comprova_campanya.py --json` (és el `comprova.json` de la campanya). Corre en un directori temporal i
+    no escriu res a neudet. Un veredicte d'aturada (`atura`) és una certificació vàlida i es desa; el que
+    llança `ValueError` (amb el motiu) és una certificació NO disponible: sense script, sense `torch`, sense
+    JSON, sense la forma de certificació, o d'una altra campanya."""
+    try:
+        root = DES.neudet_root()
+    except DES.DesignError as exc:
+        raise ValueError(str(exc)) from None
+    script = root / SCRIPT_REL
+    if not script.exists():
+        raise ValueError(NO_CERTIFICAT)
+    with tempfile.TemporaryDirectory(prefix="simphy_certifica_") as tmp:
+        dir_ = Path(tmp) / id_
+        dir_.mkdir()
+        (dir_ / "campanya.yaml").write_text(yaml_text, encoding="utf-8")
+        out = Path(tmp) / "comprova.json"
+        try:
+            p = _executa_comprova(script, dir_, out)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ValueError(f"no s'ha pogut córrer comprova_campanya.py: {exc}") from None
+        if not out.exists():
+            detall = (p.stderr or p.stdout or "").strip()[-1500:] or "sense sortida"
+            raise ValueError(f"comprova_campanya.py no ha escrit la certificació (codi {p.returncode}): {detall}")
+        try:
+            rep = json.loads(out.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"la certificació de neudet no és JSON: {exc}") from None
+    if isinstance(rep, dict) and rep.get("camps_falten"):
+        raise ValueError(f"neudet no pot llegir la campanya: {rep['camps_falten']}")
+    if not isinstance(rep, dict) or "atura" not in rep or not isinstance(rep.get("elements"), list):
+        raise ValueError("la certificació de neudet no té la forma esperada (falten `atura` o `elements`)")
+    if rep.get("campanya") != id_:
+        raise ValueError(f"la certificació és de «{rep.get('campanya')}», no de «{id_}»")
+    return rep
+
+
+def candidat_de(dir_: Path, hash_: str, etapa: Optional[str] = None) -> Tuple[str, Any]:
+    """(etapa, candidat) de neudet: el candidat VÀLID de la campanya amb aquest hash, en `etapa` o en la
+    primera etapa de xarxa que el té. Els tubs són els que neudet genera (`Campanya.candidats`). Llegeix la
+    campanya; no n'escriu res."""
+    try:
+        DES._neudet()
+    except DES.DesignError as exc:
+        raise ValueError(str(exc)) from None
+    trobat = None
+    etapes: List[str] = []
+    try:
+        from neudet.disseny.campanya import Campanya     # neudet importat de NEUDET_ROOT/src
+        C = Campanya(Path(dir_))
+        etapes = [etapa] if etapa else [n for n, e in (C.cfg.get("etapes") or {}).items()
+                                        if isinstance(e, dict) and "generador" in e]
+        for nom in etapes:
+            valids, _ = C.candidats(nom)
+            for c, _v in valids:
+                if c.hash() == hash_:
+                    trobat = (nom, c)
+                    break
+            if trobat:
+                break
+    except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
+        raise ValueError(_motiu_de(exc)) from None
+    if trobat is None:
+        raise ValueError(f"cap candidat vàlid amb hash {hash_} a les etapes de xarxa "
+                         f"({', '.join(etapes) or 'cap'}) d'aquesta campanya")
+    return trobat
 
 
 def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:

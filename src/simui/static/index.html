@@ -252,10 +252,11 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
 </aside>
 <section class="out">
   <div class="bar">
-    <button id="c-desa">Desa l'esborrany</button>
+    <button id="c-desa">Desa la proposta</button>
     <button class="ghost" id="c-baixa">Descarrega .yaml</button>
     <button class="ghost" id="c-comprova">Comprova amb neudet</button>
-    <span class="note">Desar i descarregar no executen res; la comprovació la fa neudet.</span>
+    <span class="note">«Desa la proposta» escriu a neudet (<code>campanya.yaml</code> i <code>comprova.json</code>) només si neudet
+    la certifica. «Descarrega» i «Comprova» no escriuen res.</span>
   </div>
   <div id="c-desat"></div>
   <h2>campanya.yaml (en viu)</h2>
@@ -271,11 +272,13 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
   <h2>Campanya</h2>
   <label>de neudet <span class="hint">· <code>disseny/campanyes/</code></span></label>
   <select id="k-camp"></select>
+  <details id="k-altres-box"><summary>altres campanyes</summary><select id="k-camp-altres"></select></details>
   <div class="hint" id="k-info"></div>
   <h2>Què es mostra</h2>
   <p class="hint">La campanya tal com la deixa neudet: definició, certificació, les etapes (xarxa i Geant4) amb els seus candidats,
   el Pareto, les figures, el judici i el report.</p>
   <p class="hint">Cap número es recalcula aquí. Un clic a un candidat obre el seu resultat per tub a la pestanya Resultats.</p>
+  <p class="hint">«Tanteja» obre la campanya al formulari com a campanya nova (id derivat); l'original no es toca.</p>
 </aside>
 <section class="out" id="k-out"><div class="hint">Carregant les campanyes de neudet…</div></section>
 </main>
@@ -315,7 +318,8 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
   <label>o energia única (MeV) <span class="hint">· sense campanya</span></label>
   <input id="d-energia" placeholder="p.ex. 1.0">
   <div class="bar" style="margin-top:14px"><button id="d-baixa">Baixa el paquet (.zip)</button></div>
-  <div class="bar"><button class="ghost" id="d-fix">Fixa com a original</button><button class="ghost" id="d-cmp">Compara</button></div>
+  <div class="bar"><button class="ghost" id="d-fix">Fixa com a original</button><button class="ghost" id="d-cmp">Compara</button>
+    <button class="ghost" id="d-tanteja" disabled title="Un candidat d'una campanya (sense editar): obre-la com a tanteig">Tanteja</button></div>
   <div class="hint" id="d-fixnote"></div>
 </aside>
 
@@ -351,7 +355,8 @@ text-decoration:none;color:var(--muted);font-size:11.5px;max-width:240px}
   <select id="r-stage"></select>
   <label>energia (MeV)</label>
   <select id="r-energia"></select>
-  <div class="bar" style="margin-top:12px"><button class="ghost" id="r-go">Actualitza</button></div>
+  <div class="bar" style="margin-top:12px"><button class="ghost" id="r-go">Actualitza</button>
+    <button class="ghost" id="r-tanteja" disabled title="Un candidat d'una campanya: obre-la al formulari com a tanteig">Tanteja</button></div>
   <div class="hint">Els números són els de neudet (<code>resultats_tub.json</code>): no es recalculen ni es copien.
   Una xifra sense procedència citable es mostra igualment, amb el motiu.</div>
 </aside>
@@ -1055,7 +1060,7 @@ function cPintaCert(c){
 async function cComprova(){
   Q('#c-res').innerHTML = '<div class="hint">neudet comprova la campanya…</div>';
   try{
-    const y = await api('/api/campanya/yaml', {form: CP.f, desa: false});
+    const y = await api('/api/campanya/yaml', {form: CP.f});
     const r = await api('/api/campanya/comprova', {yaml_text: y.yaml, etapa: CP.etapa});
     CP.res = r; cPintaRes(r);
   } catch(e){
@@ -1070,15 +1075,42 @@ async function cObre(i){
   await dInit();
   await dCarrega({dat_text: c.dat_text, json_text: c.json_text});
 }
+// «Desa la proposta»: neudet escriu campanya.yaml (estat: proposta) i comprova.json, i només si certifica.
 async function cDesa(){
+  Q('#c-desat').innerHTML = '<div class="hint">neudet certifica la proposta…</div>';
   try{
-    const r = await api('/api/campanya/yaml', {form: CP.f, desa: true});
-    Q('#c-desat').innerHTML = `<div class="panel ok">Esborrany desat a <code>${escD(r.desat)}</code> (fora de neudet).</div>`;
-  } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad pre">${escD(e.message)}</div>`; }
+    const r = await api('/api/campanya/desa', {form: CP.f});
+    const marca = r.atura ? '<span class="tag t-no">neudet diu: cal aturar</span>' : '<span class="tag t-ok">certificada</span>';
+    Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada</b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
+      <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
+      <div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(r.missatge)}</pre></div>`;
+  } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
+}
+// Un formulari carregat (de neudet o d'un tanteig): substitueix el que hi havia.
+function cCarrega(form, nota){
+  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null;
+  cPintaForm(); cYaml();
+  Q('#c-res').innerHTML = '<div class="hint">Encara no s\'ha comprovat. Premeu «Comprova amb neudet».</div>';
+  Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>`;
+}
+// «Edita la proposta»: el mateix id; «Desa la proposta» la sobreescriu (només perquè és una proposta).
+async function cPrenForm(id){
+  const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
+  await cInit();
+  cCarrega(r.form, `Edites la proposta <code>${escD(id)}</code>. «Desa la proposta» la sobreescriu: només una proposta es torna a escriure.`);
+  showTab('campanya');
+}
+// «Tanteja»: la campanya (o un candidat seu) com a campanya nova amb id derivat. L'original no es toca.
+async function cPrenTanteig(body){
+  const r = await api('/api/campanya/tanteig', body);
+  await cInit();
+  const cand = r.candidat ? ` · candidat <code>${escD(r.candidat.nom)}</code> (etapa ${escD(r.candidat.etapa)}, ${r.candidat.tubs_n} tubs) com a etapa <code>${escD(r.etapa)}</code>` : '';
+  cCarrega(r.form, `Tanteig de <code>${escD(r.de)}</code>${cand}. El nou id és <code>${escD(r.id)}</code>; l'original no es toca.`);
+  showTab('campanya');
 }
 async function cBaixa(){
   try{
-    const r = await api('/api/campanya/yaml', {form: CP.f, desa: false});
+    const r = await api('/api/campanya/yaml', {form: CP.f});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([r.yaml], {type: 'text/yaml'}));
     a.download = 'campanya.yaml'; a.click();
@@ -1109,37 +1141,60 @@ Q('#c-baixa').onclick = cBaixa;
 <script>
 // ── Campanyes (contracte §6): la campanya com a conjunt, des de `campanya_ui.json` de neudet (o provisional) ──
 // Cap número es recalcula aquí: el Pareto, la robustesa, els ε i les sigmes són els del candidats.csv de neudet.
-const KC = {lista: [], id: null, v: null, ordre: {}};
+const KC = {lista: [], id: null, v: null, ordre: {}, seq: 0};
 const kEnc = encodeURIComponent;
 function kFit(rel){ return '/api/campanya/fitxer?id=' + kEnc(KC.id) + '&rel=' + kEnc(rel); }
 function kErr(msg){ document.getElementById('k-out').innerHTML = `<div class="panel bad pre">${escD(msg)}</div>`; }
-function kTagEstat(e){
-  return e === 'draft' ? '<span class="tag t-wa">draft</span>'
-    : e === 'definitiva' ? '<span class="tag t-ok">definitiva</span>'
-    : `<span class="tag t-nt">${escD(e)}</span>`;
+// Dos estats que NO són el mateix: el `estat:` del campanya.yaml (text tal com és) i el del manifest (draft/definitiva).
+function kTagYaml(e){
+  return e == null ? '<span class="tag t-nt" title="campanya.yaml sense estat">sense estat</span>'
+    : `<span class="tag ${e === 'proposta' ? 't-wa' : 't-nt'}" title="estat: del campanya.yaml">estat: ${escD(e)}</span>`;
 }
+function kTagEstat(e){
+  return e === 'draft' ? '<span class="tag t-wa" title="estat del manifest (CAMP-2)">manifest: draft</span>'
+    : e === 'definitiva' ? '<span class="tag t-ok" title="estat del manifest (CAMP-2)">manifest: definitiva</span>'
+    : `<span class="tag t-nt" title="estat del manifest (CAMP-2)">manifest: ${escD(e)}</span>`;
+}
+function kOpcio(c){
+  return `<option value="${escD(c.id)}">${escD(c.id)} · ${escD(c.estat_yaml ?? 'sense estat')}${c.provisional ? '' : ' · manifest'}</option>`;
+}
+// La llista es torna a llegir en cada visita: una proposta desada des de la pestanya Campanya hi ha d'aparèixer.
+// Es manté la campanya que ja es veia, si encara hi és; si no, la primera principal (o la primera de les altres).
 async function kInit(){
-  if(KC.lista.length) return;
   KC.lista = (await api('/api/campanyes')).campanyes;
-  const sel = document.getElementById('k-camp');
   if(!KC.lista.length){ kErr('neudet no té cap campanya a disseny/campanyes/ (cal un campanya.yaml).'); return; }
-  sel.innerHTML = KC.lista.map(c => `<option value="${escD(c.id)}">${escD(c.id)} · ${escD(c.estat)}${c.provisional ? ' · provisional' : ''}</option>`).join('');
-  // per defecte: la que té manifest; si no n'hi ha, la que és en draft (el flux que s'està provant); si no, la primera
-  const per_defecte = KC.lista.find(c => c.manifest) || KC.lista.find(c => c.estat === 'draft') || KC.lista[0];
-  await kCarrega(per_defecte.id);
+  const princ = KC.lista.filter(c => c.grup === 'principal'), altres = KC.lista.filter(c => c.grup !== 'principal');
+  document.getElementById('k-camp').innerHTML = princ.length ? princ.map(kOpcio).join('')
+    : '<option value="">— cap campanya amb manifest ni proposta —</option>';
+  const box = document.getElementById('k-altres-box');
+  document.getElementById('k-camp-altres').innerHTML = altres.map(kOpcio).join('');
+  box.hidden = !altres.length;
+  box.open = !princ.length;                     // si no n'hi ha de principals, les altres es veuen de primer
+  const veu = KC.id && KC.lista.some(c => c.id === KC.id) ? KC.id : (princ[0] || altres[0]).id;
+  await kCarrega(veu);
 }
 async function kCarrega(id){
+  const seq = ++KC.seq;                        // una resposta antiga no pot pintar una campanya que ja no és la seleccionada
   KC.id = id;
-  document.getElementById('k-camp').value = id;
+  const hi = KC.lista.find(c => c.id === id);
+  const enAltres = !!hi && hi.grup !== 'principal';
+  document.getElementById('k-camp').value = enAltres ? '' : id;
+  document.getElementById('k-camp-altres').value = enAltres ? id : '';
+  if(enAltres) document.getElementById('k-altres-box').open = true;
   document.getElementById('k-out').innerHTML = '<div class="hint">Llegint la campanya de neudet…</div>';
-  KC.v = await api('/api/campanya/vista?id=' + kEnc(id));
+  const v = await api('/api/campanya/vista?id=' + kEnc(id));
+  if(seq !== KC.seq) return;
+  KC.v = v;
   kPinta();
 }
 function kPinta(){
   const v = KC.v, out = [];
-  out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${kTagEstat(v.estat)}` +
+  const proposta = v.estat_yaml === 'proposta';
+  out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
     (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
-  if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
+  out.push(kAccions(v, proposta));
+  if(proposta) out.push(kProposta(v));
+  if(v.provisional && !proposta) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
   v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
   out.push(kDefinicio(v));
   out.push('<h2>Certificació</h2>' + kCert(v));
@@ -1147,16 +1202,27 @@ function kPinta(){
   out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
   out.push('<h2>Report</h2>' + kReport(v));
   document.getElementById('k-out').innerHTML = out.join('');
-  document.getElementById('k-info').innerHTML = `${kTagEstat(v.estat)} · ${v.etapes.length} etapes` +
+  document.getElementById('k-info').innerHTML = `${kTagYaml(v.estat_yaml)} ${kTagEstat(v.estat)} · ${v.etapes.length} etapes` +
     (v.provisional ? '<br>provisional: sense <code>campanya_ui.json</code>' : '<br>amb <code>campanya_ui.json</code>');
+}
+// Les accions d'una campanya: «Edita la proposta» només si és una proposta; «Tanteja» sempre.
+function kAccions(v, proposta){
+  return `<div class="bar">${proposta ? '<button data-k="edita">Edita la proposta</button>' : ''}` +
+    '<button class="ghost" data-k="tanteja">Tanteja</button></div>';
+}
+// Una proposta: el missatge que Albert envia al planificador (flux, «Missatges»).
+function kProposta(v){
+  const sense = v.certificacio && v.certificacio.disponible ? '' : ' <span class="hint">Sense comprova.json: neudet no n\'ha certificat la proposta.</span>';
+  return `<div class="panel ok"><b>Proposta</b> (estat: proposta), a la carpeta de neudet.${sense}
+    <div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${v.id}\` proposta`)}</pre></div>`;
 }
 function kDefinicio(v){
   const d = v.definicio || {};
   const links = [d.yaml && ['campanya.yaml', d.yaml], d.md && ['DEFINICIO.md', d.md]].filter(Boolean)
     .map(([t, rel]) => `<a class="btn" href="${kFit(rel)}" target="_blank" rel="noopener">${escD(t)}</a>`).join('');
-  return `<h2>Definició</h2><div>${links}<button class="ghost" data-k="formulari">obre al formulari</button>` +
+  return `<h2>Definició</h2><div>${links}` +
     (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>' +
-    '<div class="hint">Carrega el campanya.yaml a la pestanya Campanya. Des d\'allà es pot comprovar amb neudet i desar un esborrany a simphy; no es desa res a neudet.</div>';
+    '<div class="hint">«Tanteja» la porta a la pestanya Campanya com a campanya nova (id derivat). «Desa la proposta» escriu a neudet només si neudet certifica.</div>';
 }
 function kCert(v){
   const c = v.certificacio;
@@ -1286,16 +1352,6 @@ function kObreResultats(hash, nom){
   RS.extern = {nom, hash, editat: false, origen: 'campanya ' + KC.id};
   showTab('resultats');
 }
-async function kObreFormulari(){
-  const r = await api('/api/campanya/carrega?id=' + kEnc(KC.id));
-  await cInit();
-  CP.f = r.form; CP.etapa = Object.keys(r.form.etapes || {})[0] || null; CP.res = null;
-  cPintaForm(); cYaml();
-  document.getElementById('c-res').innerHTML = '';
-  document.getElementById('c-desat').innerHTML = `<div class="panel">Carregada la campanya <code>${escD(KC.id)}</code> de neudet. ` +
-    'Els canvis no es desen a neudet: «Desa l\'esborrany» els escriu a simphy.</div>';
-  showTab('campanya');
-}
 document.getElementById('k-out').addEventListener('click', e => {
   const th = e.target.closest('th[data-st]');
   if(th){
@@ -1305,10 +1361,13 @@ document.getElementById('k-out').addEventListener('click', e => {
   }
   const tr = e.target.closest('tr.kc, circle.kpt');
   if(tr){ kObreResultats(tr.dataset.h, tr.dataset.n); return; }
-  const b = e.target.closest('button[data-k="formulari"]');
-  if(b) kObreFormulari().catch(err => kErr(err.message));
+  const b = e.target.closest('button[data-k]');
+  if(!b) return;
+  if(b.dataset.k === 'edita') cPrenForm(KC.id).catch(err => kErr(err.message));
+  if(b.dataset.k === 'tanteja') cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
 });
-document.getElementById('k-camp').addEventListener('change', e => kCarrega(e.target.value).catch(err => kErr(err.message)));
+document.getElementById('k-camp').addEventListener('change', e => e.target.value && kCarrega(e.target.value).catch(err => kErr(err.message)));
+document.getElementById('k-camp-altres').addEventListener('change', e => kCarrega(e.target.value).catch(err => kErr(err.message)));
 </script>
 <script>
 // ── pestanyes ─────────────────────────────────────────────────────────────────
@@ -1319,7 +1378,7 @@ const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt
 const HEAD = {
   sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
   campanyes: ['Campanyes', "La campanya com a conjunt, tal com la deixa neudet: definició, certificació, etapes amb el Pareto, figures, judici i report. Res no es recalcula aquí."],
-  campanya: ['Definició de campanya', "Un campanya.yaml d'esborrany, amb les claus de neudet. neudet en diu quins candidats són vàlids; aquí no es calcula res."],
+  campanya: ['Definició de campanya', "Una proposta de campanya, amb les claus de neudet. neudet en diu quins candidats són vàlids i la certifica; aquí no es calcula res."],
   disseny: ['Disseny de detectors', "Un disseny de neudet, editable: verificat, visualitzat i exportat. No executa cap simulació."],
   resultats: ['Resultats per tub', "Els números de neudet per tub i energia, sense recalcular-los. Cada xifra porta la seva procedència."]};
 
@@ -1474,7 +1533,7 @@ async function dRefresh(){
     const [c, v] = await Promise.all([api('/api/design/check', b), api('/api/design/view', b)]);
     if(seq !== DS.seq) return;
     Object.assign(DS.cur, {nom: c.nom, hash: c.hash, verificat: c.verificat, violations: c.violations, motiu: c.motiu});
-    dPintaCheck(); dPintaVista(v);
+    dPintaCheck(); dPintaVista(v); dTantejaEstat();
   } catch(e){
     if(seq === DS.seq){ dErr(e.message); Q('#d-viol').innerHTML = `<div class="panel bad">${escD(e.message)}</div>`; }
   }
@@ -1541,6 +1600,17 @@ Q('#d-ask').onclick = async () => {
   } catch(e){ dErr(e.message); }
   finally { Q('#d-ask').disabled = !(DS.meta && DS.meta.llm && DS.meta.llm.ok); }
 };
+// «Tanteja»: un disseny de neudet sense editar, que és un candidat (hash) de la campanya de la sortida.
+function dTantejaEstat(){
+  const c = DS.cur;
+  Q('#d-tanteja').disabled = !(c && c.hash && !c.editat && Q('#d-camp').value);
+}
+Q('#d-camp').addEventListener('change', dTantejaEstat);
+Q('#d-tanteja').onclick = () => {
+  const c = DS.cur, de = Q('#d-camp').value;
+  if(!c || !c.hash || c.editat || !de) return;
+  cPrenTanteig({de, hash: c.hash}).catch(err => dErr(err.message));
+};
 Q('#d-fix').onclick = () => {
   if(!DS.cur) return;
   DS.orig = JSON.parse(JSON.stringify(DS.cur));
@@ -1585,6 +1655,7 @@ async function rLoad(){
   if(prev && oks.some(e => e.path === prev)) sel.value = prev;
   rEnergies();
   await rVista();
+  rTantejaEstat();
 }
 function rEnergies(){
   const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
@@ -1681,7 +1752,18 @@ function rPinta(){
     ...(cc.avisos || []).map(a => `<div class="panel warn">${escD(a)}</div>`),
     cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : ''].join('');
 }
-Q('#r-stage').onchange = async () => { rEnergies(); await rVista(); };
+// «Tanteja» d'un candidat: el hash del disseny carregat, dins l'etapa triada (de la campanya de l'etapa).
+function rTantejaEstat(){
+  const e = RS.entries.find(x => x.path === Q('#r-stage').value);
+  const c = RS.extern || DS.cur;
+  Q('#r-tanteja').disabled = !(e && e.campanya && c && c.hash);
+}
+Q('#r-tanteja').onclick = () => {
+  const e = RS.entries.find(x => x.path === Q('#r-stage').value), c = RS.extern || DS.cur;
+  if(!e || !e.campanya || !c || !c.hash) return;
+  cPrenTanteig({de: e.campanya, hash: c.hash, etapa: e.etapa}).catch(err => rErr(err.message));
+};
+Q('#r-stage').onchange = async () => { rEnergies(); await rVista(); rTantejaEstat(); };
 Q('#r-energia').onchange = () => rVista();
 Q('#r-go').onclick = () => rVista();
 

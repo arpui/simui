@@ -38,7 +38,7 @@ from ..mcgen import results_tub as RES
 from ..mcgen import campanya_form as CF
 from ..mcgen import campanya_check as CC
 from ..mcgen import campanya_vista as CV
-from ..mcgen.paths import repo_root
+from ..mcgen import campanya_desa as CD
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "mcgen" / "examples"
 
@@ -313,12 +313,6 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
 
 # ── Definició de campanya (C1, C2): el formulari i la comprovació de neudet ──
 
-def esborranys_root() -> Path:
-    """On la UI desa els `campanya.yaml` d'esborrany: `data/campanyes_esborrany` del repo de simphy.
-    Mai dins de neudet (les campanyes de neudet les porta Albert a mà)."""
-    return repo_root() / "data" / "campanyes_esborrany"
-
-
 def campanya_schema() -> Dict[str, Any]:
     """Els tipus de generador, els camps i els tubs (de neudet) per al formulari."""
     return CF.schema()
@@ -330,19 +324,27 @@ def campanya_defaults() -> Dict[str, Any]:
 
 
 def campanya_yaml(body: Dict[str, Any]) -> Dict[str, Any]:
-    """El yaml d'esborrany del formulari. Amb `desa`, el guarda a `data/campanyes_esborrany/<id>/`.
-    Sense `desa` (la vista en viu), no escriu res."""
-    text = CF.to_yaml(body.get("form"))
-    out: Dict[str, Any] = {"yaml": text, "desat": None}
+    """El yaml del formulari, en viu i per a «Descarrega»: no escriu res. Desar és `campanya_desa` (a neudet)."""
     if body.get("desa"):
-        root = esborranys_root().resolve()
-        dest = (root / str(body["form"]["id"]) / "campanya.yaml").resolve()
-        if not dest.is_relative_to(root) or DES.neudet_root() in dest.parents:
-            raise ValueError(f"no es desa fora de {root}")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(text)
-        out["desat"] = str(dest)
-    return out
+        raise ValueError("desar una proposta és POST /api/campanya/desa (es desa a neudet, amb la certificació)")
+    return {"yaml": CF.to_yaml(body.get("form"))}
+
+
+def campanya_desa(body: Dict[str, Any]) -> Dict[str, Any]:
+    """«Desa la proposta»: `campanya.yaml` (estat: proposta) i `comprova.json` a `disseny/campanyes/<id>/` de neudet.
+    Vegeu `campanya_desa.desa_proposta`: només aquests dos fitxers, i mai una campanya que no sigui proposta."""
+    return CD.desa_proposta(body.get("form"))
+
+
+def campanya_tanteig(body: Dict[str, Any]) -> Dict[str, Any]:
+    """«Tanteja»: el formulari d'una campanya (`de`) amb un id derivat lliure; o, amb `hash`, el candidat d'aquella
+    campanya com a etapa `llista` (`etapa` opcional). No escriu res."""
+    de = str(body.get("de") or "")
+    if not de:
+        raise ValueError("cal `de`: l'id de la campanya a tantejar")
+    if body.get("hash"):
+        return CD.tanteig_de_candidat(de, str(body["hash"]), body.get("etapa") or None)
+    return CD.tanteig_de_campanya(de)
 
 
 def campanya_comprova(body: Dict[str, Any]) -> Dict[str, Any]:

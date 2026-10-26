@@ -62,6 +62,8 @@ MANIFEST = "campanya_ui.json"
 MOTIU_PROVISIONAL = "campanya_ui.json encara no hi és (CAMP-2)"
 CAMPS_MANIFEST = ("definicio", "certificacio", "etapes", "export", "judici", "report", "estat")
 ESTATS = ("draft", "definitiva")
+#: `estat:` del campanya.yaml (flux, _flux_campanya.md): informatiu; els altres valors es mostren tal com són
+ESTAT_PROPOSTA = "proposta"
 #: Tipus de fitxer que la pàgina pot demanar de la campanya, amb el seu Content-Type.
 TIPUS = {
     ".png": "image/png",
@@ -101,21 +103,37 @@ def dir_de(id_: str) -> Path:
     return d
 
 
+#: el grup de la llista de la pestanya: les que tenen manifest, són `proposta` o són del flux nou (`fitxa: 1`,
+#: de c04 endavant; mentre no tinguin manifest es veuen amb el provisional) van a la vista principal;
+#: la resta (c01–c03) són a «altres campanyes», plegades.
+GRUP_PRINCIPAL, GRUP_ALTRES = "principal", "altres"
+
+
 def llista() -> List[Dict[str, Any]]:
-    """Les campanyes de neudet (carpetes amb `campanya.yaml`), amb el seu estat i si tenen manifest."""
+    """Les campanyes de neudet (carpetes amb `campanya.yaml`). Per a cada una, DUES coses que no són el mateix:
+    `estat_yaml` (el camp `estat:` del campanya.yaml, tal com és: `proposta`, `jutjada`, `S3`, `tancada (…)`…;
+    un valor desconegut no és un error) i `estat_manifest` (`draft` o `definitiva`, de `draft:` del yaml, el que
+    diu CAMP-2). Un yaml il·legible no fa caure la llista: surt amb `motiu`."""
     out: List[Dict[str, Any]] = []
     root = campanyes_root()
     if not root.is_dir():
         raise CampanyaError(f"no trobo {root}: neudet no té disseny/campanyes/")
     for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "campanya.yaml").is_file()):
         motiu = None
+        y: Dict[str, Any] = {}
         try:
-            estat = _estat(_yaml(d / "campanya.yaml"))
+            y = _yaml(d / "campanya.yaml")
+            estat_manifest = _estat(y)
         except CampanyaError as exc:
-            estat, motiu = "desconegut", str(exc)
+            estat_manifest, motiu = "desconegut", str(exc)
+        e_yaml = y.get("estat")
+        estat_yaml = None if e_yaml is None else str(e_yaml)
         te_manifest = (d / MANIFEST).is_file()
-        out.append({"id": d.name, "estat": estat, "manifest": te_manifest,
-                    "provisional": not te_manifest, "motiu": motiu})
+        proposta = estat_yaml == ESTAT_PROPOSTA
+        out.append({"id": d.name, "estat_yaml": estat_yaml, "estat_manifest": estat_manifest,
+                    "manifest": te_manifest, "provisional": not te_manifest, "proposta": proposta,
+                    "grup": GRUP_PRINCIPAL if (te_manifest or proposta or y.get("fitxa") == 1) else GRUP_ALTRES,
+                    "motiu": motiu})
     return out
 
 
@@ -381,9 +399,11 @@ def _eixos(y: Dict[str, Any], columnes: Sequence[str]) -> Tuple[Optional[List[Di
     for m, s in par:
         if s not in ("max", "min"):
             raise CampanyaError(f"campanya.yaml: el sentit «{s}» de objectius.pareto no és max ni min")
-        if m not in columnes:
+        if columnes and m not in columnes:
             raise CampanyaError(f"campanya.yaml: la mètrica «{m}» de objectius.pareto no és a cap candidats.csv")
         eixos.append({"metrica": m, "sentit": s})
+    if not columnes:       # una proposta sense etapes executades: no hi ha candidats.csv on comprovar-les
+        return eixos, "encara no hi ha cap candidats.csv: les mètriques del Pareto no es poden comprovar"
     return eixos, None
 
 
@@ -454,6 +474,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "provisional": bool(m.get("provisional")),
         "motiu": m.get("motiu"),
         "estat": m["estat"],
+        "estat_yaml": None if y.get("estat") is None else str(y.get("estat")),
         "definicio": m["definicio"],
         "certificacio": _certificacio(d, m["certificacio"]),
         "pareto": {"eixos": eixos, "motiu": motiu_p},

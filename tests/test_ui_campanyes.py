@@ -70,7 +70,8 @@ def test_llista_inclou_c04_com_a_provisional(url):
     d = json.loads(body)
     assert code == 200
     c04 = next(c for c in d["campanyes"] if c["id"] == "c04_draft")
-    assert c04["estat"] == "draft"
+    assert c04["estat_manifest"] == "draft" and c04["estat_yaml"] == "jutjada"   # dos estats, no un
+    assert c04["grup"] == "principal"                                              # flux nou (fitxa: 1), manifest provisional
     assert c04["manifest"] is False and c04["provisional"] is True
 
 

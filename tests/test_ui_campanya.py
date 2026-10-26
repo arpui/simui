@@ -4,8 +4,8 @@ Què es fixa
 -----------
 - `/api/campanya/{schema,defaults,yaml,comprova}` responen, i els errors d'entrada són un 400 amb el motiu.
 - La pàgina té la pestanya «Campanya» i els identificadors que el JS usa.
-- `POST /api/campanya/yaml` amb `desa` escriu a `data/campanyes_esborrany/<id>/` (aquí, a un directori
-  temporal) i mai dins de neudet.
+- `POST /api/campanya/yaml` no escriu res: la proposta es desa a neudet amb `/api/campanya/desa`
+  (vegeu tests/test_ui_campanya_desa.py).
 - `POST /api/campanya/comprova` sobre c04 dona 259 vàlids (DEFINICIO.md), i un candidat de la llista
   es pot tornar a carregar al Disseny (`/api/design/load`) amb el seu parell `.dat`/`.json`.
 - Un yaml trencat o una etapa que no hi és arriba com a missatge de neudet, no com a un forat.
@@ -100,25 +100,12 @@ def test_schema_i_defaults(url):
 
 
 def test_yaml_en_viu_no_escriu_res(url, tmp_path, monkeypatch):
+    """El yaml en viu i «Descarrega» no escriuen res: desar és `/api/campanya/desa` (vegeu test_ui_campanya_desa)."""
     _neudet_o_skip()
-    monkeypatch.setattr(api, "esborranys_root", lambda: tmp_path / "esborranys")
     _, d = _json(url, "/api/campanya/defaults")
-    code, r = _json(url, "/api/campanya/yaml", {"form": d, "desa": False})
-    assert code == 200 and r["desat"] is None
-    assert r["yaml"].startswith("# Esborrany generat per simphy")
-    assert not (tmp_path / "esborranys").exists()
-
-
-def test_desa_escriu_al_directori_d_esborranys_i_no_a_neudet(url, tmp_path, monkeypatch):
-    neudet = _neudet_o_skip()
-    monkeypatch.setattr(api, "esborranys_root", lambda: tmp_path / "esborranys")
-    _, d = _json(url, "/api/campanya/defaults")
-    code, r = _json(url, "/api/campanya/yaml", {"form": d, "desa": True})
-    assert code == 200
-    desat = Path(r["desat"])
-    assert desat == (tmp_path / "esborranys" / "c04_draft" / "campanya.yaml").resolve()
-    assert desat.read_text() == r["yaml"]
-    assert neudet not in desat.parents
+    code, r = _json(url, "/api/campanya/yaml", {"form": d})
+    assert code == 200 and r["yaml"].startswith("# Esborrany generat per simphy")
+    assert set(r) == {"yaml"}
 
 
 def test_comprova_c04_dona_259_valids(url):
