@@ -1,7 +1,8 @@
 """El servidor de la consola: `http.server` de la stdlib, sense dependències.
 
 Rutes: `/` (la pàgina), `/api/meta`, `/api/llm`, `/api/render`, `/api/ask` (Simulació) i
-`/api/design/{meta,load,check,view,export,ask}` + `/api/results` (Disseny i Resultats).
+`/api/design/{meta,load,check,view,export,ask}` + `/api/results` (Disseny i Resultats) i
+`/api/campanya/{schema,defaults,yaml,comprova}` (Definició de campanya).
 Els errors d'un disseny o d'un resultat són un 400 amb el motiu (`{"error": …}`), no un
 forat: el que la pàgina ha de dir és què falta.
 """
@@ -66,6 +67,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(llm_status())
         elif path == "/api/design/meta":
             self._tracta(api.design_meta)
+        elif path == "/api/campanya/schema":
+            self._tracta(api.campanya_schema)
+        elif path == "/api/campanya/defaults":
+            self._tracta(api.campanya_defaults)
         elif path == "/api/results":
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.results, q.get("hash", ""), q.get("stage") or None, q.get("energia"))
@@ -91,6 +96,10 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.design_view, body)
         elif path == "/api/design/ask":
             self._tracta(api.design_ask, body)
+        elif path == "/api/campanya/yaml":
+            self._tracta(api.campanya_yaml, body)
+        elif path == "/api/campanya/comprova":
+            self._tracta(api.campanya_comprova, body)
         elif path == "/api/design/export":
             try:
                 data, nom = api.design_export(body)

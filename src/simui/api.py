@@ -35,6 +35,9 @@ from ..mcgen import design_catalog as CAT
 from ..mcgen import design_export as EXP
 from ..mcgen import design_view as VIEW
 from ..mcgen import results_tub as RES
+from ..mcgen import campanya_form as CF
+from ..mcgen import campanya_check as CC
+from ..mcgen.paths import repo_root
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "mcgen" / "examples"
 
@@ -305,3 +308,43 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
+
+
+# ── Definició de campanya (C1, C2): el formulari i la comprovació de neudet ──
+
+def esborranys_root() -> Path:
+    """On la UI desa els `campanya.yaml` d'esborrany: `data/campanyes_esborrany` del repo de simphy.
+    Mai dins de neudet (les campanyes de neudet les porta Albert a mà)."""
+    return repo_root() / "data" / "campanyes_esborrany"
+
+
+def campanya_schema() -> Dict[str, Any]:
+    """Els tipus de generador, els camps i els tubs (de neudet) per al formulari."""
+    return CF.schema()
+
+
+def campanya_defaults() -> Dict[str, Any]:
+    """El `campanya.yaml` de c04_draft, tal com és a neudet."""
+    return CF.defaults()
+
+
+def campanya_yaml(body: Dict[str, Any]) -> Dict[str, Any]:
+    """El yaml d'esborrany del formulari. Amb `desa`, el guarda a `data/campanyes_esborrany/<id>/`.
+    Sense `desa` (la vista en viu), no escriu res."""
+    text = CF.to_yaml(body.get("form"))
+    out: Dict[str, Any] = {"yaml": text, "desat": None}
+    if body.get("desa"):
+        root = esborranys_root().resolve()
+        dest = (root / str(body["form"]["id"]) / "campanya.yaml").resolve()
+        if not dest.is_relative_to(root) or DES.neudet_root() in dest.parents:
+            raise ValueError(f"no es desa fora de {root}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text)
+        out["desat"] = str(dest)
+    return out
+
+
+def campanya_comprova(body: Dict[str, Any]) -> Dict[str, Any]:
+    """La comprovació de neudet del yaml (`yaml_text`, i `etapa` opcional). Vegeu `campanya_check`."""
+    return CC.comprova(str(body.get("yaml_text") or ""), body.get("etapa") or None)
+

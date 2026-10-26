@@ -101,6 +101,24 @@ table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
 .chip{font-size:12px;color:var(--muted);background:var(--panel);padding:2px 7px;border-radius:4px}
 .chip b{color:var(--ink);font-weight:700}
 #d-status code{font-size:11.5px}
+.anell{border:1px solid var(--line);border-radius:5px;padding:8px 10px;margin:8px 0;background:#fff}
+.anell-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.anell-h input{width:auto;flex:1}
+.chk{display:flex;gap:6px;align-items:center;margin:8px 0;color:var(--ink);font-size:13px}
+.chk input{width:auto}
+input.bad,textarea.bad{border-color:var(--bad);background:#fbeeea}
+.pre{white-space:pre-line}
+pre.pre,pre.yamlbox{font-size:12px;line-height:1.35;background:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:4px;overflow:auto;white-space:pre-wrap}
+pre.yamlbox{max-height:560px;white-space:pre}
+svg.bloc{width:200px;height:200px;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:crosshair}
+.cres{margin:6px 0 10px;font-size:14px}
+.cres .big{font-size:22px;font-weight:700}
+.big.ok{color:var(--good)} .big.bad{color:var(--bad)}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.cgrid button.cand{background:#fff;color:var(--ink);border:1px solid var(--line);padding:6px;font-weight:400;text-align:left;border-radius:6px}
+.cgrid button.cand:hover{border-color:var(--accent)}
+.cgrid svg{width:100%;height:auto;display:block}
+.cn{font-weight:700;font-size:12.5px;margin-bottom:2px}
 </style></head><body>
 
 <header class="top">
@@ -109,6 +127,7 @@ table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
   <span class="sub" id="h-sub">Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació.</span>
   <nav class="ptabs" role="tablist">
     <button class="ptab on" data-tab="sim">Simulació</button>
+    <button class="ptab" data-tab="campanya">Campanya</button>
     <button class="ptab" data-tab="disseny">Disseny</button>
     <button class="ptab" data-tab="resultats">Resultats</button>
   </nav>
@@ -193,6 +212,27 @@ table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
 </main>
 </div>
 
+<div class="pg" id="pg-campanya" hidden>
+<main>
+<aside>
+  <div id="c-err"></div>
+  <div id="c-form"><div class="hint">Carregant la campanya de c04_draft des de neudet…</div></div>
+</aside>
+<section class="out">
+  <div class="bar">
+    <button id="c-desa">Desa l'esborrany</button>
+    <button class="ghost" id="c-baixa">Descarrega .yaml</button>
+    <button class="ghost" id="c-comprova">Comprova amb neudet</button>
+    <span class="note">Desar i descarregar no executen res; la comprovació la fa neudet.</span>
+  </div>
+  <div id="c-desat"></div>
+  <h2>campanya.yaml (en viu)</h2>
+  <pre class="yamlbox" id="c-yaml"></pre>
+  <h2>Comprovació de neudet</h2>
+  <div id="c-res"><div class="hint">Encara no s'ha comprovat. Premeu «Comprova amb neudet».</div></div>
+</section>
+</main>
+</div>
 <div class="pg" id="pg-disseny" hidden>
 <main>
 <aside>
@@ -456,6 +496,345 @@ boot();
 </script>
 
 <script>
+// ── Definició de campanya (C1, C2) ──────────────────────────────────────────
+// CP.f és el campanya.yaml com a diccionari, amb les claus de neudet. Aquí no es valida res: el
+// formulari només escriu els camps. `/api/campanya/yaml` diu si la forma és llegible, i
+// `/api/campanya/comprova` (neudet) diu quins candidats són vàlids.
+const CP = {schema: null, f: null, etapa: null, res: null, t: null, seq: 0};
+
+const cTxt = v => Array.isArray(v) ? v.join(', ') : (v === undefined || v === null ? '' : String(v));
+const cIn = (p, v, t, ph = '') => `<input data-p="${escD(p)}" data-t="${t}" value="${escD(cTxt(v))}" placeholder="${escD(ph)}">`;
+const cLab = (txt, html) => `<label>${escD(txt)}${html}</label>`;
+const cMarca = t => t.validat === true ? '✓ validat' : t.validat === false ? '✗ no validat' : '⚠ sense registre de validació';
+function cTubOpts(valor){
+  const tubs = CP.schema.tipus_tub, trobat = tubs.some(t => t.nom === valor);
+  const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}</option>`);
+  if(valor && !trobat) opts.unshift(`<option value="${escD(valor)}" selected>${escD(valor)} — no és al catàleg</option>`);
+  return opts.join('');
+}
+const cSelTub = (p, valor, extra = '') => `<select data-p="${escD(p)}" data-t="str" ${extra}>${cTubOpts(valor)}</select>`;
+const cTubMarca = nom => { const t = CP.schema.tipus_tub.find(x => x.nom === nom); return t ? t.estat : 'no és al catàleg'; };
+const cGet = (obj, path) => path.split('.').reduce((o, k) => o[k], obj);
+function cSet(obj, path, v){
+  const ks = path.split('.'); let o = obj;
+  for(let i = 0; i < ks.length - 1; i++){
+    const k = ks[i];
+    if(o[k] === null || typeof o[k] !== 'object') o[k] = /^\d+$/.test(ks[i + 1]) ? [] : {};
+    o = o[k];
+  }
+  const last = ks[ks.length - 1];
+  if(v === undefined){ if(Array.isArray(o)) o[last] = ''; else delete o[last]; }     // buit = camp omès
+  else o[last] = v;
+}
+// Text del formulari → valor de yaml. Un número que no ho és es deixa com a text: neudet/to_yaml ho diran.
+function cParse(el){
+  const t = el.dataset.t, v = el.value.trim();
+  const num = s => { const n = Number(s); return s !== '' && Number.isFinite(n) ? n : s; };
+  const nums = s => s.split(/[,;\s]+/).filter(x => x !== '');
+  switch(t){
+    case 'bool': return el.checked;
+    case 'str': return el.value;
+    case 'ostr': return v === '' ? undefined : el.value;
+    case 'num': case 'phi': return v === '' ? undefined : num(v);
+    case 'numlist': { if(v === '') return undefined; const a = nums(v).map(num); return a.length === 1 ? a[0] : a; }
+    case 'nlist': return nums(v).map(num);
+    case 'slist': return v.split(',').map(x => x.trim()).filter(x => x !== '');
+    case 'pairs': return v.split(',').map(x => x.trim()).filter(x => x !== '').map(x => x.split(/\s+/));
+    case 'tublines': return el.value.split('\n').map(x => x.trim()).filter(x => x !== '').map(cLiniaTub);
+    case 'json': return JSON.parse(v);
+    default: return el.value;
+  }
+}
+// «x y [z] [tipus]» per tub. Si x o y no són nombres, ho diu la línia (la UI la marca).
+function cLiniaTub(linia){
+  const tok = linia.split(/\s+/), x = Number(tok[0]), y = Number(tok[1]);
+  if(!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('línia de tub no vàlida: ' + linia);
+  const t = {x, y}; let rest = tok.slice(2);
+  if(rest.length && Number.isFinite(Number(rest[0]))){ t.z = Number(rest[0]); rest = rest.slice(1); }
+  if(rest.length) t.tipus = rest.join(' ');
+  return t;
+}
+const cTubLinies = tubs => tubs.map(t => Array.isArray(t) ? t.join(' ') :
+  [t.x, t.y, ...(t.z !== undefined ? [t.z] : []), ...(t.tipus ? [t.tipus] : [])].join(' ')).join('\n');
+const cPairs = p => (p || []).map(x => x.join(' ')).join(', ');
+
+function cGenNou(t){
+  const tub = CP.f.domini.tipus_tub[0];
+  if(t === 'anells') return {tipus: t, anells: [{r: {de: 5, a: 5, pas: 1}, n: {de: 4, a: 4}, tipus: tub}]};
+  if(t === 'mapa_un_tub') return {tipus: t, tipus_tub: tub, x: [0], y: [0]};
+  if(t === 'llista') return {tipus: t, candidats: [{nom: 'c0', tubs: []}]};
+  return {tipus: t, tipus_tub: tub, pas_cm: 5};                       // slots
+}
+function cSetMode(p, mode){
+  const g = cGet(CP.f, p);
+  delete g.x; delete g.y; delete g.polar;
+  if(mode === 'polar') g.polar = {r: [1], theta: [0]}; else { g.x = [0]; g.y = [0]; }
+}
+
+// Cd per anell o per al mapa: fracció (0 a 1), arc (360 o 180) i centre (°). Buit = per defecte.
+const cCdHtml = (p, cd = {}) => `<div class="row3">
+  ${cLab('Cd fracció', cIn(p + '.cd.fraction', cd.fraction ?? 0, 'numlist', '0'))}
+  ${cLab('Cd arc (°)', cIn(p + '.cd.arc', cd.arc, 'numlist', '360'))}
+  ${cLab('Cd centre (°)', cIn(p + '.cd.centre', cd.centre, 'numlist', '0'))}</div>`;
+
+function cAnellsHtml(p, g){
+  const ttip = CP.f.domini.tipus_tub[0];
+  const blocs = (g.anells || []).map((a, i) => {
+    const ap = `${p}.anells.${i}`, rng = v => (v && typeof v === 'object') ? v : {de: v, a: v};
+    const R = rng(a.r), N = rng(a.n);
+    return `<div class="anell"><div class="anell-h"><b>Anell ${i + 1}</b>
+        <button class="x" data-act="anell-" data-i="${i}">treu</button></div>
+      <div class="row3">${cLab('r de (cm)', cIn(ap + '.r.de', R.de, 'num'))}${cLab('r a (cm)', cIn(ap + '.r.a', R.a, 'num'))}${cLab('pas', cIn(ap + '.r.pas', R.pas, 'num', '1'))}</div>
+      <div class="row3">${cLab('n de', cIn(ap + '.n.de', N.de, 'num'))}${cLab('n a', cIn(ap + '.n.a', N.a, 'num'))}${cLab('φ (°) o mig_pas', cIn(ap + '.phi', a.phi, 'phi', '0'))}</div>
+      <div class="row">${cLab('tipus de tub', `<select data-p="${ap}.tipus" data-t="str">${cTubOpts(a.tipus ?? ttip)}</select>`)}</div>
+      ${cCdHtml(ap, a.cd)}</div>`;
+  }).join('');
+  return `${cLab('n_total (filtre: suma de tubs)', cIn(p + '.n_total', g.n_total, 'num', 'buit = sense filtre'))}
+    <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${g.ordenats ? 'checked' : ''}> ordenats (radis creixents entre anells)</label>
+    ${blocs}<div class="bar"><button class="ghost" data-act="anell+">+ anell</button></div>`;
+}
+
+function cMapaHtml(p, g){
+  const mode = g.polar ? 'polar' : 'xy';
+  const pl = g.polar || {};
+  return `${cLab('mode de la graella', `<select data-gmode="${p}">
+      <option value="xy" ${mode === 'xy' ? 'selected' : ''}>cartesiana (x, y)</option>
+      <option value="polar" ${mode === 'polar' ? 'selected' : ''}>polar (r, θ)</option></select>`)}
+    ${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
+    ${cCdHtml(p, g.cd)}
+    ${mode === 'xy'
+      ? `<div class="row">${cLab('x (cm), separats per comes', cIn(p + '.x', g.x, 'nlist'))}${cLab('y (cm)', cIn(p + '.y', g.y, 'nlist'))}</div>`
+      : `<div class="row">${cLab('r (cm)', cIn(p + '.polar.r', pl.r, 'nlist'))}${cLab('θ (°)', cIn(p + '.polar.theta', pl.theta, 'nlist'))}</div>`}`;
+}
+
+function cLlistaHtml(p, g){
+  const blocs = (g.candidats || []).map((c, j) => {
+    const cp = `${p}.candidats.${j}`;
+    const cos = c.dat ? `<div class="panel warn">Fitxer .dat: <code>${escD(c.dat)}</code> (no editable aquí)</div>`
+      : `<label>tubs: una línia per tub, «x y [z] [tipus]» (cm)<textarea data-p="${cp}.tubs" data-t="tublines" rows="4">${escD(cTubLinies(c.tubs || []))}</textarea></label>`;
+    return `<div class="anell"><div class="anell-h"><input data-p="${cp}.nom" data-t="str" value="${escD(c.nom ?? '')}" placeholder="nom del candidat">
+        <button class="x" data-act="cand-" data-i="${j}">treu</button></div>${cos}</div>`;
+  }).join('');
+  return `${blocs}<div class="bar"><button class="ghost" data-act="cand+">+ candidat</button></div>
+    <div class="hint">Cada candidat és una posició de tubs de la llista. Els Cd per tub i els fitxers .dat, a la llista de la fase C3.</div>`;
+}
+
+function cSlotsHtml(p, g){
+  return `<div class="row">${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
+      ${cLab('forma', `<select data-p="${p}.forma" data-t="str">${['quadrada', 'hexagonal'].map(f => `<option ${g.forma === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>
+    <div class="row3">${cLab('pas (cm)', cIn(p + '.pas_cm', g.pas_cm, 'num'))}${cLab('ocupats', cIn(p + '.ocupats', g.ocupats, 'num', 'buit = n_tubs'))}${cLab('mostres', cIn(p + '.mostres', g.mostres, 'num', '100'))}</div>
+    <div class="row3">${cLab('r mín (cm)', cIn(p + '.r_min_cm', g.r_min_cm, 'num'))}${cLab('r màx (cm)', cIn(p + '.r_max_cm', g.r_max_cm, 'num'))}${cLab('llavor', cIn(p + '.llavor', g.llavor, 'num', '0'))}</div>`;
+}
+
+function cGenHtml(E, g){
+  const p = `etapes.${E}.generador`;
+  if(g.tipus === 'anells') return cAnellsHtml(p, g);
+  if(g.tipus === 'mapa_un_tub') return cMapaHtml(p, g);
+  if(g.tipus === 'llista') return cLlistaHtml(p, g);
+  if(g.tipus === 'slots') return cSlotsHtml(p, g);
+  return `<div class="panel bad">El generador «${escD(g.tipus)}» no té formulari a la UI.</div>`;
+}
+
+function cBlocSvg(){
+  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2;
+  const pos = d.font.pos_cm || [0, 0, 0], L = Math.max(hx, hy) + 2;
+  const forat = d.bloc.forat_cm > 0 ? `<circle r="${d.bloc.forat_cm}" fill="none" stroke="#999" stroke-width="0.2" stroke-dasharray="0.6 0.6"/>` : '';
+  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="0.9" fill="#c00000"/>` : '';
+  return `<svg id="c-bloc" viewBox="${-L} ${-L} ${2 * L} ${2 * L}" class="bloc" aria-label="bloc i font (clica per moure la font)">
+    <rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="0.25"/>${forat}${font}</svg>`;
+}
+
+function cFormHtml(){
+  const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, g = et.generador;
+  const pos = d.font.pos_cm || [0, 0, 0];
+  const fontHtml = d.font.tipus === 'feix'
+    ? `<div class="row">${cLab('eix', `<select data-p="domini.font.eix" data-t="str">${['x', 'y', 'z'].map(e => `<option ${d.font.eix === e ? 'selected' : ''}>${e}</option>`).join('')}</select>`)}${cLab('desplaçament (cm)', cIn('domini.font.desplacament_cm', d.font.desplacament_cm, 'nlist'))}</div>`
+    : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(c + ' (cm)', cIn('domini.font.pos_cm.' + i, pos[i], 'num'))).join('')}</div>${cBlocWrap()}`;
+  const genSel = `<select data-gtipus="${escD(E)}"><option value="">— cap (no és una etapa de xarxa)</option>${CP.schema.generadors.map(x => `<option value="${escD(x.tipus)}" ${g && g.tipus === x.tipus ? 'selected' : ''}>${escD(x.tipus)}</option>`).join('')}</select>`;
+  const gen = g ? cGenHtml(E, g) : `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>generador</code>: no és una etapa de xarxa.</div>`;
+  const aval = `<textarea data-p="avaluacio" data-t="json" rows="5">${escD(JSON.stringify(f.avaluacio ?? {}))}</textarea>`;
+  const verif = `<textarea data-p="verificacio" data-t="json" rows="4">${escD(JSON.stringify(f.verificacio ?? {}))}</textarea>`;
+  const cerca = et.cerca !== undefined ? `<textarea data-p="etapes.${escD(E)}.cerca" data-t="json" rows="3">${escD(JSON.stringify(et.cerca))}</textarea>` : '';
+  return `
+  <h2>Identitat</h2>
+  ${cLab('id de la campanya', cIn('id', f.id, 'str'))}
+  <div class="row">${cLab('estat', cIn('estat', f.estat, 'ostr'))}${cLab('creada (ISO)', cIn('creada', f.creada, 'ostr'))}</div>
+  <label class="chk"><input type="checkbox" data-p="draft" data-t="bool" ${f.draft ? 'checked' : ''}> esborrany (draft): els avisos no aturen</label>
+
+  <h2>Domini</h2>
+  <div class="row">${cLab('material', cIn('domini.bloc.material', d.bloc.material, 'str'))}${cLab('densitat (g/cm³)', cIn('domini.bloc.densitat_gcm3', d.bloc.densitat_gcm3, 'num'))}</div>
+  <div class="row">${cLab('mides del bloc (cm): x, y, z', cIn('domini.bloc.mides_cm', d.bloc.mides_cm, 'nlist'))}${cLab('forat central (cm)', cIn('domini.bloc.forat_cm', d.bloc.forat_cm, 'num'))}</div>
+
+  <h2>Font</h2>
+  ${cLab('tipus', `<select data-p="domini.font.tipus" data-t="str" data-s>${['iso', 'feix'].map(t => `<option ${d.font.tipus === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
+  ${fontHtml}
+
+  <h2>Energies i tubs</h2>
+  ${cLab('energies (MeV), separades per comes', cIn('domini.energies_MeV', d.energies_MeV, 'nlist'))}
+  ${cLab('tipus de tub (catàleg de neudet)', cSelTub('domini.tipus_tub.0', d.tipus_tub[0]))}
+  <div class="hint" id="c-tubmarca">${escD(cTubMarca(d.tipus_tub[0]))}</div>
+  <div class="panel warn">${escD(CP.schema.cd.avis)}</div>
+
+  <h2>Restriccions</h2>
+  <div class="row3">${cLab('n_tubs', cIn('domini.restriccions.n_tubs', d.restriccions.n_tubs, 'num'))}${cLab('marge al bloc (cm)', cIn('domini.restriccions.marge_bloc_cm', d.restriccions.marge_bloc_cm, 'num'))}${cLab('separació mín. (cm)', cIn('domini.restriccions.sep_min_cm', d.restriccions.sep_min_cm, 'num'))}</div>
+  <div class="row">${cLab('distància mín. a la font (cm)', cIn('domini.restriccions.r_min_font_cm', d.restriccions.r_min_font_cm, 'num'))}${cLab('línia de feix', cIn('domini.restriccions.linia_feix', d.restriccions.linia_feix, 'ostr', 'buit = cap'))}</div>
+
+  <h2>Estructura · etapa</h2>
+  <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option ${e === E ? 'selected' : ''}>${escD(e)}</option>`).join('')}</select>`)}
+    ${cLab('generador', genSel)}</div>
+  ${cLab('què fa l\'etapa', cIn(`etapes.${E}.que`, et.que, 'ostr'))}
+  ${gen}
+
+  <h2>Objectius</h2>
+  ${cLab('mètriques (separades per comes)', cIn('objectius.metriques', f.objectius?.metriques, 'slist'))}
+  <div class="row">${cLab('frontera de Pareto («objectiu max|min», separats per comes)', cIn('objectius.pareto', cPairs(f.objectius?.pareto), 'pairs'))}
+    ${cLab('pesos', cIn('objectius.pesos', f.objectius?.pesos, 'ostr'))}</div>
+  ${cLab('pareto_k_sigma', cIn('objectius.pareto_k_sigma', f.objectius?.pareto_k_sigma, 'num'))}
+
+  <details><summary>Avaluació, verificació i cerca (JSON, sense format: tal com és a neudet)</summary>
+    ${cLab('avaluacio', aval)}${cLab('verificacio', verif)}${cerca ? cLab('cerca de l\'etapa', cerca) : ''}
+  </details>`;
+}
+const cBlocWrap = () => `<div id="c-bloc-wrap">${cBlocSvg()}</div>`;
+
+function cPintaForm(){
+  const aside = Q('#c-form').parentElement, y = aside.scrollTop;
+  Q('#c-form').innerHTML = cFormHtml();
+  aside.scrollTop = y;
+}
+function cErr(msg){ Q('#c-err').innerHTML = msg ? `<div class="panel bad pre">${escD(msg)}</div>` : ''; }
+
+// El yaml en viu: `/api/campanya/yaml` sense `desa` (no escriu res). Només l'últim compta.
+function cYaml(){
+  clearTimeout(CP.t);
+  CP.t = setTimeout(async () => {
+    const seq = ++CP.seq;
+    try{
+      const r = await api('/api/campanya/yaml', {form: CP.f, desa: false});
+      if(seq !== CP.seq) return;
+      Q('#c-yaml').textContent = r.yaml; cErr('');
+    } catch(e){ if(seq === CP.seq){ cErr(e.message); } }
+  }, 150);
+}
+
+// Un canvi del formulari: només escriu el camp; els canvis de forma tornen a pintar el formulari.
+function cEdita(el, change){
+  if(el.tagName === 'SELECT' && !change) return;
+  if(el.dataset.etapa !== undefined){ if(change){ CP.etapa = el.value; cPintaForm(); cYaml(); } return; }
+  if(el.dataset.gmode !== undefined){ if(change){ cSetMode(el.dataset.gmode, el.value); cPintaForm(); cYaml(); } return; }
+  if(el.dataset.gtipus !== undefined){
+    if(change){
+      if(el.value) CP.f.etapes[el.dataset.gtipus].generador = cGenNou(el.value);
+      else delete CP.f.etapes[el.dataset.gtipus].generador;
+      cPintaForm(); cYaml();
+    }
+    return;
+  }
+  const p = el.dataset.p;
+  if(!p) return;
+  let v;
+  try{ v = cParse(el); } catch(e){ el.classList.add('bad'); return; }
+  el.classList.remove('bad');
+  cSet(CP.f, p, v);
+  if(p.startsWith('domini.bloc') || p.startsWith('domini.font')){ const w = Q('#c-bloc-wrap'); if(w) w.innerHTML = cBlocSvg(); }
+  if(p === 'domini.tipus_tub.0'){ const m = Q('#c-tubmarca'); if(m) m.textContent = cTubMarca(v); }
+  if(change && el.hasAttribute('data-s')) cPintaForm();
+  cYaml();
+}
+function cClicBloc(svg, e){
+  const f = CP.f.domini.font;
+  if(f.tipus !== 'iso') return;
+  const r = svg.getBoundingClientRect(), L = svg.viewBox.baseVal.width / 2;
+  const x = (e.clientX - r.left) / r.width * 2 * L - L, y = -((e.clientY - r.top) / r.height * 2 * L - L);
+  const z = (f.pos_cm && f.pos_cm[2]) ?? 0;
+  f.pos_cm = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, z];
+  cPintaForm(); cYaml();
+}
+function cAccio(act, i){
+  const g = CP.f.etapes[CP.etapa].generador;
+  if(act === 'anell+') g.anells.push({r: {de: 1, a: 1, pas: 1}, n: {de: 1, a: 1}, tipus: CP.f.domini.tipus_tub[0]});
+  if(act === 'anell-') g.anells.splice(+i, 1);
+  if(act === 'cand+') g.candidats.push({nom: 'c' + (g.candidats.length), tubs: []});
+  if(act === 'cand-') g.candidats.splice(+i, 1);
+  cPintaForm(); cYaml();
+}
+
+async function cInit(){
+  if(CP.f) return;
+  const [s, d] = await Promise.all([api('/api/campanya/schema'), api('/api/campanya/defaults')]);
+  CP.schema = s; CP.f = d; CP.etapa = Object.keys(d.etapes)[0];
+  cPintaForm(); cYaml();
+}
+
+function cPintaRes(r){
+  let h = '';
+  if(r.via === 'script'){
+    h += `<div class="panel warn">Sortida del script de neudet (<code>comprova_campanya.py</code>): no és llegible per màquina, es mostra tal com és.</div>
+      <pre class="pre">${escD(r.sortida + (r.error_sortida ? '\n' + r.error_sortida : ''))}</pre>`;
+  } else {
+    h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
+    if(r.motius.length) h += `<table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  if(r.certificacio) h += `<div class="panel warn"><b>Certificació:</b> ${escD(r.certificacio.motiu)}</div>`;
+  if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo a Disseny</h2>
+    <div class="cgrid">${r.candidats.map((c, i) => `<button class="cand" data-cand="${i}" title="${escD(c.hash)}"><div class="cn">${escD(c.nom)}</div>${c.xy_svg}<div class="hint">${escD(c.hash)} · ${c.tubs.length} tubs</div></button>`).join('')}</div>`;
+  Q('#c-res').innerHTML = h;
+}
+async function cComprova(){
+  Q('#c-res').innerHTML = '<div class="hint">neudet comprova la campanya…</div>';
+  try{
+    const y = await api('/api/campanya/yaml', {form: CP.f, desa: false});
+    const r = await api('/api/campanya/comprova', {yaml_text: y.yaml, etapa: CP.etapa});
+    CP.res = r; cPintaRes(r);
+  } catch(e){
+    CP.res = null;
+    Q('#c-res').innerHTML = `<div class="panel bad"><b>neudet diu:</b><pre class="pre">${escD(e.message)}</pre></div>`;
+  }
+}
+async function cObre(i){
+  const c = CP.res && CP.res.candidats[i];
+  if(!c) return;
+  showTab('disseny');
+  await dInit();
+  await dCarrega({dat_text: c.dat_text, json_text: c.json_text});
+}
+async function cDesa(){
+  try{
+    const r = await api('/api/campanya/yaml', {form: CP.f, desa: true});
+    Q('#c-desat').innerHTML = `<div class="panel ok">Esborrany desat a <code>${escD(r.desat)}</code> (fora de neudet).</div>`;
+  } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad pre">${escD(e.message)}</div>`; }
+}
+async function cBaixa(){
+  try{
+    const r = await api('/api/campanya/yaml', {form: CP.f, desa: false});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([r.yaml], {type: 'text/yaml'}));
+    a.download = 'campanya.yaml'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch(e){ cErr(e.message); }
+}
+
+// Els identificadors i les funcions d'ajut (Q, api) són de l'script següent: cal esperar que la pàgina
+// sigui llesta abans de connectar els esdeveniments.
+document.addEventListener('DOMContentLoaded', () => {
+Q('#c-form').addEventListener('input', e => cEdita(e.target, false));
+Q('#c-form').addEventListener('change', e => cEdita(e.target, true));
+Q('#c-form').addEventListener('click', e => {
+  const svg = e.target.closest('svg#c-bloc');
+  if(svg) return cClicBloc(svg, e);
+  const b = e.target.closest('button[data-act]');
+  if(b) cAccio(b.dataset.act, b.dataset.i);
+});
+Q('#c-res').addEventListener('click', e => {
+  const b = e.target.closest('button.cand');
+  if(b) cObre(+b.dataset.cand).catch(err => dErr(err.message));
+});
+Q('#c-comprova').onclick = cComprova;
+Q('#c-desa').onclick = cDesa;
+Q('#c-baixa').onclick = cBaixa;
+});
+</script>
+<script>
 // ── pestanyes ─────────────────────────────────────────────────────────────────
 // La de Disseny i la de Resultats parlen amb `/api/design/*` i `/api/results`. Cap número
 // no es calcula aquí: el que surt és el que diu neudet (vegeu `docs/site/ui.md`).
@@ -463,6 +842,7 @@ const Q = s => document.querySelector(s), QA = s => [...document.querySelectorAl
 const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const HEAD = {
   sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
+  campanya: ['Definició de campanya', "Un campanya.yaml d'esborrany, amb les claus de neudet. neudet en diu quins candidats són vàlids; aquí no es calcula res."],
   disseny: ['Disseny de detectors', "Un disseny de neudet, editable: verificat, visualitzat i exportat. No executa cap simulació."],
   resultats: ['Resultats per tub', "Els números de neudet per tub i energia, sense recalcular-los. Cada xifra porta la seva procedència."]};
 
@@ -478,6 +858,7 @@ function showTab(name){
   QA('.ptab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   Q('#h-title').textContent = HEAD[name][0]; Q('#h-sub').textContent = HEAD[name][1];
   history.replaceState(null, '', '#' + name);
+  if(name === 'campanya') cInit().catch(e => cErr(e.message));
   if(name === 'disseny') dInit().catch(e => dErr(e.message));
   if(name === 'resultats') rLoad().catch(e => rErr(e.message));
 }
