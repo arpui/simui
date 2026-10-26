@@ -286,11 +286,14 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
     """Les etapes de neudet amb aquest hash i el seu resultat per tub (totes les energies).
 
     Amb `energia` (MeV), a més, el visor XY de l'etapa (`stage`, o la primera amb dades) pintat
-    per ε a aquella energia. Un hash sense cap etapa dona `entries: []`: no és un error.
+    per ε a aquella energia, i la `comparativa` per tub entre motors (`results_tub.comparativa`).
+    Un hash sense cap etapa dona `entries: []`: no és un error.
     """
     entries = RES.for_design(hash_)
-    out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None}
+    out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None, "comparativa": None}
     if energia not in (None, ""):
+        # la taula per tub entre motors (neudet i simphy): lectura i quocient, sense física
+        out["comparativa"] = RES.comparativa(entries, float(energia))
         e = next((x for x in entries if x["status"] == RES.OK
                   and (stage is None or x["path"] == stage)), None)
         dat = CAT.per_hash(hash_)

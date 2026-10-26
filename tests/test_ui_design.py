@@ -25,6 +25,13 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _simphy_resultats_aillats(tmp_path, monkeypatch):
+    """Els tests d'aquest fitxer parlen de les dades de neudet: els resultats de simphy
+    (`data/resultats`, o `SIMPHY_RESULTATS`) no s'hi barregen. Els de simphy tenen els seus tests."""
+    monkeypatch.setenv("SIMPHY_RESULTATS", str(tmp_path / "sense_simphy"))
 sys.path.insert(0, str(ROOT / "src"))
 
 from simphy.mcgen import design as D  # noqa: E402
@@ -324,3 +331,73 @@ def test_results_hash_sense_etapes_es_buit_i_no_es_error(url):
     _neudet_o_skip()
     status, body = _json(_get(url, "/api/results?hash=000000000000&energia=1"))
     assert status == 200 and body["entries"] == [] and body["vista"] is None
+
+
+# ── resultats de simphy a la comparativa (B3): fixture SINTÈTIC a un directori temporal ───────
+C03_HASH = "e9039f26ad68"
+
+
+def _simphy_sintetic(root: Path, neudet: Path, factor: float = 1.05) -> None:
+    """Un `resultats_tub.json` v1.1 de MCNP, SINTÈTIC, per al disseny de c03: les mateixes posicions
+    de tub que l'S3 de neudet i una taxa `factor` × la de neudet (només per provar la comparativa)."""
+    from simphy.mcgen import results_simphy as RS
+    s3 = json.loads((neudet / "disseny/campanyes/c03_3anells_grups/etapes/S3/resultats_tub.json").read_text())
+    k = s3["energies_MeV"].index(1.0)
+    tubs = [{"i": t["i"], "x": t["x"], "y": t["y"], "z": t["z"], "tipus": t["tipus"],
+             "comptes": [factor * t["eps"][k] * 1e6], "eps": [factor * t["eps"][k]],
+             "sig": [0.02 * factor * t["eps"][k]]}
+            for t in s3["candidats"][C03_HASH]["tubs"]]
+    doc = {"versio": "1.1", "etapa": "simphy", "campanya": "c03_3anells_grups", "motor": "mcnp",
+           "energies_MeV": [1.0], "font": {"tipus": "iso", "pos_cm": [0, 0, 0]}, "meta": "meta.json",
+           "deteccio": "np_taxa_tally", "sig_tipus": "tally",
+           "candidats": {C03_HASH: {"nom": "1x3_4x6_3x12", "ronda": "simphy", "n": 1000000,
+                                    "pareto_rang": None, "robusta": None, "tubs": tubs}}}
+    meta = {"schema": 1, "git": {"simphy": {"repo": "/sintetic", "commit": "0123456789ab", "dirty": False,
+                                            "dirty_files": [], "exclos": "data/resultats"}},
+            "inputs": {"tubs_cells": "0" * 64, "decks": {"E_1MeV/x.py": "1" * 64}}, "warnings": []}
+    RS.escriu(doc, meta, root / "campanyes" / "c03_3anells_grups" / "1x3_4x6_3x12" / "mcnp")
+
+
+@pytest.fixture
+def simphy_sintetic(tmp_path, monkeypatch):
+    root = _neudet_o_skip()
+    res = tmp_path / "resultats"
+    _simphy_sintetic(res, root)
+    monkeypatch.setenv("SIMPHY_RESULTATS", str(res))
+    return res
+
+
+def test_results_amb_simphy_surt_com_a_font_simphy_amb_la_seva_provenance(url, simphy_sintetic):
+    status, body = _json(_get(url, f"/api/results?hash={C03_HASH}"))
+    assert status == 200
+    sim = [e for e in body["entries"] if e["font"] == "simphy"]
+    assert len(sim) == 1 and sim[0]["motor"] == "mcnp" and sim[0]["status"] == "ok"
+    assert sim[0]["provenance"]["citable"] is True
+    assert sim[0]["deteccio"] == "np_taxa_tally" and sim[0]["sig_tipus"] == "tally"
+    # les de neudet segueixen primer, com sempre
+    assert body["entries"][0]["font"] == "neudet"
+
+
+def test_comparativa_per_tub_entre_xarxa_i_simphy_amb_el_quocient(url, simphy_sintetic):
+    from urllib.parse import urlencode
+    status, body = _json(_get(url, "/api/results?" + urlencode({"hash": C03_HASH, "energia": 1})))
+    assert status == 200
+    comp = body["comparativa"]
+    assert comp is not None and comp["energia"] == 1.0
+    assert [c["motor"] for c in comp["columnes"]] == ["xarxa B1", "mcnp"]
+    assert comp["referencia"].startswith("xarxa B1")                 # sense Geant4: a la xarxa B1
+    assert len(comp["files"]) == 8
+    x0 = comp["files"][0]["cols"]
+    assert x0[0]["ratio"] == pytest.approx(1.0)
+    assert x0[1]["ratio"] == pytest.approx(1.05)                     # el sintètic és 1,05 × la xarxa
+    assert comp["nota_deteccio"] and "≪ 0,1 %" in comp["nota_deteccio"]   # deteccio diferent: es diu
+
+
+def test_comparativa_sense_energia_no_es_calcula(url, simphy_sintetic):
+    status, body = _json(_get(url, f"/api/results?hash={C03_HASH}"))
+    assert status == 200 and body["comparativa"] is None
+
+
+def test_la_pagina_te_el_bloc_de_la_comparativa(url):
+    status, _, data = _get(url, "/")
+    assert status == 200 and 'id="r-comp"' in data.decode()

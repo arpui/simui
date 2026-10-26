@@ -274,6 +274,9 @@ table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
   <div class="svgbox" id="r-xy"></div>
   <h2>ε per tub i energia</h2>
   <div class="tblwrap" id="r-taula"></div>
+  <h2>Comparativa per tub entre motors</h2>
+  <div id="r-comp-avisos"></div>
+  <div class="tblwrap" id="r-comp"></div>
 </section>
 </main>
 </div>
@@ -700,7 +703,7 @@ Q('#d-baixa').onclick = async () => {
 };
 
 // ── Resultats ─────────────────────────────────────────────────────────────────
-const RS = {entries: [], vista: null};
+const RS = {entries: [], vista: null, comp: null};
 
 function rErr(msg){ Q('#r-etapes').innerHTML = `<div class="panel bad">${escD(msg)}</div>`; }
 async function rLoad(){
@@ -708,6 +711,7 @@ async function rLoad(){
   if(!c || !c.hash){
     Q('#r-dis').innerHTML = '<span class="hint">Cap disseny carregat. Carrega’n un a la pestanya Disseny.</span>';
     Q('#r-etapes').innerHTML = ''; Q('#r-xy').innerHTML = ''; Q('#r-taula').innerHTML = ''; Q('#r-avisos').innerHTML = '';
+    Q('#r-comp').innerHTML = ''; Q('#r-comp-avisos').innerHTML = '';
     return;
   }
   Q('#r-dis').innerHTML = `<b>${escD(c.nom || '—')}</b><br>hash <code>${escD(c.hash)}</code><br>` +
@@ -736,7 +740,7 @@ async function rVista(){
   if(st) q.set('stage', st);
   if(en) q.set('energia', en);
   const r = await api('/api/results?' + q.toString());
-  RS.entries = r.entries; RS.vista = r.vista;
+  RS.entries = r.entries; RS.vista = r.vista; RS.comp = r.comparativa;
   rPinta();
 }
 function metricsHtml(m){
@@ -768,6 +772,29 @@ function rTaula(){
     en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
   return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
+// La comparativa ja ve calculada de l'API (`results_tub.comparativa`): aquí només es pinta.
+function rComp(){
+  const c = RS.comp;
+  if(!c || !c.columnes || !c.columnes.length) return '<div class="panel">Cap entrada amb dades per tub a aquesta energia.</div>';
+  const head = c.columnes.map(k => {
+    const prov = k.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>';
+    const font = k.font === 'simphy' ? '<span class="tag t-nt">simphy</span>' : '<span class="tag t-nt">neudet</span>';
+    const dt = k.deteccio ? `<br><span class="hint">detecció <code>${escD(k.deteccio)}</code>${k.sig_tipus ? ' · sig ' + escD(k.sig_tipus) : ''}</span>` : '';
+    const mot = k.motiu ? `<br><span class="hint">${escD(k.motiu)}</span>` : '';
+    return `<th>${escD(k.motor)}<br><span class="hint">${escD(k.campanya)} · ${escD(k.etapa)}</span><br>${font} ${prov}${dt}${mot}</th>`;
+  }).join('');
+  const rows = c.files.map(f => {
+    const cells = f.cols.map(x => {
+      if(!x) return '<td class="hint">—</td>';
+      if(x.posicio_diferent) return '<td class="t-no">posició diferent</td>';
+      const r = x.ratio == null ? '' : ` <span class="hint">(${fmtNum(x.ratio)}×)</span>`;
+      return `<td>${fmtNum(x.eps)} ± ${fmtNum(x.sig)}${r}</td>`;
+    }).join('');
+    return `<tr><td>${f.i + 1}</td><td>${escD(f.tipus)}</td><td>${f.pos.join(', ')}</td>${cells}</tr>`;
+  }).join('');
+  const ref = c.referencia ? `<div class="hint">quocient (×) respecte a <b>${escD(c.referencia)}</b></div>` : '<div class="hint">sense referència (ni Geant4 ni xarxa B1 a aquesta energia): sense quocient</div>';
+  return `${ref}<table class="tbl"><thead><tr><th>#</th><th>tipus</th><th>x, y, z (cm)</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
 function rPinta(){
   const c = DS.cur, ents = RS.entries;
   // primer les que tenen dades per tub (i les de Geant4 sense, que neudet vol veure);
@@ -787,6 +814,11 @@ function rPinta(){
   Q('#r-avisos').innerHTML = v && v.avisos_valors && v.avisos_valors.length
     ? `<div class="panel warn">${v.avisos_valors.map(escD).join('<br>')}</div>` : '';
   Q('#r-taula').innerHTML = rTaula();
+  Q('#r-comp').innerHTML = rComp();
+  const cc = RS.comp || {};
+  Q('#r-comp-avisos').innerHTML = [
+    ...(cc.avisos || []).map(a => `<div class="panel warn">${escD(a)}</div>`),
+    cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : ''].join('');
 }
 Q('#r-stage').onchange = async () => { rEnergies(); await rVista(); };
 Q('#r-energia').onchange = () => rVista();
