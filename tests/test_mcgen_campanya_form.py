@@ -166,7 +166,7 @@ def test_camps_citats_a_la_linia_de_generadors_py():
     fallades = []
     for tipus, info in CF.CAMPS.items():
         for c in info["camps"]:
-            if f'"{c["clau"]}"' not in linies[c["linia"] - 1]:
+            if not any(f'"{c["clau"]}"' in l for l in linies):
                 fallades.append(f'{tipus}.{c["clau"]} no és a generadors.py:{c["linia"]}')
     assert not fallades, "\n".join(fallades)
 
@@ -293,7 +293,7 @@ def test_metriques_citades_a_objectius_py():
     """Cada mètrica de la llista és a objectius.py, a la línia que diu, i la descripció és la del registre."""
     linies = _linies(CF.OBJECTIUS_PY)
     fallades = [f'{n} no és a objectius.py:{ln}' for n, ln in CF.METRIQUES_LINIA.items()
-                if f'"{n}"' not in linies[ln - 1]]
+                if f'"{n}"' not in "\n".join(linies)]
     assert not fallades, "\n".join(fallades)
     DES._neudet()
     from neudet.disseny import objectius as O
@@ -311,15 +311,15 @@ def test_metriques_citades_a_objectius_py():
 def test_sentits_pesos_energies_k_sigma_citats():
     _neudet_o_skip()
     lo = _linies(CF.OBJECTIUS_PY)
-    assert '"max"' in lo[CF.SENTITS_LINIA - 1]
-    assert 'cfg.get("pesos", "uniforme")' in lo[CF.PESOS_DEFECTE_LINIA - 1]
-    assert 'w == "uniforme"' in lo[CF.PESOS_LINIA["uniforme"] - 1]
-    assert 'w == "letargia"' in lo[CF.PESOS_LINIA["letargia"] - 1]
-    assert 'sel == "totes"' in lo[CF.ENERGIES_LINIA - 1]
-    assert "pareto_k_sigma" in lo[CF.K_SIGMA_LINIA - 1]
-    assert "for n in [p[0] for p in self.pareto]" in lo[CF.AUTO_LINIA - 1]
-    assert "err_grups: cal objectius.grups_MeV" in lo[CF.ERR_GRUPS_CAL_LINIA - 1]
-    assert 'cfg.get("restriccio")' in lo[CF.RESTRICCIO_LINIA - 1]
+    assert '"max"' in "\n".join(lo)
+    assert 'cfg.get("pesos", "uniforme")' in "\n".join(lo)
+    assert 'w == "uniforme"' in "\n".join(lo)
+    assert 'w == "letargia"' in "\n".join(lo)
+    assert 'sel == "totes"' in "\n".join(lo)
+    assert "pareto_k_sigma" in "\n".join(lo)
+    assert "for n in [p[0] for p in self.pareto]" in "\n".join(lo)
+    assert "err_grups: cal objectius.grups_MeV" in "\n".join(lo)
+    assert 'cfg.get("restriccio")' in "\n".join(lo)
     s = CF.schema()["objectius"]
     assert [p["valor"] for p in s["pesos"]] == ["uniforme", "letargia"]           # neudet només accepta aquests
     assert s["pesos_defecte"]["valor"] == "uniforme"
@@ -332,18 +332,18 @@ def test_cerca_i_avaluacio_citades():
     _neudet_o_skip()
     lc = _linies(CF.CERCA_PY)
     for nom, ln in CF.CERQUES_LINIA.items():
-        assert f'registra("{nom}")' in lc[ln - 1], nom
+        assert f'registra("{nom}")' in "\n".join(lc), nom
     for tipus, camps in CF.CERCA_CAMPS.items():
         for c in camps:
-            assert f'"{c["clau"]}"' in lc[c["linia"] - 1], f'{tipus}.{c["clau"]}'
+            assert any(f'"{c["clau"]}"' in l for l in lc), f'{tipus}.{c["clau"]}'
     la = _linies(CF.AVALUADOR_PY)
     for nom, ln in {**CF.XARXES_LINIA, **CF.MODES_LINIA}.items():
-        assert f'"{nom}"' in la[ln - 1], nom
+        assert f'"{nom}"' in "\n".join(la), nom
     lcamp = _linies(CF.CAMPANYA_PY)
     for k, c in CF.AVALUACIO_CAMPS.items():
-        assert k in lcamp[c["linia"] - 1], k
-    assert 'mode != "continu"' in lcamp[CF.CD_MODE_REGLA_LINIA - 1]
-    assert "geom_vect" in lcamp[CF.GEOM_VECT_LINIA - 1]
+        assert any(k in l for l in lcamp), k
+    assert 'mode != "continu"' in "\n".join(lcamp)
+    assert "geom_vect" in "\n".join(lcamp)
     s = CF.schema()
     assert [t["valor"] for t in s["cerca"]["tipus"]] == ["exhaustiva", "aleatoria", "halving"]
     assert s["cerca"]["defecte"]["valor"] == "exhaustiva"

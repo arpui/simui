@@ -320,19 +320,31 @@ def _neudet_path(fitxer: str, dir_=_DIS) -> Path:
     return f
 
 
-def _linia(fitxer: str, linia: int, token: str, dir_=_DIS) -> str:
-    """El text de la línia `linia` de `fitxer` de neudet, si conté `token`; si no, peta dient on mirar."""
+def _troba(fitxer: str, linia: int, token: str, dir_=_DIS) -> int:
+    """La línia de `fitxer` de neudet que conté `token`: la citada si encara el conté; si neudet ha mogut el
+    codi, la més propera que el contingui. Només peta si el text ja no hi és enlloc (llavors sí que ha canviat
+    el que simphy llegeix). Un número de línia exacte trencava la UI a cada edició de neudet (2026-10-26)."""
     lines = _neudet_path(fitxer, dir_).read_text(encoding="utf-8").splitlines()
-    if not (1 <= linia <= len(lines)) or token not in lines[linia - 1]:
+    if 1 <= linia <= len(lines) and token in lines[linia - 1]:
+        return linia
+    hits = [i + 1 for i, l in enumerate(lines) if token in l]
+    if not hits:
         raise DES.DesignError(
-            f"neudet ha canviat: {fitxer}:{linia} ja no conté «{token}». Cal revisar la llista a "
-            f"campanya_form.py i el test test_camps_citats_a_la_linia_de_neudet")
-    return lines[linia - 1]
+            f"neudet ha canviat: {fitxer} ja no conté «{token}» (era a la línia {linia}). Cal revisar la llista "
+            f"a campanya_form.py")
+    return min(hits, key=lambda n: abs(n - linia))
 
 
-def _comentari(fitxer: str, linia: int, dir_=_DIS) -> str:
-    """El comentari `# …` d'una línia de neudet («» si no n'hi ha)."""
-    l = _neudet_path(fitxer, dir_).read_text(encoding="utf-8").splitlines()[linia - 1]
+def _linia(fitxer: str, linia: int, token: str, dir_=_DIS) -> str:
+    """El text de la línia de `fitxer` de neudet que conté `token` (vegeu `_troba`)."""
+    lines = _neudet_path(fitxer, dir_).read_text(encoding="utf-8").splitlines()
+    return lines[_troba(fitxer, linia, token, dir_) - 1]
+
+
+def _comentari(fitxer: str, linia: int, dir_=_DIS, token: Optional[str] = None) -> str:
+    """El comentari `# …` de la línia de neudet (la que conté `token`, si se'n dona); «» si no n'hi ha."""
+    l = _linia(fitxer, linia, token, dir_) if token else \
+        _neudet_path(fitxer, dir_).read_text(encoding="utf-8").splitlines()[linia - 1]
     return l.split("#", 1)[1].strip() if "#" in l else ""
 
 
@@ -441,13 +453,13 @@ def _schema_objectius(obj) -> Dict[str, Any]:
             {"clau": "comptes_ref", "defecte": d.comptes_ref, "fitxer": OBJECTIUS_PY, "linia": 220,
              "descripcio": "comptes de referència de res_E, N_obj i sE_N (sense comentari a neudet)"},
             {"clau": "N_font", "defecte": d.N_font, "fitxer": OBJECTIUS_PY, "linia": 221,
-             "descripcio": _comentari(OBJECTIUS_PY, 221)},
+             "descripcio": _comentari(OBJECTIUS_PY, 221, token='"N_font"')},
             {"clau": "sE_obj", "defecte": d.sE_obj, "fitxer": OBJECTIUS_PY, "linia": 222,
-             "descripcio": _comentari(OBJECTIUS_PY, 222)},
+             "descripcio": _comentari(OBJECTIUS_PY, 222, token='"sE_obj"')},
             {"clau": "delta_q", "defecte": d.delta_q, "fitxer": OBJECTIUS_PY, "linia": 223,
-             "descripcio": _comentari(OBJECTIUS_PY, 223)},
+             "descripcio": _comentari(OBJECTIUS_PY, 223, token='"delta_q"')},
             {"clau": "grups_MeV", "defecte": [], "fitxer": OBJECTIUS_PY, "linia": 224,
-             "descripcio": _comentari(OBJECTIUS_PY, 224) + " (cal per a err_grups)"},
+             "descripcio": _comentari(OBJECTIUS_PY, 224, token='"grups_MeV"') + " (cal per a err_grups)"},
             {"clau": "restriccio", "defecte": {"maxim": d.restriccio["maxim"], "sobre": d.restriccio["sobre"],
                                               "c": []}, "fitxer": OBJECTIUS_PY, "linia": RESTRICCIO_LINIA,
              "descripcio": "ε-restricció: maximitzar «maxim» amb «sobre» ≤ c; sense c, no n'hi ha"},
