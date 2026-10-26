@@ -258,7 +258,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 <nav class="bread" id="n-bread" aria-label="on ets"></nav>
 <main>
 <aside id="n-llista">
-  <button class="cl nova" data-k="nova">+ Nova</button>
+  <button class="cl nova" data-k="nova">+ Nova campanya</button>
   <div class="hint">Una proposta nova, amb els valors per defecte de neudet i un id que cal triar abans de desar.</div>
   <h2>Campanyes</h2>
   <div id="n-camps"><div class="hint">Carregant les campanyes de neudet…</div></div>
@@ -1415,7 +1415,7 @@ function nzBread(){
   const s = NZ.sel || {}, d = NZ.dis, arrel = '<button data-go="neudet">Neudet</button><span>›</span>';
   let h;
   if(d) h = `${arrel}<button data-go="volta">${escD((d.volta || {}).id || 'sense campanya')}</button><span>›</span><b>${escD(d.nom || '—')}</b>`;
-  else if(s.k === 'solt') h = `${arrel}<b>Disseny solt</b>` + (DS.cur && DS.cur.design ? `<span>›</span><b>${escD(DS.cur.nom || '—')}</b>` : '');
+  else if(s.k === 'solt') h = `${arrel}<b>Disseny</b>` + (DS.cur && DS.cur.design ? `<span>›</span><b>${escD(DS.cur.nom || '—')}</b>` : '');
   else if(s.k === 'nova') h = `${arrel}<b>proposta nova</b>`;
   else h = `${arrel}<b>${escD(s.id || '—')}</b>`;
   Q('#n-bread').innerHTML = h;

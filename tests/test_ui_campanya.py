@@ -73,7 +73,7 @@ def test_pagina_te_el_formulari_de_proposta_dins_de_neudet(url):
     for ident in ('id="n-bread"', 'id="n-camp"', 'id="n-form"', 'id="c-form"', 'id="c-yaml"', 'id="c-res"',
                   'id="c-comprova"', 'id="c-desa"', 'id="c-baixa"'):
         assert ident in html, ident
-    assert '+ Nova' in html and 'data-k="nova"' in html
+    assert '+ Nova campanya' in html and 'data-k="nova"' in html
 
 
 # ── rutes d'entrada ─────────────────────────────────────────────────────────
