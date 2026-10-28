@@ -57,8 +57,9 @@ VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
 CD_ARCS_DEG = [360, 180]
-CD_AVIS = ("Cd només validat sobre counterUPC_v0 fins a TUB-4 (contracte simphy_ui.md §4): "
-           "amb lnd_252285 cal l'encàrrec TUB-4 abans.")
+CD_AVIS = ("Cd només validat sobre counterUPC_v0 fins a TUB-4 (contracte simphy_ui.md §4). "
+           "Avui Geant4 s'ATURA si un tub que no és counterUPC_v0 porta Cd (DetectorConstruction.cc, «el Cd "
+           "només és a counterUPC_v0»): amb lnd_252285 la xarxa el pot avaluar, però la verificació a Geant4 no.")
 SENSE_REGISTRE = "sense registre de validació (CAMP-1 pendent)"
 _ID = re.compile(r"^[A-Za-z0-9_\-]+$")
 _DATA_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -300,6 +301,17 @@ def _fitxa():
         return fitxa
     except Exception:                                            # noqa: BLE001
         return None
+
+
+def energies_domini() -> Optional[Dict[str, Any]]:
+    """La graella d'energies de neudet (validacions.json, secció `domini`, CAMP-2): {min, max, per_defecte}.
+    None si el registre no la porta (llavors el formulari no la tanca)."""
+    reg = _validacions()
+    d = ((reg or {}).get("domini") or {}).get("energies_MeV")
+    if not (isinstance(d, dict) and isinstance(d.get("per_defecte"), list) and d["per_defecte"]):
+        return None
+    return {"min": d.get("min"), "max": d.get("max"), "per_defecte": [float(x) for x in d["per_defecte"]],
+            "font": "validacions.json · domini.energies_MeV"}
 
 
 def _validacions() -> Optional[Dict[str, Any]]:
@@ -601,6 +613,7 @@ def schema() -> Dict[str, Any]:
         "generadors": generadors,
         "plantilles": _schema_plantilles(),
         "tipus_tub": tubs,
+        "energies_domini": energies_domini(),
         "validacio": {"registre": reg is not None,
                       "motiu": "" if reg is not None else SENSE_REGISTRE},
         "cd": {"fraccio": {"minim": 0, "maxim": 1, "fitxer": CANDIDAT_PY, "linia": CD_FRACCIO_LINIA,
@@ -663,6 +676,13 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
             e.append("domini.font.desplacament_cm: dues coordenades en cm (feix)")
     if not _llista_de(dom.get("energies_MeV"), _pos):
         e.append("domini.energies_MeV: una llista de energies positives en MeV")
+    else:
+        g = energies_domini()
+        if g is not None:
+            fora = [x for x in dom["energies_MeV"] if not any(abs(x - y) <= 1e-9 * max(1.0, y) for y in g["per_defecte"])]
+            if fora:
+                e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV no són a la graella de "
+                         f"neudet (validacions.json · domini.energies_MeV)")
     tt = dom.get("tipus_tub")
     if not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
         e.append("domini.tipus_tub: una llista de noms de tub (del catàleg)")
@@ -683,6 +703,44 @@ def _valor_o_rang(v: Any) -> bool:
     if isinstance(v, list):
         return bool(v) and all(_num(x) for x in v)
     return _num(v)
+
+
+def _errors_rang(v: Any, ruta: str, nom: str, enter: bool = False, maxim: Optional[float] = None) -> List[str]:
+    """Un valor, una llista o un rang {de, a, pas} amb sentit: de ≤ a, pas > 0 (neudet divideix pel pas a
+    `generadors.valors`: amb pas 0 o buit peta amb ZeroDivisionError/TypeError, sense dir quin camp és).
+    Per als tubs (`enter`): enters ≥ 0, pas enter ≥ 1 i, si hi ha `maxim` (n_total), a ≤ maxim.
+    Cada missatge comença pel camp exacte (el `data-p` de la pàgina), perquè la pàgina el marqui."""
+    ok = (lambda x: isinstance(x, int) and not isinstance(x, bool) and x >= 0) if enter else _num
+    tipus = "un enter ≥ 0" if enter else "un número"
+    if isinstance(v, dict):
+        e = []
+        for k in ("de", "a"):
+            if not ok(v.get(k)):
+                e.append(f"{ruta}.{k}: {nom} «{'de' if k == 'de' else 'a'}» ha de ser {tipus}")
+        pas = v.get("pas", 1)
+        if enter and not (isinstance(pas, int) and not isinstance(pas, bool) and pas >= 1):
+            e.append(f"{ruta}.pas: el pas de {nom} ha de ser un enter ≥ 1 (en blanc = 1)")
+        elif not enter and not _pos(pas):
+            e.append(f"{ruta}.pas: el pas de {nom} ha de ser > 0 (en blanc = 1)")
+        if not e:
+            if v["de"] > v["a"]:
+                e.append(f"{ruta}.a: {nom}: «a» ({v['a']:g}) ha de ser ≥ «de» ({v['de']:g})")
+            elif v["a"] > v["de"] and pas > v["a"] - v["de"]:
+                e.append(f"{ruta}.pas: el pas de {nom} ({pas:g}) és més gran que l'interval {v['de']:g}–{v['a']:g}")
+            if maxim is not None and v["a"] > maxim:
+                e.append(f"{ruta}.a: {nom}: «a» ({v['a']:g}) no pot passar de n_total ({maxim:g})")
+        return e
+    if isinstance(v, list):
+        if not v or not all(ok(x) for x in v):
+            return [f"{ruta}: {nom}: una llista no buida; cada element, {tipus}"]
+        if maxim is not None and max(v) > maxim:
+            return [f"{ruta}: {nom}: cap valor pot passar de n_total ({maxim:g})"]
+        return []
+    if not ok(v):
+        return [f"{ruta}: {nom} ha de ser {tipus}, una llista o un rang de–a amb pas"]
+    if maxim is not None and v > maxim:
+        return [f"{ruta}: {nom} ({v:g}) no pot passar de n_total ({maxim:g})"]
+    return []
 
 
 def _errors_cd(cd: Any, ruta: str) -> List[str]:
@@ -719,9 +777,17 @@ def _errors_generador(g: Any, ruta: str) -> List[str]:
                     continue
                 for k in ("r", "n"):
                     if k not in a:
-                        e.append(f"{ruta}.anells[{i}]: falta «{k}»")
+                        e.append(f"{ruta}.anells.{i}.{k}: falta «{k}» (anell {i + 1})")
+                nt = g.get("n_total")
+                nt = nt if isinstance(nt, int) and not isinstance(nt, bool) else None
+                if "r" in a:
+                    e += _errors_rang(a["r"], f"{ruta}.anells.{i}.r", f"r de l'anell {i + 1}")
+                    if not e and isinstance(a["r"], dict) and a["r"]["de"] < 0:
+                        e.append(f"{ruta}.anells.{i}.r.de: r de l'anell {i + 1} ha de ser ≥ 0")
+                if "n" in a:
+                    e += _errors_rang(a["n"], f"{ruta}.anells.{i}.n", f"tubs de l'anell {i + 1}", enter=True, maxim=nt)
                 if "cd" in a:
-                    e += _errors_cd(a["cd"], f"{ruta}.anells[{i}].cd")
+                    e += _errors_cd(a["cd"], f"{ruta}.anells.{i}.cd")
     elif t == "mapa_un_tub":
         if "polar" not in g and not ("x" in g and "y" in g):
             e.append(f"{ruta}: cal «polar» o bé «x» i «y»")
@@ -897,11 +963,24 @@ CAPSALERA = ("# Esborrany generat per simphy («Definició de campanya», C1). L
              "# la dona neudet: Campanya(dir).candidats(etapa). Vegeu docs/site/contractes/simphy_ui.md §4.\n")
 
 
+def _sense_pas_buit(x: Any) -> Any:
+    """Un rang amb `pas` buit (el camp de la pàgina en blanc) és el pas per defecte de neudet (1,
+    `generadors.valors`): la clau no s'escriu. Amb `pas: null` neudet peta (TypeError)."""
+    if isinstance(x, dict):
+        if {"de", "a"} <= set(x) and "pas" in x and x["pas"] is None:
+            x = {k: v for k, v in x.items() if k != "pas"}
+        return {k: _sense_pas_buit(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_sense_pas_buit(v) for v in x]
+    return x
+
+
 def to_yaml(form: Dict[str, Any]) -> str:
     """El `campanya.yaml` d'esborrany (text). Llança `FormError` amb tots els motius si la forma no
     és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`."""
+    form = _sense_pas_buit(copy.deepcopy(form))
     errs = _errors(form)
     if errs:
         raise FormError("formulari no vàlid:\n- " + "\n- ".join(errs))
-    return CAPSALERA + yaml.dump(copy.deepcopy(form), Dumper=_Dumper, sort_keys=False,
+    return CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
                                  allow_unicode=True, default_flow_style=None, width=110)

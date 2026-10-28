@@ -22,6 +22,8 @@ import datetime as dt
 import sys
 from pathlib import Path
 
+import copy
+
 import pytest
 import yaml
 
@@ -453,3 +455,39 @@ def test_compta_es_el_que_genera_neudet():
     assert r == {"etapa": "S1", "n": direct}
     assert r["n"] == 287                                       # 259 vàlids + 28 invàlids (DEFINICIO.md, comprova)
     assert r["n"] == CC.comprova(txt, "S1")["n_valids"] + CC.comprova(txt, "S1")["n_invalids"]
+
+
+# ── rangs dels anells: l'error diu el camp (Albert, 2026-10-28: «ZeroDivisionError» sense saber on) ──
+
+def _anell0(**kw):
+    _neudet_o_skip()
+    f = copy.deepcopy(CF.defaults())
+    f["etapes"]["S1"]["generador"]["anells"][0].update(kw)
+    return f
+
+
+@pytest.mark.parametrize("kw,camp", [
+    ({"n": {"de": 0, "a": 8, "pas": 0}}, "etapes.S1.generador.anells.0.n.pas"),
+    ({"r": {"de": 3, "a": 9, "pas": 0}}, "etapes.S1.generador.anells.0.r.pas"),
+    ({"n": {"de": 0, "a": 8, "pas": 0.5}}, "etapes.S1.generador.anells.0.n.pas"),
+    ({"n": {"de": 8, "a": 0}}, "etapes.S1.generador.anells.0.n.a"),
+    ({"n": {"de": 0, "a": 9}}, "etapes.S1.generador.anells.0.n.a"),     # n_total = 8
+])
+def test_rang_sense_sentit_diu_el_camp(kw, camp):
+    with pytest.raises(CF.FormError) as e:
+        CF.to_yaml(_anell0(**kw))
+    assert f"- {camp}:" in str(e.value)
+
+
+def test_pas_en_blanc_es_el_de_neudet_i_no_s_escriu():
+    y = CF.to_yaml(_anell0(n={"de": 0, "a": 8, "pas": None}))
+    assert "pas: null" not in y
+
+
+def test_energies_del_domini_fora_de_la_graella_de_neudet_es_rebutgen():
+    f = _anell0()
+    if CF.energies_domini() is None:
+        pytest.skip("validacions.json sense graella d'energies")
+    f["domini"]["energies_MeV"] = [1.0, 7.0]
+    with pytest.raises(CF.FormError, match="domini.energies_MeV: 7 MeV"):
+        CF.to_yaml(f)

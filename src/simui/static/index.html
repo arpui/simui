@@ -162,11 +162,12 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 .cl.on{border-color:var(--accent);background:#eef5f8;font-weight:700}
 .cl.nova{color:var(--accent);font-weight:700;margin:0 0 10px}
 .cl .tag{font-size:10.5px;padding:1px 6px}
+#h-title:empty{display:none}
 </style></head><body>
 
 <header class="top">
   <span class="kick">simphy</span>
-  <h1 id="h-title">Una petició, quatre codis</h1>
+  <h1 id="h-title"></h1>
   <span class="sub" id="h-sub">Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació.</span>
   <nav class="ptabs" role="tablist">
     <button class="ptab on" data-tab="sim">Simulació</button>
@@ -290,7 +291,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
   <div id="n-dis" hidden>
     <div class="bar"><span class="note" id="d-status"></span></div>
     <div class="bar">
-      <button id="d-tanteja" disabled title="Un candidat d'una campanya, o un disseny de neudet sense editar: obre una proposta nova amb el candidat com a etapa llista">Tanteja</button>
+      <button id="d-tanteja" disabled title="Un candidat d'una campanya, o un disseny de neudet sense editar: obre una proposta nova amb el candidat com a etapa llista">Proposta</button>
       <span class="hint" id="d-tantenota"></span>
     </div>
 
@@ -629,6 +630,14 @@ function cSetMode(p, mode){
 // Un valor de tall numèric (number) o un rang {de, a, pas}, o una llista: només la forma simple s'edita.
 const cEsRang = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const cRngOk = v => typeof v === 'number' || (cEsRang(v) && typeof v.de === 'number' && typeof v.a === 'number');
+// Energies del domini: la graella tancada de neudet (validacions.json · domini); sense registre, de lectura.
+function cEnergiesDomini(d){
+  const G = CP.schema.energies_domini, cur = new Set((d.energies_MeV || []).map(Number));
+  if(!G) return `${cLab('energies (MeV): graella del domini', cRO((d.energies_MeV || []).join(', ')))}
+    <div class="hint">neudet no publica la graella (validacions.json): de només lectura.</div>`;
+  return `${cLab('energies (MeV): graella del domini', `<div class="row3">${G.per_defecte.map(e => `<label class="chk"><input type="checkbox" data-p="domini.energies_MeV" data-t="multinum" data-val="${e}" ${cur.has(e) ? 'checked' : ''}> ${e}</label>`).join('')}</div>`)}
+    <div class="hint">Les energies que neudet valida per a la xarxa (${escD(G.font)}, ${G.min}–${G.max} MeV). Els objectius en trien un subconjunt (més avall); si en treus una d'aquí, també en surt d'allà.</div>`;
+}
 // Cd per anell o per al mapa. Fracció 0 = sense Cd (candidat.py:221); arc (0, 360] (candidat.py:224).
 function cCdHtml(p, cd){
   const c = cd || {};
@@ -638,8 +647,11 @@ function cCdHtml(p, cd){
       ? cLab(lab, cNumIn(`${p}.cd.${k}`, v, o))
       : cLab(lab, `${cRO(v)} <span class="hint">rang o llista: a neudet</span>`);
   };
-  return `<div class="row3">${camp('fraction', 'Cd fracció (0 = sense Cd)', {min: 0, max: 1, ph: '0'})}${camp('arc', 'Cd arc (°)', {min: 0, max: 360, ph: '360'})}${camp('centre', 'Cd centre (°, 0 = cap a l\'eix)', {ph: '0'})}</div>
-  <div class="hint">Fracció en [0, 1]: neudet la llegeix a ${escD(cSrc(CP.schema.cd.fraccio.fitxer, CP.schema.cd.fraccio.linia))}; arc en (0, 360] a ${escD(cSrc(CP.schema.cd.arc.fitxer, CP.schema.cd.arc.linia))}.</div>`;
+  return `<div class="row3">${camp('fraction', 'Cd fracció (0 = sense Cd)', {min: 0, max: 1, ph: '0'})}${camp('arc', 'Cd arc (°)', {min: 0, max: 360, ph: '360'})}${camp('centre', 'Cd centre (°)', {ph: '0'})}</div>
+  <div class="hint">Fracció en [0, 1]: neudet la llegeix a ${escD(cSrc(CP.schema.cd.fraccio.fitxer, CP.schema.cd.fraccio.linia))}; arc en (0, 360] a ${escD(cSrc(CP.schema.cd.arc.fitxer, CP.schema.cd.arc.linia))}.
+  <b>Arc</b>: la part del perímetre del tub coberta de Cd (360 = tot). <b>Centre</b>: l'angle, al voltant de l'eix del tub, on queda el mig de l'arc;
+  0 = el costat del tub que mira cap a l'eix del bloc (la font, si és al centre); els angles creixen en sentit antihorari vist des de +z
+  (Geant4, <code>counterUPC.cc</code>: φ = atan2(−y, −x) + centre). La fracció és el tram axial cobert, centrat al gas.</div>`;
 }
 // Llista de números editable (x i y de la graella, r i θ del polar). Un rang {de, a, pas} és de només lectura.
 function cNumList(p, v, lab){
@@ -870,8 +882,7 @@ function cFormHtml(){
   ${cFontHtml(d)}
 
   <h2>Energies i tubs</h2>
-  ${cLab('energies (MeV): graella del domini', cRO((d.energies_MeV || []).join(', ')))}
-  <div class="hint">Neudet no en té una llista tancada: la graella la decideix la campanya. Els objectius en trien un subconjunt (més avall).</div>
+  ${cEnergiesDomini(d)}
   ${cLab('tipus de tub (catàleg de neudet)', cSelTub('domini.tipus_tub.0', d.tipus_tub[0]))}
   <div class="hint" id="c-tubmarca">${escD(cTubMarca(d.tipus_tub[0]))}</div>
   <div class="panel warn">${escD(S.cd.avis)}</div>
@@ -911,7 +922,24 @@ function cPintaForm(){
   Q('#c-form').innerHTML = cFormHtml();
   window.scrollTo(0, y);
 }
-function cErr(msg){ Q('#c-err').innerHTML = msg ? `<div class="panel bad pre">${escD(msg)}</div>` : ''; }
+// Cada error del formulari comença pel camp (el data-p de l'entrada): es marca i el missatge surt a sota.
+function cErr(msg){
+  document.querySelectorAll('#pg-neudet .camperr').forEach(n => n.remove());
+  document.querySelectorAll('#pg-neudet [data-p].bad').forEach(n => n.classList.remove('bad'));
+  Q('#c-err').innerHTML = msg ? `<div class="panel bad pre">${escD(msg)}</div>` : '';
+  if(!msg) return;
+  for(const linia of msg.split('\n')){
+    const m = linia.match(/^-\s*([\w.\[\]]+):\s*(.*)$/);
+    if(!m) continue;
+    const camp = m[1].replace(/\[(\d+)\]/g, '.$1');
+    const els = [...document.querySelectorAll('#pg-neudet [data-p]')].filter(el => el.dataset.p === camp);
+    for(const el of els){
+      el.classList.add('bad');
+      const d = document.createElement('div'); d.className = 'err camperr'; d.textContent = m[2];
+      (el.closest('label') || el).after(d);
+    }
+  }
+}
 
 // El yaml en viu: `/api/campanya/yaml` sense `desa` (no escriu res). Només l'últim compta.
 function cYaml(){
@@ -980,7 +1008,12 @@ function cEdita(el, change){
     if(!change) return;
     const vals = QA(`input[data-p="${p}"][data-t="${t}"]`).filter(x => x.checked)
       .map(x => t === 'multinum' ? Number(x.dataset.val) : x.dataset.val);
-    cPrepara(p); cSet(CP.f, p, vals); cPintaForm(); cYaml();
+    cPrepara(p); cSet(CP.f, p, vals);
+    if(p === 'domini.energies_MeV'){                              // els objectius només poden triar-ne de la graella
+      const ob = CP.f.objectius || {};
+      if(Array.isArray(ob.energies_MeV)) ob.energies_MeV = ob.energies_MeV.filter(x => vals.includes(Number(x)));
+    }
+    cPintaForm(); cYaml();
     return;
   }
   cPrepara(p);
@@ -1184,7 +1217,7 @@ function kPinta(){
 }
 // «Tanteja»: una proposta nova amb el contingut d'aquesta campanya (id derivat). L'original no es toca.
 function kAccions(){
-  return '<div class="bar"><button class="ghost" data-k="tanteja">Tanteja</button>' +
+  return '<div class="bar"><button class="ghost" data-k="tanteja" title="Una campanya nova (id derivat) amb el contingut d’aquesta, per modificar-la. L’original no es toca">Proposta</button>' +
     '<span class="hint">Obre una proposta nova amb el contingut d\'aquesta campanya (id derivat). L\'original no es toca.</span></div>';
 }
 function kDefinicio(v){
@@ -1346,7 +1379,7 @@ const Q = s => document.querySelector(s), QA = s => [...document.querySelectorAl
 const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const NZ = {sel: null, dis: null, ultima: null};
 const HEAD = {
-  sim: ['Una petició, quatre codis', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
+  sim: ['', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
   neudet: ['Neudet', "Campanyes, dissenys i resultats tal com els deixa neudet. Cada xifra porta la seva procedència; res no es recalcula aquí."]};
 // Els enllaços antics (#campanya, #campanyes, #disseny, #resultats) obren el nivell que els tocava.
 const VELL = {campanya: ['neudet', 'nova'], campanyes: ['neudet', null], disseny: ['neudet', 'solt'], resultats: ['neudet', 'solt']};
