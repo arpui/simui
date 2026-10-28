@@ -118,7 +118,7 @@ def test_http_de_punta_a_punta(ui):
     try:
         base = f"http://127.0.0.1:{port}"
         page = urllib.request.urlopen(base + "/").read().decode()
-        assert "Una petició, quatre codis" in page
+        assert "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4" in page
         # La query la llegeix la pàgina: el servidor no la pot confondre amb un camí.
         assert urllib.request.urlopen(base + "/?ex=pe_sphere").read().decode() == page
         m = json.loads(urllib.request.urlopen(base + "/api/meta").read())
