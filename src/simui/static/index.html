@@ -641,7 +641,7 @@ function cEnergiesDomini(d){
     <div class="row3">
       ${cLab('afegeix (MeV)', `<input id="c-en-nova" type="number" step="any" min="0" placeholder="p.ex. 0.05">`)}
       ${cLab('o genera N repartides en ln E', `<div class="row"><input id="c-en-n" type="number" min="2" step="1" placeholder="N"><input id="c-en-a" type="number" step="any" placeholder="de (MeV)" value="${G.min ?? ''}"><input id="c-en-b" type="number" step="any" placeholder="a (MeV)" value="${G.max ?? ''}"></div>`)}
-      ${cLab('&nbsp;', `<div class="bar"><button class="ghost" data-act="en+">Afegeix</button><button class="ghost" data-act="en-gen">Genera</button>${G.per_defecte ? '<button class="ghost" data-act="en-def">Les ' + G.per_defecte.length + ' per defecte</button>' : ''}</div>`)}
+      ${cLab(' ', `<div class="bar"><button class="ghost" data-act="en+">Afegeix</button><button class="ghost" data-act="en-gen">Genera</button>${G.per_defecte ? '<button class="ghost" data-act="en-def">Les ' + G.per_defecte.length + ' per defecte</button>' : ''}</div>`)}
     </div>
     <div class="hint">S'ordenen sola i sense repetides. ${G.min != null ? `Domini de la xarxa (${escD(G.font || 'validacions.json')}): ${G.min}–${G.max} MeV; fora d'aquí neudet avisa a la certificació${fora.length ? ` (<b>${fora.join(', ')} MeV fora</b>)` : ''}.` : ''}
     Els objectius en trien un subconjunt (més avall); si en treus una d'aquí, també en surt d'allà. Més energies = més temps de xarxa i de Geant4.</div>`;
@@ -1513,8 +1513,11 @@ async function nzNova(){
   NZ.dis = null;
   await cInit();
   const d = await api('/api/campanya/defaults');
+  const de = d.id;
+  // una campanya NOVA: sense l'id, l'estat ni la data de la plantilla (c04_draft)
+  d.id = ''; d.estat = 'proposta'; d.creada = new Date().toISOString().slice(0, 10);
   NZ.sel = {k: 'nova'};
-  cCarrega(d, `Proposta nova, amb els valors per defecte de neudet (<code>${escD(d.id)}</code>). Tria un id nou abans de desar: «Desa la proposta» no sobreescriu una campanya que ja no és una proposta.`);
+  cCarrega(d, `Proposta nova, amb els valors de <code>${escD(de)}</code> com a plantilla. Posa-li un id (p. ex. <code>c05_draft</code>) abans de desar: és el nom de la carpeta a neudet.`);
   return nzVeu();
 }
 // «Obre un disseny» (nivell 3): un disseny solt. Entrar-hi des de fora de la pantalla el buida; re-entrar, no.
