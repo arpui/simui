@@ -304,8 +304,9 @@ def _fitxa():
 
 
 def energies_domini() -> Optional[Dict[str, Any]]:
-    """La graella d'energies de neudet (validacions.json, secció `domini`, CAMP-2): {min, max, per_defecte}.
-    None si el registre no la porta (llavors el formulari no la tanca)."""
+    """El domini d'energies de neudet (validacions.json, secció `domini`, CAMP-2): {min, max, per_defecte}.
+    La campanya tria les energies que vulgui; neudet certifica que siguin dins de min–max (fitxa.py).
+    `per_defecte` és la graella de sempre (11 energies). None si el registre no hi és."""
     reg = _validacions()
     d = ((reg or {}).get("domini") or {}).get("energies_MeV")
     if not (isinstance(d, dict) and isinstance(d.get("per_defecte"), list) and d["per_defecte"]):
@@ -677,12 +678,10 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
     if not _llista_de(dom.get("energies_MeV"), _pos):
         e.append("domini.energies_MeV: una llista de energies positives en MeV")
     else:
-        g = energies_domini()
-        if g is not None:
-            fora = [x for x in dom["energies_MeV"] if not any(abs(x - y) <= 1e-9 * max(1.0, y) for y in g["per_defecte"])]
-            if fora:
-                e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV no són a la graella de "
-                         f"neudet (validacions.json · domini.energies_MeV)")
+        en = dom["energies_MeV"]
+        if len(set(float(x) for x in en)) != len(en):
+            e.append("domini.energies_MeV: hi ha energies repetides (neudet ho para: objectius.pesos_letargia)")
+        # el domini (min–max) el certifica neudet (fitxa.py): fora d'aquí avisa, no ho para el formulari
     tt = dom.get("tipus_tub")
     if not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
         e.append("domini.tipus_tub: una llista de noms de tub (del catàleg)")

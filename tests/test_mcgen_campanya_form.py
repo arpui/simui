@@ -484,10 +484,12 @@ def test_pas_en_blanc_es_el_de_neudet_i_no_s_escriu():
     assert "pas: null" not in y
 
 
-def test_energies_del_domini_fora_de_la_graella_de_neudet_es_rebutgen():
+def test_energies_del_domini_les_tria_la_campanya():
+    """Qualsevol graella (nombre i valors); neudet certifica el domini min–max. Repetides: no."""
     f = _anell0()
-    if CF.energies_domini() is None:
-        pytest.skip("validacions.json sense graella d'energies")
-    f["domini"]["energies_MeV"] = [1.0, 7.0]
-    with pytest.raises(CF.FormError, match="domini.energies_MeV: 7 MeV"):
+    f["domini"]["energies_MeV"] = [0.002, 0.05, 1.5, 4.0]
+    f["objectius"]["energies_MeV"] = "totes"
+    assert "0.002" in CF.to_yaml(f)
+    f["domini"]["energies_MeV"] = [1.0, 1.0]
+    with pytest.raises(CF.FormError, match="domini.energies_MeV: hi ha energies repetides"):
         CF.to_yaml(f)
