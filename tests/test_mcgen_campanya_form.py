@@ -493,3 +493,21 @@ def test_energies_del_domini_les_tria_la_campanya():
     f["domini"]["energies_MeV"] = [1.0, 1.0]
     with pytest.raises(CF.FormError, match="domini.energies_MeV: hi ha energies repetides"):
         CF.to_yaml(f)
+
+
+def test_energies_del_domini_contracte_8():
+    """Contracte §8 (neudet c1655e0): permeses de min a max (25 meV–5 MeV); fora, el formulari les para (prohibit).
+    Entre 25 meV i 1 keV passen: la certificació de neudet diu «no validat»."""
+    g = CF.energies_domini()
+    if g is None or g.get("validat_PE_min") is None:
+        pytest.skip("validacions.json sense el domini del §8")
+    f = _anell0()
+    f["objectius"]["energies_MeV"] = "totes"
+    f["domini"]["energies_MeV"] = [g["min"], 1e-6, 0.5, g["max"]]
+    assert CF.to_yaml(f)
+    f["domini"]["energies_MeV"] = [g["min"] / 2, 1.0]
+    with pytest.raises(CF.FormError, match="fora del domini permès"):
+        CF.to_yaml(f)
+    f["domini"]["energies_MeV"] = [1.0, g["max"] * 2]
+    with pytest.raises(CF.FormError, match="fora del domini permès"):
+        CF.to_yaml(f)

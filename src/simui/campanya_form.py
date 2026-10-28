@@ -311,7 +311,8 @@ def energies_domini() -> Optional[Dict[str, Any]]:
     d = ((reg or {}).get("domini") or {}).get("energies_MeV")
     if not (isinstance(d, dict) and isinstance(d.get("per_defecte"), list) and d["per_defecte"]):
         return None
-    return {"min": d.get("min"), "max": d.get("max"), "per_defecte": [float(x) for x in d["per_defecte"]],
+    return {"min": d.get("min"), "max": d.get("max"), "validat_PE_min": d.get("validat_PE_min"),
+            "per_defecte": [float(x) for x in d["per_defecte"]], "nota": d.get("nota"),
             "font": "validacions.json · domini.energies_MeV"}
 
 
@@ -681,7 +682,14 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
         en = dom["energies_MeV"]
         if len(set(float(x) for x in en)) != len(en):
             e.append("domini.energies_MeV: hi ha energies repetides (neudet ho para: objectius.pesos_letargia)")
-        # el domini (min–max) el certifica neudet (fitxa.py): fora d'aquí avisa, no ho para el formulari
+        # contracte §8: fora de min–max neudet ho certifica com a «prohibit» (atura sempre): el formulari ja no ho
+        # deixa passar. Entre min i validat_PE_min és «no_validat» (només avisa en draft): ho decideix neudet.
+        g = energies_domini()
+        if g is not None and g.get("min") is not None and g.get("max") is not None:
+            fora = [x for x in en if not (g["min"] <= float(x) <= g["max"])]
+            if fora:
+                e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV fora del domini permès "
+                         f"{g['min']:g}–{g['max']:g} MeV (validacions.json; contracte §8: «prohibit»)")
     tt = dom.get("tipus_tub")
     if not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
         e.append("domini.tipus_tub: una llista de noms de tub (del catàleg)")

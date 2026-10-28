@@ -163,7 +163,8 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 .cl.nova{color:var(--accent);font-weight:700;margin:0 0 10px}
 .cl .tag{font-size:10.5px;padding:1px 6px}
 #h-title:empty{display:none}
-.nlc.fora{background:#fbeeea;color:var(--bad)}
+.nlc.fora{background:#fbeeea;color:var(--bad);text-decoration:line-through}
+.nlc.novalidat{background:#fbf3e3;color:var(--warn)}
 </style></head><body>
 
 <header class="top">
@@ -631,20 +632,29 @@ function cSetMode(p, mode){
 // Un valor de tall numèric (number) o un rang {de, a, pas}, o una llista: només la forma simple s'edita.
 const cEsRang = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const cRngOk = v => typeof v === 'number' || (cEsRang(v) && typeof v.de === 'number' && typeof v.a === 'number');
-// Energies del domini: les tria la campanya (quantes i quines). neudet certifica que siguin dins del domini
-// de la xarxa (validacions.json · domini, min–max); fora d'aquí la certificació avisa. Per defecte, les 11 de sempre.
+// Energies del domini: les tria la campanya (quantes i quines), en MeV al yaml. Contracte §8 (validacions.json ·
+// domini): permeses de min a max (fora, «prohibit»: el formulari no ho deixa passar); de min a validat_PE_min,
+// «no validat» dins de PE (avís; en draft no atura); de validat_PE_min a max, validat. Ho certifica neudet.
+const fmtE = e => e >= 1 ? `${+e.toPrecision(4)} MeV` : e >= 1e-3 ? `${+(e * 1e3).toPrecision(4)} keV`
+  : e >= 1e-6 ? `${+(e * 1e6).toPrecision(4)} eV` : `${+(e * 1e9).toPrecision(4)} meV`;
+const UNITATS_E = {MeV: 1, keV: 1e-3, eV: 1e-6, meV: 1e-9};
 function cEnergiesDomini(d){
   const G = CP.schema.energies_domini || {}, en = (d.energies_MeV || []).map(Number);
-  const fora = G.min != null ? en.filter(e => e < G.min || e > G.max) : [];
-  const xips = en.map((e, i) => `<span class="nlc${fora.includes(e) ? ' fora' : ''}">${e} MeV<button class="x" data-act="en-" data-i="${i}" title="treu">×</button></span>`).join('');
+  const franja = e => G.min != null && (e < G.min || e > G.max) ? 'fora'
+    : G.validat_PE_min != null && e < G.validat_PE_min ? 'novalidat' : '';
+  const xips = en.map((e, i) => `<span class="nlc ${franja(e)}" title="${e} MeV">${fmtE(e)}<button class="x" data-act="en-" data-i="${i}" title="treu">×</button></span>`).join('');
+  const nFora = en.filter(e => franja(e) === 'fora').length, nNV = en.filter(e => franja(e) === 'novalidat').length;
+  const uSel = id => `<select id="${id}">${Object.keys(UNITATS_E).map(u => `<option${u === 'MeV' ? ' selected' : ''}>${u}</option>`).join('')}</select>`;
   return `${cLab(`energies del domini: ${en.length}`, `<div class="nl">${xips || '<span class="hint">cap</span>'}</div>`)}
     <div class="row3">
-      ${cLab('afegeix (MeV)', `<input id="c-en-nova" type="number" step="any" min="0" placeholder="p.ex. 0.05">`)}
-      ${cLab('o genera N repartides en ln E', `<div class="row"><input id="c-en-n" type="number" min="2" step="1" placeholder="N"><input id="c-en-a" type="number" step="any" placeholder="de (MeV)" value="${G.min ?? ''}"><input id="c-en-b" type="number" step="any" placeholder="a (MeV)" value="${G.max ?? ''}"></div>`)}
+      ${cLab('afegeix', `<div class="row"><input id="c-en-nova" type="number" step="any" min="0" placeholder="p.ex. 25">${uSel('c-en-u')}</div>`)}
+      ${cLab('o genera N repartides en ln E (MeV)', `<div class="row"><input id="c-en-n" type="number" min="2" step="1" placeholder="N"><input id="c-en-a" type="number" step="any" placeholder="de" value="${G.validat_PE_min ?? G.min ?? ''}"><input id="c-en-b" type="number" step="any" placeholder="a" value="${G.max ?? ''}"></div>`)}
       ${cLab(' ', `<div class="bar"><button class="ghost" data-act="en+">Afegeix</button><button class="ghost" data-act="en-gen">Genera</button>${G.per_defecte ? '<button class="ghost" data-act="en-def">Les ' + G.per_defecte.length + ' per defecte</button>' : ''}</div>`)}
     </div>
-    <div class="hint">S'ordenen sola i sense repetides. ${G.min != null ? `Domini de la xarxa (${escD(G.font || 'validacions.json')}): ${G.min}–${G.max} MeV; fora d'aquí neudet avisa a la certificació${fora.length ? ` (<b>${fora.join(', ')} MeV fora</b>)` : ''}.` : ''}
-    Els objectius en trien un subconjunt (més avall); si en treus una d'aquí, també en surt d'allà. Més energies = més temps de xarxa i de Geant4.</div>`;
+    <div class="hint">S'ordenen soles i sense repetides; al yaml van en MeV.
+    ${G.min != null ? `Permeses de <b>${fmtE(G.min)}</b> a <b>${fmtE(G.max)}</b> (fora, neudet diu «prohibit»${nFora ? `: <b>${nFora} fora</b>` : ''}).` : ''}
+    ${G.validat_PE_min != null ? `Per sota de <b>${fmtE(G.validat_PE_min)}</b> la xarxa no està validada dins de PE (només al tub sol): «no validat», en ambre${nNV ? ` (${nNV})` : ''}; en un esborrany només avisa.` : ''}
+    Font: ${escD(G.font || 'validacions.json')} (contracte §8). Els objectius en trien un subconjunt; més energies = més temps de xarxa i de Geant4.</div>`;
 }
 // Cd per anell o per al mapa. Fracció 0 = sense Cd (candidat.py:221); arc (0, 360] (candidat.py:224).
 function cCdHtml(p, cd){
@@ -771,7 +781,7 @@ function cObjHtml(f){
   const sub = Array.isArray(en);
   const grid = f.domini.energies_MeV || [];
   const eset = new Set(sub ? en : grid);
-  const eChecks = sub ? `<div class="row3">${grid.map(e => `<label class="chk"><input type="checkbox" data-p="objectius.energies_MeV" data-t="multinum" data-val="${e}" ${eset.has(e) ? 'checked' : ''}> ${e} MeV</label>`).join('')}</div>` : '';
+  const eChecks = sub ? `<div class="row3">${grid.map(e => `<label class="chk"><input type="checkbox" data-p="objectius.energies_MeV" data-t="multinum" data-val="${e}" ${eset.has(e) ? 'checked' : ''}> ${fmtE(e)}</label>`).join('')}</div>` : '';
   const pw = ob.pesos ?? 'uniforme', pwList = Array.isArray(pw);
   const pwSel = S.pesos.find(o => o.valor === pw);
   const pesosOpts = S.pesos.map(o => ({valor: o.valor, text: o.valor + (ob.pesos === undefined && o.valor === S.pesos_defecte.valor ? ' (per defecte de neudet)' : '')}));
@@ -1058,7 +1068,7 @@ function cAccio(act, ds){
   if(act && act.startsWith('en')){                                 // energies del domini
     let en = (CP.f.domini.energies_MeV || []).map(Number);
     if(act === 'en-') en.splice(+ds.i, 1);
-    if(act === 'en+'){ const v = Number(Q('#c-en-nova').value); if(v > 0) en.push(v); }
+    if(act === 'en+'){ const v = Number(Q('#c-en-nova').value) * UNITATS_E[Q('#c-en-u').value || 'MeV']; if(v > 0) en.push(Number(v.toPrecision(6))); }
     if(act === 'en-def' && CP.schema.energies_domini) en = CP.schema.energies_domini.per_defecte.slice();
     if(act === 'en-gen'){
       const n = Math.round(Number(Q('#c-en-n').value)), a = Number(Q('#c-en-a').value), b = Number(Q('#c-en-b').value);
