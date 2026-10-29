@@ -222,3 +222,33 @@ def test_pagina_campanya_sense_textarea_ni_text_lliure_de_camps(url):
     assert "<textarea" not in bloc
     assert 'data-t="json"' not in bloc
     assert 'data-t="pairs"' not in bloc and 'data-t="slist"' not in bloc
+
+
+# ── el candidat d'una campanya de neudet té .dat (el genera neudet) ───────────
+
+def test_candidat_de_campanya_porta_el_dat_de_neudet(url):
+    """Un candidat de la llista d'una campanya no és a `export/`: `/api/campanya/candidat` el genera amb
+    `Candidat.to_dat` i el Disseny el pot carregar (visor i inputs)."""
+    root = _neudet_o_skip()
+    from simphy.mcgen import campanya_check as CC
+    if not (root / "disseny/campanyes/c04_draft/campanya.yaml").exists():
+        pytest.skip("neudet no té c04_draft")
+    _, d = _json(url, "/api/campanya/defaults")
+    _, y = _json(url, "/api/campanya/yaml", {"form": d, "desa": False})
+    _, r = _json(url, "/api/campanya/comprova", {"yaml_text": y["yaml"], "etapa": "S1"})
+    h = r["candidats"][0]["hash"]
+    code, g = _json(url, f"/api/campanya/candidat?id=c04_draft&hash={h}")
+    if code == 400 and "cap candidat vàlid" in g.get("error", ""):
+        pytest.skip(f"c04_draft de neudet ja no genera el candidat per defecte: {g['error']}")
+    assert code == 200, g
+    assert g["hash"] == h and g["dat_text"].strip() and g["json_text"].strip()
+    code, load = _json(url, "/api/design/load", {"dat_text": g["dat_text"], "json_text": g["json_text"]})
+    assert code == 200, load
+
+
+def test_candidat_de_campanya_hash_desconegut_es_un_400(url):
+    root = _neudet_o_skip()
+    if not (root / "disseny/campanyes/c04_draft/campanya.yaml").exists():
+        pytest.skip("neudet no té c04_draft")
+    code, g = _json(url, "/api/campanya/candidat?id=c04_draft&hash=no_existeix")
+    assert code == 400 and "cap candidat vàlid" in g["error"], g

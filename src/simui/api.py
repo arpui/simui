@@ -378,6 +378,12 @@ def campanya_carrega(id_: str) -> Dict[str, Any]:
     return {"id": id_, "form": CF.de_fitxer(d / "campanya.yaml")}
 
 
+def campanya_candidat(id_: str, hash_: str, etapa: Optional[str] = None) -> Dict[str, Any]:
+    """El `.dat`/`.json` d'un candidat de la campanya `id_` (generat per neudet, `Candidat.to_dat`), perquè el
+    full del disseny en mostri el visor i els inputs dels quatre codis. No escriu res."""
+    return CC.dat_de_candidat(CV.dir_de(id_), hash_, etapa)
+
+
 def campanya_fitxer(id_: str, rel: str) -> Path:
     """El fitxer `rel` de la campanya `id_` (o un report que llista el manifest). Un id que no és cap campanya és
     un 403: no hi ha res a servir fora de `disseny/campanyes/`."""

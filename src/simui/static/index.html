@@ -1552,7 +1552,13 @@ async function nzObreCandidat(c){
   else {
     const e = DS.meta.dissenys.find(x => x.hash === c.hash);
     if(e) await dCarrega({id: e.id});
-    else dSenseDisseny();
+    else {
+      // un candidat de campanya no té .dat al disc: neudet el genera (Candidat.to_dat). Si no el pot generar
+      // (un candidat que el generador ja no dona), el full diu que no hi ha .dat.
+      const g = c.de && c.hash ? await api(`/api/campanya/candidat?id=${encodeURIComponent(c.de)}&hash=${encodeURIComponent(c.hash)}`).catch(() => null) : null;
+      if(g && g.dat_text) await dCarrega({dat_text: g.dat_text, json_text: g.json_text || null});
+      else dSenseDisseny();
+    }
   }
   if(!vigent()) return;
   Q('#d-camp').value = '';

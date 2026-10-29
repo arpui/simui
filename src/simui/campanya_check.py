@@ -203,6 +203,21 @@ def candidat_de(dir_: Path, hash_: str, etapa: Optional[str] = None) -> Tuple[st
     return trobat
 
 
+def dat_de_candidat(dir_: Path, hash_: str, etapa: Optional[str] = None) -> Dict[str, Any]:
+    """El parell `.dat`/`.json` de neudet (`Candidat.to_dat`) del candidat vàlid de la campanya amb aquest hash.
+    Els candidats d'una campanya no tenen `.dat` al disc: neudet els genera, i el mateix `candidat_de` que fa
+    servir el tanteig els troba. Llegeix la campanya; no n'escriu res (el `.dat` surt d'un directori temporal)."""
+    nom_etapa, cand = candidat_de(dir_, hash_, etapa)
+    with tempfile.TemporaryDirectory(prefix="simphy_candidat_") as tmp:
+        try:
+            dat = cand.to_dat(Path(tmp) / f"{cand.nom}.dat")
+            dat_text = Path(dat).read_text()
+            json_text = Path(dat).with_suffix(".json").read_text()
+        except (SystemExit, Exception) as exc:          # noqa: BLE001 — el missatge de neudet, verbatim
+            raise ValueError(_motiu_de(exc)) from None
+    return {"etapa": nom_etapa, "nom": cand.nom, "hash": hash_, "dat_text": dat_text, "json_text": json_text}
+
+
 def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
     """Passa el `campanya.yaml` (text) a neudet i retorna el veredicte. Llança ValueError amb el
     missatge de neudet si no pot (yaml trencat, etapa que no hi és, neudet que no es pot importar)."""
