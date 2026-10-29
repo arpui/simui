@@ -317,7 +317,7 @@ def test_results_x06_te_s0_i_s0_g4_sense_avis_counterupc(url):
     _neudet_o_skip()
     status, body = _json(_get(url, "/api/results?hash=8ccdf856d356"))
     assert status == 200
-    assert [e["etapa"] for e in body["entries"]] == ["S0", "S0_g4"]
+    assert {"S0", "S0_g4"} <= {e["etapa"] for e in body["entries"]}   # neudet hi afegeix etapes
     assert all(e["warnings"] == [] and e["status"] == "ok" for e in body["entries"])
 
 
