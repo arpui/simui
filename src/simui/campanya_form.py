@@ -32,7 +32,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -750,18 +750,37 @@ def _errors_rang(v: Any, ruta: str, nom: str, enter: bool = False, maxim: Option
     return []
 
 
+def _punts_cd(v: Any, ruta: str) -> List[Tuple[str, float]]:
+    """Els números que posa l'usuari (amb el camp on són) d'un valor, una llista o un rang {de, a, pas} de Cd.
+    D'un rang només els extrems: si són dins del domini, tot el que hi ha entremig també ho és."""
+    if isinstance(v, dict):
+        return [(f"{ruta}.{k}", v[k]) for k in ("de", "a")]
+    if isinstance(v, list):
+        return [(f"{ruta}.{i}", x) for i, x in enumerate(v)]
+    return [(ruta, v)]
+
+
 def _errors_cd(cd: Any, ruta: str) -> List[str]:
-    """Cd: fracció 0 o (0, 1]; arc (0, 360] si hi ha Cd (candidat.py:219-224)."""
+    """Cd: `fraction`, `arc` i `centre` són un valor, una llista o un rang {de, a, pas} (`generadors._opcions_cd`
+    els multiplica). Fracció 0 o (0, 1]; arc (0, 360] si hi ha Cd (candidat.py:219-224). Amb fracció 0 no hi ha
+    Cd i l'arc i el centre no es miren (neudet no els multiplica)."""
     if not isinstance(cd, dict):
         return [f"{ruta}: cal {{fraction, arc, centre}}"]
-    f = cd.get("fraction", 0)
-    if not (isinstance(f, (int, float)) and not isinstance(f, bool) and 0 <= f <= 1):
-        return [f"{ruta}.fraction: un número entre 0 i 1 (0 = sense Cd; candidat.py:{CD_FRACCIO_LINIA})"]
-    if f == 0:
+    e: List[str] = []
+    for k, nom in (("fraction", "la fracció de Cd"), ("arc", "l'arc de Cd"), ("centre", "el centre de Cd")):
+        if k in cd:
+            e += _errors_rang(cd[k], f"{ruta}.{k}", nom)
+    if e:
+        return e
+    fr = _punts_cd(cd.get("fraction", 0), f"{ruta}.fraction")
+    for camp, x in fr:
+        if not 0 <= x <= 1:
+            return [f"{camp}: un número entre 0 i 1 (0 = sense Cd; candidat.py:{CD_FRACCIO_LINIA})"]
+    if all(x == 0 for _, x in fr):
         return []
-    arc = cd.get("arc", 360)
-    if not (_num(arc) and 0 < arc <= 360):
-        return [f"{ruta}.arc: un número en (0, 360] (candidat.py:{CD_ARC_LINIA})"]
+    for camp, x in _punts_cd(cd.get("arc", 360), f"{ruta}.arc"):
+        if not 0 < x <= 360:
+            return [f"{camp}: un número en (0, 360] (candidat.py:{CD_ARC_LINIA})"]
     return []
 
 

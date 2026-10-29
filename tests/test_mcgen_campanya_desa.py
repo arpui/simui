@@ -404,11 +404,11 @@ def test_tanteig_de_candidat_que_no_hi_es_refusa():
         CD.tanteig_de_candidat("c04_draft", "deadbeef")
 
 
-def test_tanteig_de_campanya_que_el_formulari_no_llegeix_es_refusa_dient_per_que():
-    """c01 té Cd com a llista (contracte §4 ho permet; el formulari encara no ho llegeix): no es fa un formulari
-    que no es pot desar. El motiu és el de la forma, dit amb el camp."""
+def test_tanteig_de_campanya_amb_cd_com_a_llista_es_pot_fer():
+    """c01 té Cd com a llista (contracte §4): el formulari la llegeix i el tanteig de la campanya sencera es
+    pot desar. Abans es refusava dient el camp; el refús continua per a qualsevol forma que `to_yaml` no escrigui."""
     _real_c04()
     if not (_REAL_NEUDET / "disseny" / "campanyes" / "c01_8tubs_30x30x80").is_dir():
         pytest.skip("no hi ha c01 a neudet")
-    with pytest.raises(CD.DesaError, match="no es pot tantejar «c01_8tubs_30x30x80» al formulari"):
-        CD.tanteig_de_campanya("c01_8tubs_30x30x80")
+    r = CD.tanteig_de_campanya("c01_8tubs_30x30x80")
+    CF.to_yaml(r["form"])

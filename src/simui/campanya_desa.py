@@ -166,7 +166,7 @@ def _form_tanteig(form: Dict[str, Any], nou: str) -> Dict[str, Any]:
 
 def _ha_de_passar_el_formulari(f: Dict[str, Any], de: str) -> None:
     """Un tanteig que el formulari no pot escriure no s'ofereix: es diu per què, en lloc de deixar un formulari
-    que no es pot desar. (Cd com a llista, p. ex., és el que el formulari encara no llegeix: c01 i c02.)"""
+    que no es pot desar."""
     try:
         CF.to_yaml(f)
     except CF.FormError as exc:

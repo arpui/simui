@@ -660,24 +660,26 @@ function cEnergiesDomini(d){
 function cCdHtml(p, cd){
   const c = cd || {};
   const camp = (k, lab, o) => {
-    const v = c[k];
-    return v === undefined || typeof v === 'number'
-      ? cLab(lab, cNumIn(`${p}.cd.${k}`, v, o))
-      : cLab(lab, `${cRO(v)} <span class="hint">rang o llista: a neudet</span>`);
+    const v = c[k], q = `${p}.cd.${k}`;
+    if(Array.isArray(v)) return cNumList(q, v, lab, o.ph === '360' ? 360 : 0);
+    if(v === undefined || typeof v === 'number')
+      return cLab(lab, cNumIn(q, v, o) + `<button class="ghost" data-act="nl+" data-p="${escD(q)}" data-d="${o.ph === '360' ? 360 : 0}" title="Provar diversos valors: neudet genera una opció per cada valor">+ valor</button>`);
+    return cLab(lab, `${cRO(v)} <span class="hint">rang: es canvia a neudet</span>`);
   };
   return `<div class="row3">${camp('fraction', 'Cd fracció (0 = sense Cd)', {min: 0, max: 1, ph: '0'})}${camp('arc', 'Cd arc (°)', {min: 0, max: 360, ph: '360'})}${camp('centre', 'Cd centre (°)', {ph: '0'})}</div>
   <div class="hint">Fracció en [0, 1]: neudet la llegeix a ${escD(cSrc(CP.schema.cd.fraccio.fitxer, CP.schema.cd.fraccio.linia))}; arc en (0, 360] a ${escD(cSrc(CP.schema.cd.arc.fitxer, CP.schema.cd.arc.linia))}.
+  <b>Diversos valors</b> («+ valor»): cada valor és una opció i neudet les combina (fracció × arc × centre), com a c01 i c02.
   <b>Arc</b>: la part del perímetre del tub coberta de Cd (360 = tot). <b>Centre</b>: l'angle, al voltant de l'eix del tub, on queda el mig de l'arc;
   0 = el costat del tub que mira cap a l'eix del bloc (la font, si és al centre); els angles creixen en sentit antihorari vist des de +z
   (Geant4, <code>counterUPC.cc</code>: φ = atan2(−y, −x) + centre). La fracció és el tram axial cobert, centrat al gas.</div>`;
 }
 // Llista de números editable (x i y de la graella, r i θ del polar). Un rang {de, a, pas} és de només lectura.
-function cNumList(p, v, lab){
+function cNumList(p, v, lab, d = 0){
   if(cEsRang(v)) return `<div class="nl">${cLab(lab, `${cRO(v)} <span class="hint">rang: es canvia a neudet</span>`)}</div>`;
   const arr = v === undefined ? [] : (Array.isArray(v) ? v : [v]);
   return `<div class="nl"><div class="nl-h">${escD(lab)}</div>${arr.map((x, i) =>
     `<span class="nlc">${cNumIn(`${p}.${i}`, x)}<button class="x" data-act="nl-" data-p="${escD(p)}" data-i="${i}">×</button></span>`).join('')}
-    <button class="ghost" data-act="nl+" data-p="${escD(p)}">+ valor</button></div>`;
+    <button class="ghost" data-act="nl+" data-p="${escD(p)}" data-d="${d}">+ valor</button></div>`;
 }
 
 function cAnellsHtml(p, g){
@@ -1079,7 +1081,7 @@ function cAccio(act, ds){
     const ob = CP.f.objectius || {};
     if(Array.isArray(ob.energies_MeV)) ob.energies_MeV = ob.energies_MeV.filter(x => en.includes(Number(x)));
   }
-  if(act === 'nl+') cArr(ds.p).push(0);
+  if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
   if(act === 'nl-') cArr(ds.p).splice(+ds.i, 1);
   if(act === 'tub+' || act === 'tub-'){
     const tubs = cNormTubs(ds.p.replace(/\.tubs$/, ''));

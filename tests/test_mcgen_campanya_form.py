@@ -511,3 +511,58 @@ def test_energies_del_domini_contracte_8():
     f["domini"]["energies_MeV"] = [1.0, g["max"] * 2]
     with pytest.raises(CF.FormError, match="fora del domini permès"):
         CF.to_yaml(f)
+
+
+# ── Cd com a llista de valors (contracte simphy_ui.md §4: «valor o llista») ──────────────────────────────
+
+@pytest.mark.parametrize("cd, camp", [
+    ({"fraction": [0, 0.5, 2], "arc": 360}, "cd.fraction.2"),
+    ({"fraction": [0.5], "arc": [180, 400]}, "cd.arc.1"),
+    ({"fraction": [], "arc": 360}, "cd.fraction"),
+    ({"fraction": {"de": 0, "a": 2, "pas": 0.5}, "arc": 360}, "cd.fraction.a"),
+    ({"fraction": 0.5, "arc": {"de": 0, "a": 180, "pas": 90}}, "cd.arc.de"),
+    ({"fraction": [0.5], "arc": ["gran"]}, "cd.arc"),
+])
+def test_cd_llista_fora_del_domini_diu_el_camp(cd, camp):
+    """Una llista o un rang de Cd amb un valor que neudet no accepta s'atura amb el camp exacte (el `data-p`)."""
+    _neudet_o_skip()
+    f = CF.defaults()
+    f["etapes"]["S1"]["generador"]["anells"][0]["cd"] = cd
+    with pytest.raises(CF.FormError) as exc:
+        CF.to_yaml(f)
+    assert camp in str(exc.value), str(exc.value)
+
+
+def test_cd_llista_i_rang_passen_i_neudet_els_multiplica():
+    """El que la UI deixa escriure (valors, llistes, rangs) és el que neudet multiplica: fracció × arc × centre.
+    Amb fracció 0 l'arc i el centre no es multipliquen."""
+    _neudet_o_skip()
+    from neudet.disseny import generadors as G
+    for cd, n in [({"fraction": [0, 0.5, 1], "arc": [180, 360], "centre": 0}, 1 + 2 + 2),
+                  ({"fraction": {"de": 0.25, "a": 0.75, "pas": 0.25}, "arc": 360, "centre": [0, 90]}, 3 * 2),
+                  ({"fraction": [0], "arc": 9999}, 1)]:
+        assert CF._errors_cd(cd, "x") == [], (cd, CF._errors_cd(cd, "x"))
+        assert len(G._opcions_cd(cd)) == n, cd
+
+
+@pytest.mark.parametrize("camp", ["c01_8tubs_30x30x80", "c02_cd_2grups"])
+def test_c01_i_c02_s_obren_sencers_al_formulari(camp):
+    """Abans el Cd d'aquestes dues era una llista i el formulari ho refusava. Si neudet les treu o les
+    canvia, es salta (⊇: no es fixa res de com són, només que el que hi ha es pot obrir)."""
+    root = _neudet_o_skip()
+    from simphy.mcgen import campanya_vista as CV
+    d = root / "disseny" / "campanyes" / camp / "campanya.yaml"
+    if not d.exists():
+        pytest.skip(f"neudet no té {camp}")
+    f = CF.de_fitxer(d)
+    assert CF._errors(f) == []
+    CF.to_yaml(f)
+
+
+def test_la_pagina_deixa_editar_el_cd_com_a_llista():
+    """La plantilla ensenya el que el check accepta: cada camp de Cd (fracció, arc, centre) té «+ valor» i,
+    si ja és una llista, els seus valors editables (no només de lectura)."""
+    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    cd = html[html.index("function cCdHtml("):html.index("function cNumList(")]
+    assert "cNumList(q, v, lab" in cd and 'data-act="nl+"' in cd
+    assert "rang o llista: a neudet" not in html
