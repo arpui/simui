@@ -179,3 +179,12 @@ def test_un_disseny_de_tots_els_tubs_drets_passa():
         pytest.skip("sense banc_counterUPC_v0")
     assert cfg.tubs_girats() == []
     cfg.exigeix_tubs_drets("MCNP")
+
+
+# ── vista aproximada dels tubs al formulari ────────────────────────────────
+
+def test_la_vista_dels_tubs_cobreix_tots_els_generadors():
+    """Test bessó: cada generador que el formulari ofereix té el seu cas a `cTubsVista`, i es pinta al bloc."""
+    for tipus in CF.CAMPS:
+        assert f"g.tipus === '{tipus}'" in INDEX.split("function cTubsVista")[1].split("function cBlocSvg")[0], tipus
+    assert "cTubsVista()" in INDEX and "data-drag" in INDEX and "pointerdown" in INDEX

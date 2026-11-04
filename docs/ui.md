@@ -99,6 +99,7 @@ llavors, aquesta pestanya només pot llegir el que neudet ja publica.
   Cd amb sector en un tub girat, posició sense x o y).
 - **Límit:** MCNP, OpenMC i FLUKA de simphy construeixen tots els tubs al llarg de z. Amb un tub girat **refusen** (`exigeix_tubs_drets`), no
   generen un altre detector en silenci. Geant4 (app `detector`) i el motor de neudet sí que els fan.
+- **Vista dels tubs al formulari:** el bloc de PE amb la font i els tubs de l'etapa activa (anells, posicions, graella, malla o llista), a «Domini» i sobre el generador. És orientativa (mida dels tubs no a escala) i no valida res: ho fa «Comprova». A `posicions`, una posició es pot arrossegar i escriu x i y al formulari.
 - Proves: `tests/test_flex_ui.py`.
 
 ## Fora d'abast, de moment
