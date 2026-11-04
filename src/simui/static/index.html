@@ -908,7 +908,7 @@ function cFormHtml(){
   ${cEnergiesDomini(d)}
   ${cLab('tipus de tub (catàleg de neudet)', cSelTub('domini.tipus_tub.0', d.tipus_tub[0]))}
   <div class="hint" id="c-tubmarca">${escD(cTubMarca(d.tipus_tub[0]))}</div>
-  <div class="panel warn">${escD(S.cd.avis)}</div>
+  ${S.cd.avis ? `<div class="panel warn">${escD(S.cd.avis)}</div>` : ''}
 
   <h2>Restriccions</h2>
   <div class="row3">${cLab('tubs totals (n_tubs)', cNumIn('domini.restriccions.n_tubs', d.restriccions.n_tubs, {min: 1}))}
