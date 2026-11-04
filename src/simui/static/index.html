@@ -682,6 +682,13 @@ function cNumList(p, v, lab, d = 0){
     <button class="ghost" data-act="nl+" data-p="${escD(p)}" data-d="${d}">+ valor</button></div>`;
 }
 
+// Tipus de tub com a ventall (llista): un select per tipus, amb «+ tipus» i ×. Un tipus sol es guarda com a llista d'un element.
+function cTipusLlista(path, valor, etiqueta){
+  const tps = Array.isArray(valor) ? valor : [valor ?? CP.f.domini.tipus_tub[0]];
+  return `<div class="nl"><div class="nl-h">${escD(etiqueta)}</div>${tps.map((tp, k) =>
+    `<span class="nlc">${cSelTub(`${path}.${k}`, tp)}${tps.length > 1 ? `<button class="x" data-act="tp-" data-p="${escD(path)}" data-i="${k}">×</button>` : ''}</span>`).join('')}
+    <button class="ghost" data-act="tp+" data-p="${escD(path)}">+ tipus</button></div>`;
+}
 function cAnellsHtml(p, g){
   const ttip = CP.f.domini.tipus_tub[0];
   const blocs = (g.anells || []).map((a, i) => {
@@ -700,7 +707,7 @@ function cAnellsHtml(p, g){
           <option value="graus" ${phiMig ? '' : 'selected'}>graus (número)</option>
           <option value="mig_pas" ${phiMig ? 'selected' : ''}>mig pas (180/n)</option></select>`)}
         ${phiMig ? '' : cLab('φ (°)', cNumIn(`${ap}.phi`, a.phi === undefined ? undefined : a.phi, {ph: '0'}))}</div>
-      <div class="row">${cLab('tipus de tub', `<select data-p="${ap}.tipus" data-t="str">${cTubOpts(a.tipus ?? ttip)}</select>`)}</div>
+      <div class="row">${cTipusLlista(`${ap}.tipus`, Array.isArray(a.tipus) || a.tipus === undefined ? (a.tipus ?? ttip) : a.tipus, 'tipus de tub (ventall: cada tipus és una opció)')}</div>
       ${cCdHtml(ap, a.cd)}</div>`;
   }).join('');
   return `${cLab('n_total (filtre: suma de tubs; buit = sense filtre)', cNumIn(p + '.n_total', g.n_total, {ph: 'buit'}))}
@@ -714,7 +721,7 @@ function cMapaHtml(p, g){
   return `${cLab('mode de la graella', `<select data-gmode="${p}">
       <option value="xy" ${mode === 'xy' ? 'selected' : ''}>cartesiana (x, y)</option>
       <option value="polar" ${mode === 'polar' ? 'selected' : ''}>polar (r, θ)</option></select>`)}
-    ${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
+    ${cTipusLlista(p + '.tipus_tub', g.tipus_tub, 'tipus del tub (ventall: cada tipus és una opció)')}
     ${cCdHtml(p, g.cd)}
     ${mode === 'xy'
       ? `<div class="row">${cNumList(p + '.x', g.x, 'x (cm)')}${cNumList(p + '.y', g.y, 'y (cm)')}</div>`
@@ -735,14 +742,14 @@ function cLlistaHtml(p, g){
         <button class="x" data-act="cand-" data-i="${j}">treu</button></div>
         <div class="panel warn">Fitxer .dat: <code>${escD(c.dat)}</code> (no editable aquí)</div></div>`;
     const tubs = (c.tubs || []).map(t => Array.isArray(t) ? {x: t[0], y: t[1]} : t);
-    const files = tubs.map((t, k) => `<div class="tubrow">${cNumIn(`${cp}.tubs.${k}.x`, t.x, {ph: 'x (cm)'})}${cNumIn(`${cp}.tubs.${k}.y`, t.y, {ph: 'y (cm)'})}${cNumIn(`${cp}.tubs.${k}.z`, t.z, {ph: 'z (cm)'})}${cSelTub(`${cp}.tubs.${k}.tipus`, t.tipus ?? CP.f.domini.tipus_tub[0])}<button class="x" data-act="tub-" data-p="${cp}.tubs" data-i="${k}">treu</button></div>`).join('');
+    const files = tubs.map((t, k) => `<div class="tubrow">${cNumIn(`${cp}.tubs.${k}.x`, t.x, {ph: 'x (cm)'})}${cNumIn(`${cp}.tubs.${k}.y`, t.y, {ph: 'y (cm)'})}${cNumIn(`${cp}.tubs.${k}.z`, t.z, {ph: 'z (cm)'})}${cSelTub(`${cp}.tubs.${k}.tipus`, t.tipus ?? CP.f.domini.tipus_tub[0])}${cNumIn(`${cp}.tubs.${k}.cd_fraction`, t.cd_fraction, {min: 0, max: 1, ph: 'Cd fracció'})}${cNumIn(`${cp}.tubs.${k}.cd_arc_deg`, t.cd_arc_deg, {min: 0, max: 360, ph: 'arc °'})}${cNumIn(`${cp}.tubs.${k}.cd_arc_centre_deg`, t.cd_arc_centre_deg, {ph: 'centre °'})}<button class="x" data-act="tub-" data-p="${cp}.tubs" data-i="${k}">treu</button></div>`).join('');
     return `<div class="anell"><div class="anell-h"><input data-p="${cp}.nom" data-t="str" value="${escD(c.nom ?? '')}" placeholder="nom del candidat">
         <button class="x" data-act="cand-" data-i="${j}">treu</button></div>
-        <div class="hint">tubs (x, y, z en cm; tipus del catàleg)</div>${files}
+        <div class="hint">tubs (x, y, z en cm; tipus del catàleg; Cd: fracció, arc i centre, opcionals — sense fracció, no hi ha Cd)</div>${files}
         <div class="bar"><button class="ghost" data-act="tub+" data-p="${cp}.tubs">+ tub</button></div></div>`;
   }).join('');
   return `${blocs}<div class="bar"><button class="ghost" data-act="cand+">+ candidat</button></div>
-    <div class="hint">Cada candidat és una posició de tubs. Els Cd per tub i els fitxers .dat, a la llista de la fase C3.</div>`;
+    <div class="hint">Cada candidat és una estructura fixa de tubs, i es proven tal com són. Els fitxers .dat, a la llista de la fase C3.</div>`;
 }
 
 // FLEX-G: posicions fixes (x, y, z, eix). Per posició, un ventall de tipus i de Cd; el candidat és el producte
@@ -795,6 +802,19 @@ function cSlotsHtml(p, g){
       ${g.ocupats === undefined ? '' : 'Aquest yaml té <code>ocupats</code>, que passa per damunt de n_tubs; buida\'l per fer servir els tubs totals del domini.'}</div>
     <div class="row3">${cLab('r mín (cm)', cNumIn(p + '.r_min_cm', g.r_min_cm, {min: 0}))}${cLab('r màx (cm)', cNumIn(p + '.r_max_cm', g.r_max_cm, {min: 0}))}${cLab('llavor', cNumIn(p + '.llavor', g.llavor, {ph: '0'}))}</div>
     <div class="hint">El camp cd d'aquest generador (fitxa.py exigeix fraccio explícita) no el llegeix neudet a _slots (generadors.py:170-203).</div>`;
+}
+
+// «Què permet» el generador triat: els generadors són combinacions de A (on són els tubs) i B (què són).
+function cCapacitatsHtml(tipus){
+  const CA = CP.schema.capacitats || {};
+  if(!CA[tipus]) return '';
+  const cel = v => v === '—' ? '<td class="src">no</td>' : `<td>${escD(v)}</td>`;
+  const fila = t => { const C = CA[t]; return `<tr${t === tipus ? ' style="background:#eef4fb;font-weight:600"' : ''}><td>${escD(t)}</td>${cel(C.posicions)}${cel(C.tipus)}${cel(C.cd)}${cel(C.eix)}</tr>`; };
+  return `<details class="fold" open><summary>Tot el que es pot demanar: on són els tubs i què són</summary>
+    <div class="hint">Una petició sempre és el mateix: un candidat és un conjunt de tubs (posició + tipus + Cd + eix). Cada fila és una manera de generar-ne, i deixa
+    <b>variar</b> (ventall) unes coses i <b>fixa</b> les altres. «no» vol dir que neudet no ho llegeix en aquest generador, no que no tingui sentit.</div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>generador</th><th>on són els tubs</th><th>tipus de tub</th><th>Cd</th><th>eix</th></tr></thead>
+    <tbody>${Object.keys(CA).map(fila).join('')}</tbody></table></div></details>`;
 }
 
 function cGenHtml(E, g){
@@ -1002,7 +1022,9 @@ function cFontHtml(d){
 
 function cFormHtml(){
   const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, g = et.generador, S = CP.schema;
-  const genSel = `<select data-gtipus="${escD(E)}"><option value="">— cap (no és una etapa de xarxa)</option>${S.generadors.map(x => `<option value="${escD(x.tipus)}" ${g && g.tipus === x.tipus ? 'selected' : ''}>${escD(x.tipus)}</option>`).join('')}</select>`;
+  const opG = x => `<option value="${escD(x.tipus)}" ${g && g.tipus === x.tipus ? 'selected' : ''}>${escD(x.tipus)} — ${escD((S.capacitats[x.tipus] || {}).etiqueta || '')}</option>`;
+  const grup = (gr, titol) => `<optgroup label="${titol}">${S.generadors.filter(x => (S.capacitats[x.tipus] || {}).grup === gr).map(opG).join('')}</optgroup>`;
+  const genSel = `<select data-gtipus="${escD(E)}"><option value="">— cap (no és una etapa de xarxa)</option>${grup('fixes', 'On són els tubs: posicions fixes')}${grup('varien', 'On són els tubs: posicions que varien (un ventall)')}</select>`;
   const gen = g ? cGenHtml(E, g) : `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>generador</code>: no és una etapa de xarxa.</div>`;
   return `
   <h2>Identitat</h2>
@@ -1041,6 +1063,7 @@ function cFormHtml(){
   ${g ? cAjudaGen(g.tipus) : ''}
   ${cLab('nota (no afecta res)', cIn(`etapes.${E}.que`, et.que, 'ostr'))}
   <div class="hint">neudet la copia al resum.md com a «Què» (campanya.py:245); no canvia cap candidat ni cap càlcul.</div>
+  ${g ? cCapacitatsHtml(g.tipus) : ''}
   ${g ? `<div id="c-bloc-wrap2">${cBlocSvg('c-bloc2')}</div>` : ''}
   ${gen}
   <div id="c-compta" class="compta"></div>

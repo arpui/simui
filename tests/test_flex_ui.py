@@ -188,3 +188,50 @@ def test_la_vista_dels_tubs_cobreix_tots_els_generadors():
     for tipus in CF.CAMPS:
         assert f"g.tipus === '{tipus}'" in INDEX.split("function cTubsVista")[1].split("function cBlocSvg")[0], tipus
     assert "cTubsVista()" in INDEX and "data-drag" in INDEX and "pointerdown" in INDEX
+
+
+# ── un sol model: on són els tubs (A) i què són (B) ───────────────────────
+
+def test_cada_generador_te_la_seva_fila_de_capacitats():
+    _neudet_o_skip()
+    s = CF.schema()
+    assert set(s["capacitats"]) == {g["tipus"] for g in s["generadors"]}
+    for t, c in s["capacitats"].items():
+        assert {"etiqueta", "posicions", "tipus", "cd", "eix"} <= set(c), t
+
+
+def test_les_capacitats_diuen_el_mateix_que_neudet_fa():
+    """Test bessó de la taula: on diu «ventall» o «fix per…», neudet genera de debò aquelles opcions."""
+    _neudet_o_skip()
+    from neudet.disseny.candidat import Bloc
+    from neudet.disseny.generadors import genera
+    bloc = Bloc((80.0, 40.0, 90.0), 0.0)
+    ctx = dict(tipus=["lnd_252285", "lnd_252248"], n_tubs=2, restriccions={}, arrel=".")
+    mapa = genera({"tipus": "mapa_un_tub", "tipus_tub": ["lnd_252285", "lnd_252248"], "cd": {"fraction": [0, 1]},
+                   "x": [0], "y": [0]}, bloc, ctx)
+    assert len(mapa) == 4 and CF.CAPACITATS["mapa_un_tub"]["tipus"] == "ventall" == CF.CAPACITATS["mapa_un_tub"]["cd"]
+    anells = genera({"tipus": "anells", "anells": [{"r": 5, "n": 2, "tipus": ["lnd_252285", "lnd_252248"],
+                                                    "cd": {"fraction": 0}}]}, bloc, ctx)
+    assert len(anells) == 2 and CF.CAPACITATS["anells"]["tipus"].startswith("ventall")
+    llista = genera({"tipus": "llista", "candidats": [{"nom": "a", "tubs": [
+        {"x": 0, "y": 0, "tipus": "lnd_252285", "cd_fraction": 1.0}]}]}, bloc, ctx)
+    assert llista[0].tubs[0].cd_fraction == 1.0 and CF.CAPACITATS["llista"]["cd"].startswith("fix")
+    slots = genera({"tipus": "slots", "pas_cm": 10, "mostres": 3, "cd": {"fraction": 1}}, bloc, ctx)
+    assert all(not t.te_cd for c in slots for t in c.tubs) and CF.CAPACITATS["slots"]["cd"] == "—"
+
+
+def test_el_formulari_accepta_tipus_en_ventall_a_anells_i_mapa():
+    _neudet_o_skip()
+    f = CF.defaults()
+    f["domini"]["tipus_tub"] = ["lnd_252285", "lnd_252248"]
+    f["etapes"]["S1"]["generador"] = {"tipus": "mapa_un_tub", "tipus_tub": ["lnd_252285", "lnd_252248"],
+                                      "cd": {"fraction": 0}, "x": [0], "y": [0]}
+    CF.to_yaml(f)
+    f["etapes"]["S1"]["generador"] = {"tipus": "anells", "anells": [{"r": 5, "n": 3, "tipus": ["lnd_252285", "lnd_252248"],
+                                                                      "cd": {"fraction": 0}}]}
+    CF.to_yaml(f)
+
+
+def test_la_pagina_porta_les_capacitats_i_el_ventall_de_tipus():
+    for t in ("function cCapacitatsHtml", "function cTipusLlista", "cd_fraction", "S.capacitats"):
+        assert t in INDEX, t

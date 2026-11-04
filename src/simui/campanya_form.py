@@ -274,6 +274,23 @@ CAMPS: Dict[str, Dict[str, Any]] = {
 }
 
 
+#: Què fa variar cada generador (llegit del seu codi a generadors.py): on són els tubs i què són (tipus, Cd, eix).
+#: Valors: «ventall» (llista o rang: neudet en fa les combinacions), «fix» (un valor), «—» (neudet no ho llegeix).
+#: Són el que mostra el formulari a «Què permet», perquè es vegi que els generadors són combinacions d'A (posicions) i B (tubs).
+CAPACITATS: Dict[str, Dict[str, str]] = {
+    "anells": {"grup": "varien", "etiqueta": "en anells", "posicions": "ventall (r, n i φ de cada anell)", "tipus": "ventall per anell",
+               "cd": "ventall per anell", "eix": "—"},
+    "mapa_un_tub": {"grup": "varien", "etiqueta": "en una graella (un tub per candidat)", "posicions": "ventall (els punts de la graella)",
+                    "tipus": "ventall", "cd": "ventall", "eix": "—"},
+    "slots": {"grup": "varien", "etiqueta": "en una malla (se'n tria un subconjunt a l'atzar)",
+              "posicions": "ventall (`mostres` subconjunts de la malla, a l'atzar)", "tipus": "fix", "cd": "—", "eix": "—"},
+    "posicions": {"grup": "fixes", "etiqueta": "fixes (una estructura)", "posicions": "fixes", "tipus": "ventall per posició",
+                  "cd": "ventall per posició", "eix": "fix per posició (z, x o y)"},
+    "llista": {"grup": "fixes", "etiqueta": "fixes (candidats explícits o .dat)", "posicions": "fixes (cada candidat és una estructura)",
+               "tipus": "fix per tub", "cd": "fix per tub", "eix": "—"},
+}
+
+
 class FormError(ValueError):
     """Un formulari que no es pot escriure com a campanya.yaml. El missatge diu què cal canviar."""
 
@@ -642,6 +659,7 @@ def schema() -> Dict[str, Any]:
         "neudet": str(DES.neudet_root()),
         "generadors": generadors,
         "plantilles": _schema_plantilles(),
+        "capacitats": CAPACITATS,
         "tipus_tub": tubs,
         "energies_domini": energies_domini(),
         "validacio": {"registre": reg is not None,
