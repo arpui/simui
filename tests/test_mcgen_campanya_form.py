@@ -593,3 +593,12 @@ def test_l_avis_del_cd_segueix_sent_cert_a_geant4():
     if not f.exists():
         pytest.skip("neudet no té DetectorConstruction.cc")
     assert "el Cd només és a counterUPC_v0 i als genèrics del catàleg" in f.read_text(encoding="utf-8")
+
+
+def test_la_pagina_no_ofereix_ocupats_si_el_yaml_no_el_porta():
+    """«ocupats» és el nombre total de tubs (el mateix que `n_tubs` del domini) i ofert a part confonia: la pàgina
+    només el mostra si el yaml ja el porta, i diu que els tubs totals són els del domini."""
+    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    slots = html[html.index("function cSlotsHtml("):html.index("function cGenHtml(")]
+    assert "g.ocupats === undefined ? ''" in slots
+    assert "tubs totals" in slots and "n_tubs" in slots

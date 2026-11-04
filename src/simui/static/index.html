@@ -748,7 +748,10 @@ function cLlistaHtml(p, g){
 function cSlotsHtml(p, g){
   return `<div class="row">${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
       ${cLab('forma', cSel(p + '.forma', [{valor: 'quadrada'}, {valor: 'hexagonal'}], g.forma ?? 'quadrada'))}</div>
-    <div class="row3">${cLab('pas (cm)', cNumIn(p + '.pas_cm', g.pas_cm, {min: 0}))}${cLab('ocupats (tubs)', cNumIn(p + '.ocupats', g.ocupats, {min: 1, ph: 'buit = n_tubs'}))}${cLab('mostres', cNumIn(p + '.mostres', g.mostres, {min: 1, ph: '100'}))}</div>
+    <div class="row3">${cLab('pas (cm)', cNumIn(p + '.pas_cm', g.pas_cm, {min: 0}))}${cLab('mostres', cNumIn(p + '.mostres', g.mostres, {min: 1, ph: '100'}))}${
+      g.ocupats === undefined ? '' : cLab('ocupats (del yaml)', cNumIn(p + '.ocupats', g.ocupats, {min: 1, ph: 'buit = tubs totals'}))}</div>
+    <div class="hint">Cada candidat porta tants tubs com «tubs totals» del domini (<code>n_tubs</code>); per tantejar amb menys tubs, canvia'l allà.
+      ${g.ocupats === undefined ? '' : 'Aquest yaml té <code>ocupats</code>, que passa per damunt de n_tubs; buida\'l per fer servir els tubs totals del domini.'}</div>
     <div class="row3">${cLab('r mín (cm)', cNumIn(p + '.r_min_cm', g.r_min_cm, {min: 0}))}${cLab('r màx (cm)', cNumIn(p + '.r_max_cm', g.r_max_cm, {min: 0}))}${cLab('llavor', cNumIn(p + '.llavor', g.llavor, {ph: '0'}))}</div>
     <div class="hint">El camp cd d'aquest generador (fitxa.py exigeix fraccio explícita) no el llegeix neudet a _slots (generadors.py:170-203).</div>`;
 }
@@ -908,7 +911,7 @@ function cFormHtml(){
   <div class="panel warn">${escD(S.cd.avis)}</div>
 
   <h2>Restriccions</h2>
-  <div class="row3">${cLab('n_tubs', cNumIn('domini.restriccions.n_tubs', d.restriccions.n_tubs, {min: 1}))}
+  <div class="row3">${cLab('tubs totals (n_tubs)', cNumIn('domini.restriccions.n_tubs', d.restriccions.n_tubs, {min: 1}))}
     ${cLab('marge al bloc (cm)', cNumIn('domini.restriccions.marge_bloc_cm', d.restriccions.marge_bloc_cm, {min: 0}))}
     ${cLab('separació mín. (cm)', cNumIn('domini.restriccions.sep_min_cm', d.restriccions.sep_min_cm, {min: 0}))}</div>
   <div class="row">${cLab('distància mín. a la font (cm)', cNumIn('domini.restriccions.r_min_font_cm', d.restriccions.r_min_font_cm, {min: 0}))}
