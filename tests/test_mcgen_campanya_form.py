@@ -566,3 +566,30 @@ def test_la_pagina_deixa_editar_el_cd_com_a_llista():
     cd = html[html.index("function cCdHtml("):html.index("function cNumList(")]
     assert "cNumList(q, v, lab" in cd and 'data-act="nl+"' in cd
     assert "rang o llista: a neudet" not in html
+
+
+# ── l'avís del Cd és el que diu neudet (validacions.json), no un text vell ───────────────────────────────
+
+def test_l_avis_del_cd_diu_els_tubs_que_neudet_te_validats():
+    """L'avís surt de `validacions.json` (secció `cd`): cita cada tub amb Cd validat, i no diu que el Cd només és a
+    counterUPC_v0 «fins a TUB-4» ni que Geant4 s'atura amb lnd_252285 (TUB-4 i CERT-Cd ja són fets). ⊇: no es fixa
+    quins tubs són."""
+    _neudet_o_skip()
+    reg = CF._validacions()
+    validats = [n for n, e in (reg.get("cd") or {}).items() if e.get("estat") == "validat"]
+    assert validats, "neudet no té cap tub amb Cd validat a validacions.json"
+    avis = CF.cd_avis()
+    for n in validats:
+        assert n in avis, (n, avis)
+    assert "fins a TUB-4" not in avis and "amb lnd_252285" not in avis
+    assert CF.schema()["cd"]["avis"] == avis
+
+
+def test_l_avis_del_cd_segueix_sent_cert_a_geant4():
+    """L'avís diu que Geant4 només admet Cd a counterUPC_v0 i als tubs genèrics: és el text de neudet
+    (`DetectorConstruction.cc`). Si neudet canvia la regla, aquest test s'atura i cal tornar a llegir-la."""
+    root = _neudet_o_skip()
+    f = root / "mc/geant4/detector/src/DetectorConstruction.cc"
+    if not f.exists():
+        pytest.skip("neudet no té DetectorConstruction.cc")
+    assert "el Cd només és a counterUPC_v0 i als genèrics del catàleg" in f.read_text(encoding="utf-8")

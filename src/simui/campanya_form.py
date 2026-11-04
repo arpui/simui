@@ -57,9 +57,6 @@ VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
 CD_ARCS_DEG = [360, 180]
-CD_AVIS = ("Cd només validat sobre counterUPC_v0 fins a TUB-4 (contracte simphy_ui.md §4). "
-           "Avui Geant4 s'ATURA si un tub que no és counterUPC_v0 porta Cd (DetectorConstruction.cc, «el Cd "
-           "només és a counterUPC_v0»): amb lnd_252285 la xarxa el pot avaluar, però la verificació a Geant4 no.")
 SENSE_REGISTRE = "sense registre de validació (CAMP-1 pendent)"
 _ID = re.compile(r"^[A-Za-z0-9_\-]+$")
 _DATA_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -323,6 +320,27 @@ def _validacions() -> Optional[Dict[str, Any]]:
         return None
     data = json.loads(f.read_text())
     return data if isinstance(data, dict) else {}
+
+
+def cd_avis() -> str:
+    """Què diu neudet del Cd, llegit de `validacions.json` (secció `cd`): els tubs amb Cd validat i el límit que
+    declara el seu motiu («Límit: …»). No es fixa aquí quins tubs: avui n'hi ha dos (counterUPC_v0 i lnd_252285),
+    però el que en diu l'avís és el que hi ha al registre. Sense registre, ho diu."""
+    reg = _validacions()
+    cd = (reg or {}).get("cd")
+    if not isinstance(cd, dict) or not cd:
+        return ("Sense registre de validació del Cd (validacions.json, secció `cd`): no es pot dir quins tubs el "
+                "tenen validat. Un esborrany només avisa.")
+    validats = [n for n, e in cd.items() if isinstance(e, dict) and e.get("estat") == "validat"]
+    txt = ["Cd validat sobre: " + (", ".join(validats) if validats else "cap tub") + " (validacions.json)."]
+    for n in validats:
+        m = re.search(r"Límit:\s*(.+)$", str(cd[n].get("motiu", "")))
+        if m:
+            txt.append(f"Límit de {n}: {m.group(1).strip()}")
+    txt.append("Sobre un tub sense Cd validat, la certificació d'un esborrany només avisa; a Geant4 el Cd només hi és "
+               "a counterUPC_v0 i als tubs genèrics del catàleg (DetectorConstruction.cc, TUB-4); "
+               "amb un altre tipus de tub, Geant4 s'atura.")
+    return " ".join(txt)
 
 
 # ── neudet: les llistes i les explicacions, llegides del codi ────────────────
@@ -622,7 +640,7 @@ def schema() -> Dict[str, Any]:
                            "descripcio": "fracció axial coberta: 0 = sense Cd; si no, (0, 1]"},
                "arc": {"minim": 0, "maxim": 360, "fitxer": CANDIDAT_PY, "linia": CD_ARC_LINIA,
                        "descripcio": "arc del Cd en graus, (0, 360] quan hi ha Cd"},
-               "centre_deg": 0, "avis": CD_AVIS, "exemples_contracte": CD_FRACCIONS},
+               "centre_deg": 0, "avis": cd_avis(), "exemples_contracte": CD_FRACCIONS},
         "font": {"tipus": [{"valor": t, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for t in FONT_TIPUS],
                  "eixos": [{"valor": e, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for e in EIXOS],
                  "eix_defecte": {"valor": "z", "fitxer": CANDIDAT_PY, "linia": EIX_DEFECTE_LINIA}},
