@@ -129,7 +129,7 @@ def test_la_plantilla_de_cada_font_es_valida_i_passa_fitxa(tipus):
 
 
 def test_la_pagina_porta_les_accions_i_els_editors_de_tongades():
-    for act in ("tg+", "tg-", "pt+", "pt-", "anell+", "anell-", "atrs+", "atrs-", "tp+", "tp-"):
+    for act in ("tg+", "tg-", "pt+", "pt-", "anell+", "anell-", "tp+", "tp-"):
         assert f"act === '{act}'" in INDEX, act
     for f in ("cTongadaHtml", "cPuntsHtml", "cMallaHtml", "cAnellsHtml", "cAtrsHtml", "cNormLligams", "cTubsVista"):
         assert f"function {f}" in INDEX, f
@@ -264,3 +264,25 @@ def test_comprova_porta_els_numeros_per_tongada_de_neudet():
     assert [t["nom"] for t in r["tongades"]] == ["malla", "anells"]
     assert sum(t["valids"] for t in r["tongades"]) == r["n_valids"]
     assert sum(t["descartats"] for t in r["tongades"]) == r["n_invalids"]
+
+
+def test_un_ventall_dins_d_un_anell_no_demana_lligam_i_neudet_el_genera():
+    """Dins d'un anell, tot el que es posa és d'aquell anell: el ventall no porta `lligam`, passa la fitxa i es compta."""
+    _neudet_o_skip()
+    from neudet.disseny import fitxa
+    anells = {"font": "anells", "anells": [
+        {"r": 4, "n": 2, "phi": 0, "tipus": ["lnd_252285", "lnd_252248"], "cd": {"fraction": 0}, "eix": "z"},
+        {"r": 9, "n": 2, "phi": 0, "tipus": ["lnd_252248"], "cd": {"fraction": [0, 1]}, "eix": "z"}]}
+    t = {"nom": "a", "posicions": anells, "seleccio": "exhaustiu"}          # sense atributs a la tongada
+    f = _form([t], mides=(40.0, 40.0, 90.0), n_tubs=4)
+    cfg = yaml.safe_load(CF.to_yaml(f))
+    assert [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.tongades")] == []
+    assert CC.compta(CF.to_yaml(f), "S1")["n"] == 2 * 1 * 1 * 2          # anell 1: 2 tipus; anell 2: 2 Cd
+
+
+def test_la_pagina_porta_els_atributs_dins_de_cada_anell_i_punt():
+    anells = INDEX.split("function cAnellsHtml")[1].split("function cTongadaHtml")[0]
+    punts = INDEX.split("function cPuntsHtml")[1].split("function cMallaHtml")[0]
+    assert "cAtrsHtml(ap, a, true)" in anells and "Filtres sobre els anells" in anells
+    assert "cAtrsHtml(qp, q, true)" in punts
+    assert anells.index("anell+") < anells.index("n_total")             # els filtres, sota tots els anells

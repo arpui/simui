@@ -689,7 +689,7 @@ function cAtrLlista(path, vals, etiqueta, optFn, def){
 function cLligamSel(p, k, v, n){
   if(n < 2) return '';
   const cur = k === 'cd' ? ((v || {}).lligam || 'global') : (cLlig(v) ? (v.lligam || 'global') : 'global');
-  return cLab('lligam (com varia dins del candidat)', `<select data-lig="${escD(p + '|' + k)}">${CP.schema.tongades.lligams.map(l =>
+  return cLab('amb diversos valors: tots els tubs del candidat ho comparteixen, o no?', `<select data-lig="${escD(p + '|' + k)}">${CP.schema.tongades.lligams.map(l =>
     `<option value="${escD(l.valor)}" ${l.valor === cur ? 'selected' : ''}>${escD(l.valor)} — ${escD(l.text)}</option>`).join('')}</select>`);
 }
 // tipus, Cd i eix d'una tongada (nivell «tongada») o d'un punt/anell (nivell «propi»: sobreescriu el de la tongada).
@@ -700,25 +700,18 @@ function cAtrsHtml(p, o, propi){
   const ex = cAtrLlista(cLlig(o.eix) ? `${p}.eix.valors` : `${p}.eix`, E, 'eix del tub (z = dret; x, y = horitzontal)', (pp, v) => cSel(pp, cEixOpts, v), 'z');
   const cd = o.cd || {};
   const ncd = ['fraction', 'arc', 'centre'].reduce((n, k) => n * (Array.isArray(cd[k]) ? cd[k].length : 1), 1);
-  return `${tp}${cLligamSel(p, 'tipus', o.tipus, T.length)}
+  return `${tp}${propi ? '' : cLligamSel(p, 'tipus', o.tipus, T.length)}
     ${cCdHtml(p, o.cd, propi)}
-    ${ncd > 1 ? cLligamSel(p, 'cd', o.cd, 2) : ''}
-    ${ex}${cLligamSel(p, 'eix', o.eix, E.length)}`;
+    ${!propi && ncd > 1 ? cLligamSel(p, 'cd', o.cd, 2) : ''}
+    ${ex}${propi ? '' : cLligamSel(p, 'eix', o.eix, E.length)}`;
 }
-function cPropisHtml(p, o){
-  const te = ['tipus', 'cd', 'eix'].some(k => o[k] !== undefined);
-  return te ? `<details class="fold" open><summary>atributs propis (sobreescriuen els de la tongada)</summary>${cAtrsHtml(p, o, true)}
-      <div class="bar"><button class="ghost" data-act="atrs-" data-p="${escD(p)}">treu els atributs propis</button></div></details>`
-    : `<div class="bar"><button class="ghost" data-act="atrs+" data-p="${escD(p)}" title="Un tipus, Cd o eix només per a aquest element">+ atributs propis</button></div>`;
-}
-
 function cPuntsHtml(p, pos){
   const files = (pos.punts || []).map((q, k) => {
     const qp = `${p}.punts.${k}`;
     return `<div class="anell"><div class="anell-h"><b>Punt ${k + 1}</b><button class="x" data-act="pt-" data-p="${escD(p + '.punts')}" data-i="${k}">treu</button></div>
       <div class="row3">${cLab('x (cm)', cNumIn(`${qp}.x`, q.x, {ph: '0'}))}${cLab('y (cm)', cNumIn(`${qp}.y`, q.y, {ph: '0'}))}${cLab('z (cm, centre del tub)', cNumIn(`${qp}.z`, q.z, {ph: '0'}))}</div>
       <div class="row">${cLab('grup (opcional: els punts del mateix grup comparteixen atributs)', `<input data-p="${qp}.grup" data-t="ostr" value="${escD(q.grup ?? '')}">`)}</div>
-      ${cPropisHtml(qp, q)}</div>`;
+      ${cAtrsHtml(qp, q, true)}</div>`;
   }).join('');
   return `${files}<div class="bar"><button class="ghost" data-act="pt+" data-p="${escD(p + '.punts')}">+ punt</button></div>`;
 }
@@ -753,11 +746,36 @@ function cAnellsHtml(p, pos){
           <option value="graus" ${phiMig ? '' : 'selected'}>graus (número)</option>
           <option value="mig_pas" ${phiMig ? 'selected' : ''}>mig pas (180/n)</option></select>`)}
         ${phiMig ? '' : cLab('φ (°)', cNumIn(`${ap}.phi`, a.phi === undefined ? undefined : a.phi, {ph: '0'}))}</div>
-      ${cPropisHtml(ap, a)}</div>`;
+      <div class="hint">Els tubs d'aquest anell (tot el que posis aquí és només per a l'anell ${i + 1}):</div>
+      ${cAtrsHtml(ap, a, true)}</div>`;
   }).join('');
-  return `${cLab('n_total (filtre: suma de tubs; buit = sense filtre)', cNumIn(p + '.n_total', pos.n_total, {ph: 'buit'}))}
-    <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${pos.ordenats ? 'checked' : ''}> ordenats (radis creixents entre anells)</label>
-    ${blocs}<div class="bar"><button class="ghost" data-act="anell+" data-p="${escD(p + '.anells')}">+ anell</button></div>`;
+  return `${blocs}<div class="bar"><button class="ghost" data-act="anell+" data-p="${escD(p + '.anells')}">+ anell</button></div>
+    <h3>Filtres sobre els anells <span class="hint">(opcionals; valen per a tots els anells)</span></h3>
+    ${cLab('n_total: la suma de tubs de tots els anells ha de ser… (buit = sense filtre)', cNumIn(p + '.n_total', pos.n_total, {ph: 'buit'}))}
+    <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${pos.ordenats ? 'checked' : ''}> ordenats (els radis creixen d'un anell al següent)</label>`;
+}
+// El bloc «què són els tubs» de la tongada: a la malla (tots els punts comparteixen atributs); a anells i punts, cada
+// element porta els seus, i només es mostra el de la tongada si ja és un ventall seu (un yaml que el porta).
+const cEsVentall = v => cAtrVals(v).length > 1 || cLlig(v);
+function cAtrsTongada(font, t){
+  if(font === 'dat') return false;
+  if(font === 'malla') return true;
+  const cd = t.cd || {};
+  return cEsVentall(t.tipus) || cEsVentall(t.eix) || ['fraction', 'arc', 'centre'].some(k => Array.isArray(cd[k]) ? cd[k].length > 1 : cEsRang(cd[k]));
+}
+// Anells i punts: els atributs simples de la tongada passen a cada element (el mateix candidat: un valor únic val igual
+// a la tongada que a l'element), perquè el formulari els mostri on són.
+function cOmpleta(t){
+  const pos = t.posicions || {};
+  const its = pos.font === 'anells' ? pos.anells : pos.font === 'punts' ? pos.punts : null;
+  if(!its || cAtrsTongada(pos.font, t)) return;
+  for(const k of ['tipus', 'cd', 'eix']){
+    if(t[k] === undefined) continue;
+    its.forEach(q => { if(q[k] === undefined) q[k] = JSON.parse(JSON.stringify(t[k])); });
+    delete t[k];
+  }
+  const tub0 = CP.f.domini.tipus_tub[0];
+  its.forEach(q => { if(q.tipus === undefined) q.tipus = [tub0]; if(q.cd === undefined) q.cd = {fraction: 0}; if(q.eix === undefined) q.eix = 'z'; });
 }
 function cTongadaHtml(i, t){
   const tp = `etapes.${CP.etapa}.tongades.${i}`, pos = t.posicions || {}, font = pos.font;
@@ -773,7 +791,7 @@ function cTongadaHtml(i, t){
     <h3>On són els tubs</h3>
     ${cLab('font de les posicions', cSel(`${tp}.posicions.font`, fonts, font, 'str', `data-tfont="${i}"`))}
     ${ed}
-    ${font === 'dat' ? '' : `<h3>Què són els tubs <span class="hint">(valor o ventall)</span></h3>${cAtrsHtml(tp, t, false)}`}
+    ${cAtrsTongada(font, t) ? `<h3>Què són els tubs <span class="hint">(valor o ventall)</span></h3>${cAtrsHtml(tp, t, false)}` : ''}
     <h3>Quins candidats es proven</h3>
     <div class="row3">${cLab('selecció', `<select data-sel="${i}"><option value="exhaustiu" ${mostres ? '' : 'selected'}>exhaustiu: tots</option><option value="mostres" ${mostres ? 'selected' : ''}>mostres: uns quants a l'atzar</option></select>`)}
       ${mostres ? cLab('mostres', cNumIn(`${tp}.seleccio.mostres`, sel.mostres, {min: 1, ph: '100'})) + cLab('llavor', cNumIn(`${tp}.seleccio.llavor`, sel.llavor, {ph: '0'})) : ''}
@@ -781,6 +799,7 @@ function cTongadaHtml(i, t){
 }
 function cEtapaHtml(){
   const ts = cTongs(), E = CP.etapa;
+  ts.forEach(cOmpleta);
   if(!ts.length) return `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>tongades</code>: no és una etapa de xarxa.</div>`;
   const fonts = CP.schema.tongades.fonts;
   return `<div class="hint">Una etapa és una o més <b>tongades</b>; cada una combina <b>on són els tubs</b> (punts, malla, anells o un .dat) amb <b>què són</b> (tipus, Cd, eix: un valor o un ventall) i una selecció.
@@ -1200,22 +1219,16 @@ function cNormLligams(){
     if(cd && typeof cd === 'object' && cd.lligam === undefined
        && ['fraction', 'arc', 'centre'].some(k => Array.isArray(cd[k]) ? cd[k].length > 1 : cEsRang(cd[k]))) cd.lligam = 'global';
   };
-  cTongs().forEach(t => {
-    arreglaObj(t);
-    const pos = t.posicions || {};
-    (pos.punts || []).forEach(arreglaObj); (pos.anells || []).forEach(arreglaObj);
-  });
+  cTongs().forEach(arreglaObj);                                      // a anells i punts, el ventall de cada element no necessita lligam
 }
 function cAccio(act, ds){
   const E = CP.f.etapes[CP.etapa], tub0 = CP.f.domini.tipus_tub[0];
   if(act === 'tg+') E.tongades.push(cGenNou(Q('#c-tg-font').value));
   if(act === 'tg-' && E.tongades.length > 1) E.tongades.splice(+ds.i, 1);
-  if(act === 'anell+') cGetS(CP.f, ds.p).push({r: {de: 1, a: 1, pas: 1}, n: {de: 1, a: 1}, phi: 0});
+  if(act === 'anell+') cGetS(CP.f, ds.p).push({r: {de: 1, a: 1, pas: 1}, n: {de: 1, a: 1}, phi: 0, tipus: [tub0], cd: {fraction: 0}, eix: 'z'});
   if(act === 'anell-') cGetS(CP.f, ds.p).splice(+ds.i, 1);
-  if(act === 'pt+') cGetS(CP.f, ds.p).push({x: 0, y: 0, z: 0});
+  if(act === 'pt+') cGetS(CP.f, ds.p).push({x: 0, y: 0, z: 0, tipus: [tub0], cd: {fraction: 0}, eix: 'z'});
   if(act === 'pt-') cGetS(CP.f, ds.p).splice(+ds.i, 1);
-  if(act === 'atrs+'){ const o = cGetS(CP.f, ds.p); o.tipus = [tub0]; o.cd = {fraction: 0}; o.eix = 'z'; }
-  if(act === 'atrs-'){ const o = cGetS(CP.f, ds.p); delete o.tipus; delete o.cd; delete o.eix; }
   if(act === 'tp+') cArr(ds.p).push(ds.d === undefined ? tub0 : ds.d);
   if(act === 'tp-') cArr(ds.p).splice(+ds.i, 1);
   if(act && act.startsWith('en')){                                 // energies del domini
