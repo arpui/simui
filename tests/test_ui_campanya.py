@@ -70,10 +70,14 @@ def test_pagina_te_el_formulari_de_proposta_dins_de_neudet(url):
     html = raw.decode()
     assert code == 200
     assert 'data-tab="neudet"' in html and 'id="pg-neudet"' in html
-    for ident in ('id="n-bread"', 'id="n-camp"', 'id="n-form"', 'id="c-form"', 'id="c-yaml"', 'id="c-res"',
-                  'id="c-comprova"', 'id="c-desa"', 'id="c-baixa"'):
+    for ident in ('id="n-bread"', 'id="n-camp"', 'id="n-form"', 'id="c-form"', 'id="c-yaml"',
+                  'id="c-desa"', 'id="c-baixa"', 'id="c-flux"'):
         assert ident in html, ident
     assert '+ Nova campanya' in html and 'data-k="nova"' in html
+    # el flux després de desar és explícit, i no hi ha cap botó «Comprova» que sembli un pas del flux
+    assert "Comprova amb neudet" not in html and 'id="c-comprova"' not in html
+    for pas in ("planificador de neudet", "runbook-run", "executada", "jutjada", "no corre cap simulació"):
+        assert pas in html, pas
 
 
 # ── rutes d'entrada ─────────────────────────────────────────────────────────
@@ -202,7 +206,7 @@ def test_compta_d_una_llista_tancada_fora_de_neudet_es_400(url):
 
 def _bloc_campanya(html: str) -> str:
     a = html.index("// ── Definició de campanya (C1, C2)")
-    return html[a:html.index("function cPintaRes(r){")]
+    return html[a:html.index("function cPintaCert(c){")]
 
 
 def test_pagina_campanya_nota_i_recompte_i_candidat_nomes_a_llista(url):

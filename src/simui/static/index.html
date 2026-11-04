@@ -272,20 +272,25 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 <section class="out">
   <div id="n-camp">
     <div id="n-form">
+      <details class="fold" id="c-flux" open><summary>Com va: què fa aquesta pantalla i què ve després</summary>
+        <ol class="flux">
+          <li><b>Aquí (la UI):</b> defineixes la campanya i prems «Desa la proposta». neudet la certifica en desar; si certifica, escriu <code>campanya.yaml</code> i
+            <code>comprova.json</code> a <code>neudet/disseny/campanyes/&lt;id&gt;/</code> amb <code>estat: proposta</code>. <b>La UI no corre cap simulació.</b></li>
+          <li><b>Tu al planificador de neudet:</b> li dius «campanya <code>&lt;id&gt;</code> proposta». Ell revisa la definició i la certificació, i escriu el <code>PLA.md</code> i el runbook.</li>
+          <li><b>L'agent <code>runbook-run</code>:</b> corre la xarxa i el Geant4. Quan acaba, tu dius al planificador «<code>&lt;id&gt;</code> executada».</li>
+          <li><b>El planificador:</b> fa el judici i el report. Quan diu a simphy «<code>&lt;id&gt;</code> jutjada», la campanya surt amb resultats a la pestanya «Campanyes».</li>
+        </ol>
+        <div class="hint">Font: <code>neudet/docs/site/runbooks/_flux_campanya.md</code>. «Descarrega .yaml» no escriu res.</div>
+      </details>
       <div class="bar">
         <button id="c-desa">Desa la proposta</button>
         <button class="ghost" id="c-baixa">Descarrega .yaml</button>
-        <button class="ghost" id="c-comprova">Comprova amb neudet</button>
-        <span class="note">«Desa la proposta» escriu a neudet (<code>campanya.yaml</code> i <code>comprova.json</code>) només si neudet
-        la certifica. «Descarrega» i «Comprova» no escriuen res.</span>
       </div>
       <div id="c-err"></div>
       <div id="c-desat"></div>
       <div id="c-form"><div class="hint">Carregant la proposta…</div></div>
       <h2>campanya.yaml (en viu)</h2>
       <pre class="yamlbox" id="c-yaml"></pre>
-      <h2>Comprovació de neudet</h2>
-      <div id="c-res"><div class="hint">Encara no s'ha comprovat. Premeu «Comprova amb neudet».</div></div>
     </div>
     <div id="k-out"><div class="hint">Carregant les campanyes de neudet…</div></div>
   </div>
@@ -1275,17 +1280,6 @@ async function cInit(){
   cPintaForm(); cYaml();
 }
 
-function cPintaRes(r){
-  let h = '';
-  h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
-  if(r.tongades && r.tongades.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th>tongada</th><th>recompte</th><th>generats</th><th>repetits</th><th>vàlids</th><th>descartats</th></tr></thead><tbody>${r.tongades.map(t => `<tr><td>${escD(t.nom)}</td><td>${t.recompte}</td><td>${t.generats}</td><td>${t.repetits}</td><td>${t.valids}</td><td>${t.descartats}</td></tr>`).join('')}</tbody></table></div>`;
-  if(r.motius.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table></div>`;
-  h += cPintaCert(r.certificacio);
-  if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo com a disseny</h2>
-    <div class="cgrid">${r.candidats.map((c, i) => `<button class="cand" data-cand="${i}" title="${escD(c.hash)}"><div class="cn">${escD(c.nom)}</div>${c.xy_svg}<div class="hint">${escD(c.hash)} · ${c.tubs.length} tubs</div></button>`).join('')}</div>`;
-  Q('#c-res').innerHTML = h;
-}
-// La certificació és la de neudet (`comprova_campanya.py --json`, contracte §5 pas 2): es mostra tal com ve.
 function cPintaCert(c){
   if(!c) return '';
   if(!c.disponible){
@@ -1301,33 +1295,19 @@ function cPintaCert(c){
     c.elements.map(e => `<tr><td>${marca[e.estat] || '?'}</td><td>${escD(e.element)}</td><td>${escD(e.estat)}</td><td>${escD(e.motiu || '')}</td><td>${escD(e.document || '')}</td></tr>`).join('')}</tbody></table></div>`;
   return h;
 }
-async function cComprova(){
-  Q('#c-res').innerHTML = '<div class="hint">neudet comprova la campanya…</div>';
-  try{
-    const y = await api('/api/campanya/yaml', {form: CP.f});
-    const r = await api('/api/campanya/comprova', {yaml_text: y.yaml, etapa: CP.etapa});
-    CP.res = r; cPintaRes(r);
-  } catch(e){
-    CP.res = null;
-    Q('#c-res').innerHTML = `<div class="panel bad"><b>neudet diu:</b><pre class="pre">${escD(e.message)}</pre></div>`;
-  }
-}
-async function cObre(i){
-  const c = CP.res && CP.res.candidats[i];
-  if(!c) return;
-  // una proposta que no és a neudet encara no té campanya: el candidat s'obre sense «Tanteja»
-  const de = KC.lista.some(x => x.id === CP.f.id) ? CP.f.id : null;
-  await nzObreCandidat({hash: c.hash, nom: c.nom, de, dat_text: c.dat_text, json_text: c.json_text}).catch(err => dErr(err.message));
-}
-// «Desa la proposta»: neudet escriu campanya.yaml (estat: proposta) i comprova.json, i només si certifica.
 async function cDesa(){
   Q('#c-desat').innerHTML = '<div class="hint">neudet certifica la proposta…</div>';
   try{
     const r = await api('/api/campanya/desa', {form: CP.f});
     const marca = r.atura ? '<span class="tag t-no">neudet diu: cal aturar</span>' : '<span class="tag t-ok">certificada</span>';
-    Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada</b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
+    const id = escD(r.id);
+    Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada: <code>${id}</code></b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
       <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
-      <div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(r.missatge)}</pre></div>`;
+      <p><b>Ara et toca a tu</b> (la UI s'atura aquí i no ha corregut cap simulació):</p>
+      <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
+        <li>Ell revisa i prepara el pla i el runbook; l'agent <code>runbook-run</code> corre la xarxa i el Geant4.</li>
+        <li>Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
+      ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
     // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
     await nzLlegeixLlista().catch(() => {});
     NZ.dis = null; NZ.sel = {k: 'form', id: CP.f.id}; nzVeu();
@@ -1337,7 +1317,6 @@ async function cDesa(){
 function cCarrega(form, nota){
   CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null;
   cPintaForm(); cYaml();
-  Q('#c-res').innerHTML = '<div class="hint">Encara no s\'ha comprovat. Premeu «Comprova amb neudet».</div>';
   Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>`;
 }
 // «Tanteja»: la campanya (o un candidat seu) com a proposta nova amb id derivat. L'original no es toca.
@@ -1389,11 +1368,6 @@ Q('#c-form').addEventListener('pointerdown', e => {
   document.addEventListener('pointermove', mou); document.addEventListener('pointerup', fi);
   e.preventDefault();
 });
-Q('#c-res').addEventListener('click', e => {
-  const b = e.target.closest('button.cand');
-  if(b) cObre(+b.dataset.cand).catch(err => dErr(err.message));
-});
-Q('#c-comprova').onclick = cComprova;
 Q('#c-desa').onclick = cDesa;
 Q('#c-baixa').onclick = cBaixa;
 });

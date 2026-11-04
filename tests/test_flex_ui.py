@@ -292,3 +292,10 @@ def test_la_vista_dels_anells_usa_el_pas_per_defecte_de_neudet_i_el_n_total():
     """Un rang sense `pas` val 1 a neudet (`valors`): si la vista no ho fes, un rang com {de: 0, a: 8} no dibuixaria cap tub."""
     vista = INDEX.split("function cVals")[1].split("function cBlocSvg")[0]
     assert "v.pas === undefined" in vista and "pos.n_total" in vista
+
+
+def test_despres_de_desar_la_pagina_diu_que_es_fa_i_amb_quin_missatge():
+    """Després de «Desa la proposta», la UI diu que s'atura, el missatge per al planificador i què ve després."""
+    desa = INDEX.split("async function cDesa(){")[1].split("// Un formulari carregat")[0]
+    for t in ("Ara et toca a tu", "r.missatge", "executada", "runbook-run", "no ha corregut cap simulació"):
+        assert t in desa, t
