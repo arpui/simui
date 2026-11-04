@@ -89,17 +89,21 @@ tub i per codi, amb la provenance de cada xifra. **Una xifra sense provenance no
 Dependència: **F2 és el format comú de resultats per tub**, i l'ha de fixar neudet. Fins
 llavors, aquesta pestanya només pot llegir el que neudet ja publica.
 
-### 4 · Disseny flexible (FLEX-UI, contracte v1.2 §9)
-- **Generador `posicions`** al formulari de campanya: posicions fixes (x, y, z, `eix`) amb, per posició, un ventall de tipus de tub i de Cd.
-  El candidat és el producte de les opcions de totes les posicions; el formulari diu quants en surten.
-  `eix` (z, x o y) és un sol valor per posició: per comparar orientacions, una etapa per orientació.
-- **Visor:** un tub girat és un rectangle a la vista XY; al tall XZ (y = 0), una franja si l'eix és x i un cercle si és y. La taula afegeix la
-  columna «Eix» només si hi ha tubs girats. L'eix es llegeix del `.json` del costat (`tubes[i].eix`).
-- **Validesa:** la fa neudet (`violacions` en 3D); la UI la mostra. El formulari només refusa el que neudet no llegiria (eix fora de x|y|z,
-  Cd amb sector en un tub girat, posició sense x o y).
-- **Límit:** MCNP, OpenMC i FLUKA de simphy construeixen tots els tubs al llarg de z. Amb un tub girat **refusen** (`exigeix_tubs_drets`), no
-  generen un altre detector en silenci. Geant4 (app `detector`) i el motor de neudet sí que els fan.
-- **Vista dels tubs al formulari:** el bloc de PE amb la font i els tubs de l'etapa activa (anells, posicions, graella, malla o llista), a «Domini» i sobre el generador. És orientativa (mida dels tubs no a escala) i no valida res: ho fa «Comprova». A `posicions`, una posició es pot arrossegar i escriu x i y al formulari.
+### 4 · Estructura de l'etapa: tongades (GEN-U-UI, contracte v1.3 §10)
+Una etapa és una o més **tongades**; cada una és **on són els tubs × què són els tubs → quins candidats es proven**.
+- **On són els tubs** (font): `punts` (posicions fixes x, y, z), `malla` (quadrada, hexagonal o polar; `k` tubs per candidat, k = 1 és un tub a cada punt),
+  `anells` (r, n, φ: valor, llista o rang) o `dat` (un candidat fix). Un punt o un anell pot tenir «atributs propis» que sobreescriuen els de la tongada.
+- **Què són** (tipus, Cd, eix): un valor o un ventall; amb ventall, el `lligam` (global, grup o tub) diu com varia dins del candidat. La UI posa «global» quan un
+  atribut passa a tenir diversos valors (la fitxa l'exigeix explícit).
+- **Quins es proven:** exhaustiu, o `mostres` a l'atzar amb llavor; `max_candidats` (0 = sense límit).
+- Diverses tongades per etapa (p. ex. una malla i uns anells): se sumen. El recompte de cada una és el de neudet (`generadors.recompte_etapa`): la UI no
+  expandeix ni compta. «Comprova» afegeix, per tongada, generats, repetits, vàlids i descartats.
+- **Yaml antics:** un `generador` (c01–c04) s'obre com a `tongades`, traduït per neudet (`tradueix_antic`): mateixos candidats i hashes (proves a `tests/test_flex_ui.py`).
+  El yaml que s'hi desa porta `tongades`, sense els camps interns de la traducció.
+- **Vista dels tubs:** el bloc de PE amb la font i, per cada tongada (un color), una combinació dels tubs; a `punts` es poden arrossegar. Orientativa (mida dels
+  tubs no a escala); no valida res: ho fa «Comprova».
+- **Tubs girats** (`eix` x o y): el visor els dibuixa com a rectangle a XY i, al tall XZ, com a franja (eix x) o cercle (eix y); la taula afegeix la columna «Eix».
+  MCNP, OpenMC i FLUKA de simphy **refusen** els tubs girats (`exigeix_tubs_drets`); els fan Geant4 (app `detector`) i el motor de neudet.
 - Proves: `tests/test_flex_ui.py`.
 
 ## Fora d'abast, de moment

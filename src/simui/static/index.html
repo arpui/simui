@@ -611,22 +611,14 @@ function cParse(el){
 }
 const cPairs = p => (p || []).map(x => x.join(' ')).join(', ');
 
-// Ajuda del generador: el paràgraf del docstring de generadors.py, tal com el llegeix el servidor.
-function cAjudaGen(tipus){
-  const d = CP.schema.generadors.find(x => x.tipus === tipus);
-  if(!d || !d.ajuda) return '';
-  return `<div class="panel ajuda">${escD(d.ajuda.text)}
-    <div class="hint">neudet: <span class="src">${escD(cSrc(d.ajuda.fitxer, d.ajuda.linia))}</span> (docstring del mòdul)</div></div>`;
-}
-// Plantilla d'un generador nou: el `__TUB__` és el tipus de tub del domini (plantilles de neudet via simphy).
-function cGenNou(t){
+// Tongada nova d'una font: el `__TUB__` és el tipus de tub del domini; el nom, únic dins de l'etapa.
+function cGenNou(font){
   const tub = JSON.stringify(CP.f.domini.tipus_tub[0]);
-  return JSON.parse(JSON.stringify(CP.schema.plantilles[t]).split('"__TUB__"').join(tub));
-}
-function cSetMode(p, mode){
-  const g = cGet(CP.f, p);
-  delete g.x; delete g.y; delete g.polar;
-  if(mode === 'polar') g.polar = {r: [1], theta: [0]}; else { g.x = [0]; g.y = [0]; }
+  const t = JSON.parse(JSON.stringify(CP.schema.plantilles[font]).split('"__TUB__"').join(tub));
+  const noms = new Set(cTongs().map(x => x.nom));
+  let n = font, k = 1; while(noms.has(n)){ k++; n = font + k; }
+  t.nom = n;
+  return t;
 }
 
 // Un valor de tall numèric (number) o un rang {de, a, pas}, o una llista: només la forma simple s'edita.
@@ -682,149 +674,120 @@ function cNumList(p, v, lab, d = 0){
     <button class="ghost" data-act="nl+" data-p="${escD(p)}" data-d="${d}">+ valor</button></div>`;
 }
 
-// Tipus de tub com a ventall (llista): un select per tipus, amb «+ tipus» i ×. Un tipus sol es guarda com a llista d'un element.
-function cTipusLlista(path, valor, etiqueta){
-  const tps = Array.isArray(valor) ? valor : [valor ?? CP.f.domini.tipus_tub[0]];
-  return `<div class="nl"><div class="nl-h">${escD(etiqueta)}</div>${tps.map((tp, k) =>
-    `<span class="nlc">${cSelTub(`${path}.${k}`, tp)}${tps.length > 1 ? `<button class="x" data-act="tp-" data-p="${escD(path)}" data-i="${k}">×</button>` : ''}</span>`).join('')}
-    <button class="ghost" data-act="tp+" data-p="${escD(path)}">+ tipus</button></div>`;
+// ── Tongades (GEN-U, contracte UI v1.3 §10): cada etapa és una o més tongades = posicions × atributs → selecció ──
+const cTongs = () => (CP.f.etapes[CP.etapa] || {}).tongades || [];
+const cEixOpts = [{valor: 'z'}, {valor: 'x'}, {valor: 'y'}];
+const cLlig = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) && v.valors !== undefined);
+// Llista d'un atribut (`tipus`, `eix`): un valor, una llista o {valors, lligam}.
+const cAtrVals = v => cLlig(v) ? (Array.isArray(v.valors) ? v.valors : [v.valors]) : (Array.isArray(v) ? v : (v === undefined ? [] : [v]));
+function cAtrLlista(path, vals, etiqueta, optFn, def){
+  const arr = vals.length ? vals : [def];
+  return `<div class="nl"><div class="nl-h">${escD(etiqueta)}</div>${arr.map((v, k) =>
+    `<span class="nlc">${optFn(`${path}.${k}`, v)}${arr.length > 1 ? `<button class="x" data-act="tp-" data-p="${escD(path)}" data-i="${k}">×</button>` : ''}</span>`).join('')}
+    <button class="ghost" data-act="tp+" data-p="${escD(path)}" data-d="${escD(def)}">+ valor</button></div>`;
 }
-function cAnellsHtml(p, g){
-  const ttip = CP.f.domini.tipus_tub[0];
-  const blocs = (g.anells || []).map((a, i) => {
+function cLligamSel(p, k, v, n){
+  if(n < 2) return '';
+  const cur = k === 'cd' ? ((v || {}).lligam || 'global') : (cLlig(v) ? (v.lligam || 'global') : 'global');
+  return cLab('lligam (com varia dins del candidat)', `<select data-lig="${escD(p + '|' + k)}">${CP.schema.tongades.lligams.map(l =>
+    `<option value="${escD(l.valor)}" ${l.valor === cur ? 'selected' : ''}>${escD(l.valor)} — ${escD(l.text)}</option>`).join('')}</select>`);
+}
+// tipus, Cd i eix d'una tongada (nivell «tongada») o d'un punt/anell (nivell «propi»: sobreescriu el de la tongada).
+function cAtrsHtml(p, o, propi){
+  const tub0 = CP.f.domini.tipus_tub[0];
+  const T = cAtrVals(o.tipus), E = cAtrVals(o.eix);
+  const tp = cAtrLlista(cLlig(o.tipus) ? `${p}.tipus.valors` : `${p}.tipus`, T, 'tipus de tub (ventall: cada tipus és una opció)', (pp, v) => cSelTub(pp, v), tub0);
+  const ex = cAtrLlista(cLlig(o.eix) ? `${p}.eix.valors` : `${p}.eix`, E, 'eix del tub (z = dret; x, y = horitzontal)', (pp, v) => cSel(pp, cEixOpts, v), 'z');
+  const cd = o.cd || {};
+  const ncd = ['fraction', 'arc', 'centre'].reduce((n, k) => n * (Array.isArray(cd[k]) ? cd[k].length : 1), 1);
+  return `${tp}${cLligamSel(p, 'tipus', o.tipus, T.length)}
+    ${cCdHtml(p, o.cd, propi)}
+    ${ncd > 1 ? cLligamSel(p, 'cd', o.cd, 2) : ''}
+    ${ex}${cLligamSel(p, 'eix', o.eix, E.length)}`;
+}
+function cPropisHtml(p, o){
+  const te = ['tipus', 'cd', 'eix'].some(k => o[k] !== undefined);
+  return te ? `<details class="fold" open><summary>atributs propis (sobreescriuen els de la tongada)</summary>${cAtrsHtml(p, o, true)}
+      <div class="bar"><button class="ghost" data-act="atrs-" data-p="${escD(p)}">treu els atributs propis</button></div></details>`
+    : `<div class="bar"><button class="ghost" data-act="atrs+" data-p="${escD(p)}" title="Un tipus, Cd o eix només per a aquest element">+ atributs propis</button></div>`;
+}
+
+function cPuntsHtml(p, pos){
+  const files = (pos.punts || []).map((q, k) => {
+    const qp = `${p}.punts.${k}`;
+    return `<div class="anell"><div class="anell-h"><b>Punt ${k + 1}</b><button class="x" data-act="pt-" data-p="${escD(p + '.punts')}" data-i="${k}">treu</button></div>
+      <div class="row3">${cLab('x (cm)', cNumIn(`${qp}.x`, q.x, {ph: '0'}))}${cLab('y (cm)', cNumIn(`${qp}.y`, q.y, {ph: '0'}))}${cLab('z (cm, centre del tub)', cNumIn(`${qp}.z`, q.z, {ph: '0'}))}</div>
+      <div class="row">${cLab('grup (opcional: els punts del mateix grup comparteixen atributs)', `<input data-p="${qp}.grup" data-t="ostr" value="${escD(q.grup ?? '')}">`)}</div>
+      ${cPropisHtml(qp, q)}</div>`;
+  }).join('');
+  return `${files}<div class="bar"><button class="ghost" data-act="pt+" data-p="${escD(p + '.punts')}">+ punt</button></div>`;
+}
+function cMallaHtml(p, pos){
+  const forma = pos.forma ?? 'quadrada', pas = pos.pas_cm !== undefined;
+  const formes = CP.schema.tongades.formes.map(f => ({valor: f}));
+  let cos;
+  if(forma === 'polar') cos = `<div class="row">${cNumList(p + '.r', pos.r, 'r (cm)')}${cNumList(p + '.theta', pos.theta, 'θ (°)')}</div>`;
+  else {
+    const mode = forma === 'hexagonal' ? 'pas' : (pas ? 'pas' : 'valors');
+    cos = (forma === 'quadrada' ? cLab('punts de la malla', `<select data-mallamode="${escD(p)}"><option value="valors" ${mode === 'valors' ? 'selected' : ''}>els valors de x i y que triï</option><option value="pas" ${mode === 'pas' ? 'selected' : ''}>un pas dins del bloc</option></select>`) : '')
+      + (mode === 'valors' ? `<div class="row">${cNumList(p + '.x', pos.x, 'x (cm)')}${cNumList(p + '.y', pos.y, 'y (cm)')}</div>`
+        : `<div class="row3">${cLab('pas (cm)', cNumIn(p + '.pas_cm', pos.pas_cm, {min: 0}))}${cLab('r mín (cm)', cNumIn(p + '.r_min_cm', pos.r_min_cm, {min: 0}))}${cLab('r màx (cm)', cNumIn(p + '.r_max_cm', pos.r_max_cm, {min: 0}))}</div>`);
+  }
+  return `<div class="row3">${cLab('forma', cSel(p + '.forma', formes, forma, 'str', `data-forma="${escD(p)}"`))}${cLab('k (tubs per candidat)', cNumIn(p + '.k', pos.k, {min: 1, ph: '1'}))}${cLab('z (cm)', cNumIn(p + '.z', pos.z, {ph: '0'}))}</div>
+    ${cos}<div class="hint">k = 1: un tub a cada punt (un candidat per punt). k > 1: es trien k punts de la malla per candidat (tots els possibles, o uns quants a l'atzar amb «mostres»).</div>`;
+}
+function cAnellsHtml(p, pos){
+  const blocs = (pos.anells || []).map((a, i) => {
     const ap = `${p}.anells.${i}`;
     const R = cEsRang(a.r) ? a.r : {de: a.r, a: a.r}, N = cEsRang(a.n) ? a.n : {de: a.n, a: a.n};
     const okR = cRngOk(a.r), okN = cRngOk(a.n);
     const phiMig = a.phi === 'mig_pas';
     const rngHtml = (k, lab, V, ok) => ok
-      ? `<div class="row3">${cLab(lab + ' de', cNumIn(`${ap}.${k}.de`, V.de))}${cLab(lab + ' a', cNumIn(`${ap}.${k}.a`, V.a))}${k === 'r' ? cLab('pas', cNumIn(`${ap}.r.pas`, V.pas, {ph: '1'})) : cLab('pas', cNumIn(`${ap}.n.pas`, V.pas, {ph: '1'}))}</div>`
+      ? `<div class="row3">${cLab(lab + ' de', cNumIn(`${ap}.${k}.de`, V.de))}${cLab(lab + ' a', cNumIn(`${ap}.${k}.a`, V.a))}${cLab('pas', cNumIn(`${ap}.${k}.pas`, V.pas, {ph: '1'}))}</div>`
       : `<div class="row">${cLab(lab, cRO(a[k]) + ' <span class="hint">llista o rang: a neudet</span>')}</div>`;
     return `<div class="anell"><div class="anell-h"><b>Anell ${i + 1}</b>
-        <button class="x" data-act="anell-" data-i="${i}">treu</button></div>
+        <button class="x" data-act="anell-" data-p="${escD(p + '.anells')}" data-i="${i}">treu</button></div>
       ${rngHtml('r', 'r (cm)', R, okR)}
       ${rngHtml('n', 'n (tubs; 0 = anell buit)', N, okN)}
-      <div class="row">${cLab('φ (graus, o mig pas)', `<select data-phisel="${ap}.phi" ${''}>
+      <div class="row">${cLab('φ (graus, o mig pas)', `<select data-phisel="${ap}.phi">
           <option value="graus" ${phiMig ? '' : 'selected'}>graus (número)</option>
           <option value="mig_pas" ${phiMig ? 'selected' : ''}>mig pas (180/n)</option></select>`)}
         ${phiMig ? '' : cLab('φ (°)', cNumIn(`${ap}.phi`, a.phi === undefined ? undefined : a.phi, {ph: '0'}))}</div>
-      <div class="row">${cTipusLlista(`${ap}.tipus`, Array.isArray(a.tipus) || a.tipus === undefined ? (a.tipus ?? ttip) : a.tipus, 'tipus de tub (ventall: cada tipus és una opció)')}</div>
-      ${cCdHtml(ap, a.cd)}</div>`;
+      ${cPropisHtml(ap, a)}</div>`;
   }).join('');
-  return `${cLab('n_total (filtre: suma de tubs; buit = sense filtre)', cNumIn(p + '.n_total', g.n_total, {ph: 'buit'}))}
-    <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${g.ordenats ? 'checked' : ''}> ordenats (radis creixents entre anells)</label>
-    ${blocs}<div class="bar"><button class="ghost" data-act="anell+">+ anell</button></div>`;
+  return `${cLab('n_total (filtre: suma de tubs; buit = sense filtre)', cNumIn(p + '.n_total', pos.n_total, {ph: 'buit'}))}
+    <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${pos.ordenats ? 'checked' : ''}> ordenats (radis creixents entre anells)</label>
+    ${blocs}<div class="bar"><button class="ghost" data-act="anell+" data-p="${escD(p + '.anells')}">+ anell</button></div>`;
 }
-
-function cMapaHtml(p, g){
-  const mode = g.polar ? 'polar' : 'xy';
-  const pl = g.polar || {};
-  return `${cLab('mode de la graella', `<select data-gmode="${p}">
-      <option value="xy" ${mode === 'xy' ? 'selected' : ''}>cartesiana (x, y)</option>
-      <option value="polar" ${mode === 'polar' ? 'selected' : ''}>polar (r, θ)</option></select>`)}
-    ${cTipusLlista(p + '.tipus_tub', g.tipus_tub, 'tipus del tub (ventall: cada tipus és una opció)')}
-    ${cCdHtml(p, g.cd)}
-    ${mode === 'xy'
-      ? `<div class="row">${cNumList(p + '.x', g.x, 'x (cm)')}${cNumList(p + '.y', g.y, 'y (cm)')}</div>`
-      : `<div class="row">${cNumList(p + '.polar.r', pl.r, 'r (cm)')}${cNumList(p + '.polar.theta', pl.theta, 'θ (°)')}</div>`}`;
+function cTongadaHtml(i, t){
+  const tp = `etapes.${CP.etapa}.tongades.${i}`, pos = t.posicions || {}, font = pos.font;
+  const fonts = CP.schema.tongades.fonts.map(f => ({valor: f.valor, text: f.valor + ' — ' + f.text}));
+  const sel = t.seleccio ?? 'exhaustiu', mostres = sel !== 'exhaustiu';
+  const ed = font === 'punts' ? cPuntsHtml(`${tp}.posicions`, pos) : font === 'malla' ? cMallaHtml(`${tp}.posicions`, pos)
+    : font === 'anells' ? cAnellsHtml(`${tp}.posicions`, pos)
+    : font === 'dat' ? `<div class="row">${cLab('camí del .dat (relatiu a la campanya)', `<input data-p="${tp}.posicions.dat" data-t="str" value="${escD(pos.dat ?? '')}">`)}</div><div class="hint">Un candidat fix: sense atributs.</div>`
+    : `<div class="panel bad">La font «${escD(font)}» no té formulari.</div>`;
+  return `<div class="tongada"><div class="anell-h"><b>Tongada ${i + 1}</b>
+      <input data-p="${tp}.nom" data-t="str" value="${escD(t.nom ?? '')}" placeholder="nom de la tongada (únic dins de l'etapa)">
+      <button class="x" data-act="tg-" data-i="${i}" ${cTongs().length < 2 ? 'disabled' : ''}>treu</button></div>
+    <h3>On són els tubs</h3>
+    ${cLab('font de les posicions', cSel(`${tp}.posicions.font`, fonts, font, 'str', `data-tfont="${i}"`))}
+    ${ed}
+    ${font === 'dat' ? '' : `<h3>Què són els tubs <span class="hint">(valor o ventall)</span></h3>${cAtrsHtml(tp, t, false)}`}
+    <h3>Quins candidats es proven</h3>
+    <div class="row3">${cLab('selecció', `<select data-sel="${i}"><option value="exhaustiu" ${mostres ? '' : 'selected'}>exhaustiu: tots</option><option value="mostres" ${mostres ? 'selected' : ''}>mostres: uns quants a l'atzar</option></select>`)}
+      ${mostres ? cLab('mostres', cNumIn(`${tp}.seleccio.mostres`, sel.mostres, {min: 1, ph: '100'})) + cLab('llavor', cNumIn(`${tp}.seleccio.llavor`, sel.llavor, {ph: '0'})) : ''}
+      ${cLab('màx. candidats (0 = sense límit)', cNumIn(`${tp}.max_candidats`, t.max_candidats, {min: 0, ph: String(CP.schema.tongades.max_candidats)}))}</div></div>`;
 }
-
-// Els tubs de la llista: neudet els accepta com [x, y] o com {x, y, z, tipus}. L'editor els porta a {…}.
-function cNormTubs(cp){
-  const c = cGetS(CP.f, cp);
-  if(!c) return [];
-  c.tubs = (c.tubs || []).map(t => Array.isArray(t) ? {x: t[0], y: t[1]} : t);
-  return c.tubs;
-}
-function cLlistaHtml(p, g){
-  const blocs = (g.candidats || []).map((c, j) => {
-    const cp = `${p}.candidats.${j}`;
-    if(c.dat) return `<div class="anell"><div class="anell-h"><input data-p="${cp}.nom" data-t="str" value="${escD(c.nom ?? '')}" placeholder="nom del candidat">
-        <button class="x" data-act="cand-" data-i="${j}">treu</button></div>
-        <div class="panel warn">Fitxer .dat: <code>${escD(c.dat)}</code> (no editable aquí)</div></div>`;
-    const tubs = (c.tubs || []).map(t => Array.isArray(t) ? {x: t[0], y: t[1]} : t);
-    const files = tubs.map((t, k) => `<div class="tubrow">${cNumIn(`${cp}.tubs.${k}.x`, t.x, {ph: 'x (cm)'})}${cNumIn(`${cp}.tubs.${k}.y`, t.y, {ph: 'y (cm)'})}${cNumIn(`${cp}.tubs.${k}.z`, t.z, {ph: 'z (cm)'})}${cSelTub(`${cp}.tubs.${k}.tipus`, t.tipus ?? CP.f.domini.tipus_tub[0])}${cNumIn(`${cp}.tubs.${k}.cd_fraction`, t.cd_fraction, {min: 0, max: 1, ph: 'Cd fracció'})}${cNumIn(`${cp}.tubs.${k}.cd_arc_deg`, t.cd_arc_deg, {min: 0, max: 360, ph: 'arc °'})}${cNumIn(`${cp}.tubs.${k}.cd_arc_centre_deg`, t.cd_arc_centre_deg, {ph: 'centre °'})}<button class="x" data-act="tub-" data-p="${cp}.tubs" data-i="${k}">treu</button></div>`).join('');
-    return `<div class="anell"><div class="anell-h"><input data-p="${cp}.nom" data-t="str" value="${escD(c.nom ?? '')}" placeholder="nom del candidat">
-        <button class="x" data-act="cand-" data-i="${j}">treu</button></div>
-        <div class="hint">tubs (x, y, z en cm; tipus del catàleg; Cd: fracció, arc i centre, opcionals — sense fracció, no hi ha Cd)</div>${files}
-        <div class="bar"><button class="ghost" data-act="tub+" data-p="${cp}.tubs">+ tub</button></div></div>`;
-  }).join('');
-  return `${blocs}<div class="bar"><button class="ghost" data-act="cand+">+ candidat</button></div>
-    <div class="hint">Cada candidat és una estructura fixa de tubs, i es proven tal com són. Els fitxers .dat, a la llista de la fase C3.</div>`;
-}
-
-// FLEX-G: posicions fixes (x, y, z, eix). Per posició, un ventall de tipus i de Cd; el candidat és el producte
-// cartesià de les opcions de totes les posicions (generadors.py: _posicions).
-function cPosicionsHtml(p, g){
-  const ttip = CP.f.domini.tipus_tub[0];
-  const eixos = [{valor: 'z'}, {valor: 'x'}, {valor: 'y'}];
-  const nTipus = q => (Array.isArray(q.tipus) ? q.tipus.length : (q.tipus ? 1 : 1));
-  const opcCd = cd => {
-    const n = v => Array.isArray(v) ? v.length : (cEsRang(v) ? null : 1);
-    const f = n((cd || {}).fraction ?? 0);
-    if(f === null) return null;
-    const fv = (cd || {}).fraction;
-    const nz = Array.isArray(fv) ? fv.filter(x => Number(x) !== 0).length : (Number(fv ?? 0) !== 0 ? 1 : 0);
-    const z = f - nz;
-    const a = n((cd || {}).arc ?? 360), c = n((cd || {}).centre ?? 0);
-    return a === null || c === null ? null : z + nz * a * c;
-  };
-  let combos = 1, exacte = true;
-  const blocs = (g.posicions || []).map((q, i) => {
-    const pp = `${p}.posicions.${i}`;
-    if(!Array.isArray(q.tipus)) q.tipus = [q.tipus ?? ttip];     // l'editor porta `tipus` a llista
-    const tps = q.tipus;
-    const oc = opcCd(q.cd);
-    if(oc === null) exacte = false; else combos *= tps.length * oc;
-    const girat = (q.eix ?? 'z') !== 'z';
-    return `<div class="anell"><div class="anell-h"><b>Posició ${i + 1}</b>
-        <button class="x" data-act="pos-" data-i="${i}">treu</button></div>
-      <div class="row3">${cLab('x (cm)', cNumIn(`${pp}.x`, q.x, {ph: '0'}))}${cLab('y (cm)', cNumIn(`${pp}.y`, q.y, {ph: '0'}))}${cLab('z (cm, centre del tub)', cNumIn(`${pp}.z`, q.z, {ph: '0'}))}</div>
-      <div class="row">${cLab('eix del tub', cSel(`${pp}.eix`, eixos, q.eix ?? 'z'))}</div>
-      <div class="nl"><div class="nl-h">tipus de tub (ventall: cada tipus és una opció)</div>${tps.map((tp, k) =>
-        `<span class="nlc">${cSelTub(`${pp}.tipus.${k}`, tp)}${tps.length > 1 ? `<button class="x" data-act="tp-" data-p="${escD(pp + '.tipus')}" data-i="${k}">×</button>` : ''}</span>`).join('')}
-        <button class="ghost" data-act="tp+" data-p="${escD(pp + '.tipus')}">+ tipus</button></div>
-      ${cCdHtml(pp, q.cd, i > 0)}
-      ${girat ? `<div class="hint">Tub girat (eix ${escD(q.eix)}): només els tubs genèrics del catàleg es poden girar, i el Cd només pot ser sencer (arc 360). Si no, neudet el declara invàlid (<code>violacions</code>).</div>` : ''}</div>`;
-  }).join('');
-  return `${blocs}<div class="bar"><button class="ghost" data-act="pos+">+ posició</button></div>
-    <div class="hint">Cada posició és fixa; el candidat és el producte de les opcions de totes (tipus × Cd de cada una).
-      ${exacte ? `Ara: <b>${combos}</b> candidats.` : 'Amb un rang de Cd, el nombre de candidats el compta neudet.'}
-      L'eix és un sol valor per posició: per comparar orientacions, una etapa per orientació.
-      Un tub horitzontal ha de cabre al bloc (un <code>lnd_252285</code> fa 68 cm).</div>`;
-}
-
-function cSlotsHtml(p, g){
-  return `<div class="row">${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
-      ${cLab('forma', cSel(p + '.forma', [{valor: 'quadrada'}, {valor: 'hexagonal'}], g.forma ?? 'quadrada'))}</div>
-    <div class="row3">${cLab('pas (cm)', cNumIn(p + '.pas_cm', g.pas_cm, {min: 0}))}${cLab('mostres', cNumIn(p + '.mostres', g.mostres, {min: 1, ph: '100'}))}${
-      g.ocupats === undefined ? '' : cLab('ocupats (del yaml)', cNumIn(p + '.ocupats', g.ocupats, {min: 1, ph: 'buit = tubs totals'}))}</div>
-    <div class="hint">Cada candidat porta tants tubs com «tubs totals» del domini (<code>n_tubs</code>); per tantejar amb menys tubs, canvia'l allà.
-      ${g.ocupats === undefined ? '' : 'Aquest yaml té <code>ocupats</code>, que passa per damunt de n_tubs; buida\'l per fer servir els tubs totals del domini.'}</div>
-    <div class="row3">${cLab('r mín (cm)', cNumIn(p + '.r_min_cm', g.r_min_cm, {min: 0}))}${cLab('r màx (cm)', cNumIn(p + '.r_max_cm', g.r_max_cm, {min: 0}))}${cLab('llavor', cNumIn(p + '.llavor', g.llavor, {ph: '0'}))}</div>
-    <div class="hint">El camp cd d'aquest generador (fitxa.py exigeix fraccio explícita) no el llegeix neudet a _slots (generadors.py:170-203).</div>`;
-}
-
-// «Què permet» el generador triat: els generadors són combinacions de A (on són els tubs) i B (què són).
-function cCapacitatsHtml(tipus){
-  const CA = CP.schema.capacitats || {};
-  if(!CA[tipus]) return '';
-  const cel = v => v === '—' ? '<td class="src">no</td>' : `<td>${escD(v)}</td>`;
-  const fila = t => { const C = CA[t]; return `<tr${t === tipus ? ' style="background:#eef4fb;font-weight:600"' : ''}><td>${escD(t)}</td>${cel(C.posicions)}${cel(C.tipus)}${cel(C.cd)}${cel(C.eix)}</tr>`; };
-  return `<details class="fold" open><summary>Tot el que es pot demanar: on són els tubs i què són</summary>
-    <div class="hint">Una petició sempre és el mateix: un candidat és un conjunt de tubs (posició + tipus + Cd + eix). Cada fila és una manera de generar-ne, i deixa
-    <b>variar</b> (ventall) unes coses i <b>fixa</b> les altres. «no» vol dir que neudet no ho llegeix en aquest generador, no que no tingui sentit.</div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>generador</th><th>on són els tubs</th><th>tipus de tub</th><th>Cd</th><th>eix</th></tr></thead>
-    <tbody>${Object.keys(CA).map(fila).join('')}</tbody></table></div></details>`;
-}
-
-function cGenHtml(E, g){
-  const p = `etapes.${E}.generador`;
-  if(g.tipus === 'anells') return cAnellsHtml(p, g);
-  if(g.tipus === 'mapa_un_tub') return cMapaHtml(p, g);
-  if(g.tipus === 'llista') return cLlistaHtml(p, g);
-  if(g.tipus === 'slots') return cSlotsHtml(p, g);
-  if(g.tipus === 'posicions') return cPosicionsHtml(p, g);
-  return `<div class="panel bad">El generador «${escD(g.tipus)}» no té formulari a la UI.</div>`;
+function cEtapaHtml(){
+  const ts = cTongs(), E = CP.etapa;
+  if(!ts.length) return `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>tongades</code>: no és una etapa de xarxa.</div>`;
+  const fonts = CP.schema.tongades.fonts;
+  return `<div class="hint">Una etapa és una o més <b>tongades</b>; cada una combina <b>on són els tubs</b> (punts, malla, anells o un .dat) amb <b>què són</b> (tipus, Cd, eix: un valor o un ventall) i una selecció.
+      Les tongades de l'etapa se sumen (un candidat repetit només es compta un cop). Quants candidats surten, ho diu neudet (a sota).</div>
+    <div id="c-bloc-wrap2">${cBlocSvg('c-bloc2')}</div>
+    ${ts.map((t, i) => cTongadaHtml(i, t)).join('')}
+    <div class="bar">${cSel('', fonts.map(f => ({valor: f.valor})), 'punts', 'str', 'id="c-tg-font" data-noedit="1"')}<button class="ghost" data-act="tg+">+ tongada</button></div>`;
 }
 
 // Vista aproximada dels tubs de l'etapa activa, en cm sobre el bloc. Només informa: els números vàlids són els del
@@ -838,56 +801,51 @@ function cVals(v, max = 40){
   }
   return [];
 }
-// → {punts: [{x, y, eix, drag}], cercles: [r], nota}
+// → {punts: [{x, y, eix, drag, n, tong}], cercles: [r], nota}. Per cada tongada, una combinació: la primera de cada ventall.
 function cTubsVista(){
-  const g = (CP.f.etapes[CP.etapa] || {}).generador;
   const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80];
   const out = {punts: [], cercles: [], nota: ''};
-  if(!g) return out;
-  const gp = `etapes.${CP.etapa}.generador`;
-  if(g.tipus === 'anells'){
-    (g.anells || []).forEach(a => {
-      const rs = cVals(a.r), ns = cVals(a.n).filter(n => n > 0);
-      rs.forEach(r => { if(r > 0) out.cercles.push(r); });
-      if(!rs.length || !ns.length) return;
-      const n = ns[0], r = rs[0];
-      const phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : 0);
-      for(let k = 0; k < n && k < 60; k++){
-        const t = (phi + 360 * k / n) * Math.PI / 180;
-        out.punts.push({x: r * Math.cos(t), y: r * Math.sin(t), eix: 'z'});
-      }
-    });
-    out.nota = 'Per cada anell, una combinació (la primera r i la primera n); els cercles són tots els radis. Les altres combinacions surten a «Comprova».';
-  } else if(g.tipus === 'mapa_un_tub'){
-    if(g.polar){
-      cVals(g.polar.r).forEach(r => cVals(g.polar.theta).forEach(th => {
-        out.punts.push({x: r * Math.cos(th * Math.PI / 180), y: r * Math.sin(th * Math.PI / 180), eix: 'z'}); }));
-    } else cVals(g.x).forEach(x => cVals(g.y).forEach(y => out.punts.push({x, y, eix: 'z'})));
-    out.nota = 'Cada punt és un candidat (un sol tub a cada punt de la graella).';
-  } else if(g.tipus === 'slots'){
-    const pas = Number(g.pas_cm) > 0 ? Number(g.pas_cm) : 0, hex = g.forma === 'hexagonal';
-    if(pas){
-      const lx = m[0] / 2 - 1.5, ly = m[1] / 2 - 1.5, dy = pas * (hex ? Math.sqrt(3) / 2 : 1);
-      for(let j = -Math.floor(ly / dy); j * dy <= ly; j++){
-        const off = hex && (j % 2) ? pas / 2 : 0;
-        for(let i = -Math.floor((lx + off) / pas) - 1; i * pas + off <= lx; i++){
-          const x = i * pas + off, y = j * dy, r = Math.hypot(x, y);
-          if(Math.abs(x) <= lx && Math.abs(y) <= ly && r >= (g.r_min_cm ?? 0) && r <= (g.r_max_cm ?? Infinity) && out.punts.length < 400)
-            out.punts.push({x, y, eix: 'z', tenue: true});
+  const first = (v, def) => { const a = cAtrVals(v); return a.length ? a[0] : def; };
+  cTongs().forEach((t, ti) => {
+    const pos = t.posicions || {}, tp = `etapes.${CP.etapa}.tongades.${ti}.posicions`;
+    const eixT = first(t.eix, 'z');
+    if(pos.font === 'anells'){
+      (pos.anells || []).forEach((a, ai) => {
+        const rs = cVals(a.r), ns = cVals(a.n).filter(n => n > 0);
+        rs.forEach(r => { if(r > 0) out.cercles.push(r); });
+        if(!rs.length || !ns.length) return;
+        const n = ns[0], r = rs[0], eix = first(a.eix, eixT);
+        const phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : (cVals(a.phi)[0] ?? 0));
+        for(let k = 0; k < n && k < 60; k++){
+          const th = (phi + 360 * k / n) * Math.PI / 180;
+          out.punts.push({x: r * Math.cos(th), y: r * Math.sin(th), eix, tong: ti});
         }
-      }
+      });
+    } else if(pos.font === 'malla'){
+      const k1 = (pos.k ?? 1) <= 1, tenue = !k1;
+      if(pos.forma === 'polar'){
+        cVals(pos.r).forEach(r => cVals(pos.theta).forEach(th => out.punts.push(
+          {x: r * Math.cos(th * Math.PI / 180), y: r * Math.sin(th * Math.PI / 180), eix: eixT, tong: ti, tenue})));
+      } else if(pos.pas_cm !== undefined || pos.forma === 'hexagonal'){
+        const pas = Number(pos.pas_cm) > 0 ? Number(pos.pas_cm) : 0, hex = pos.forma === 'hexagonal';
+        if(pas){
+          const lx = m[0] / 2 - 1.5, ly = m[1] / 2 - 1.5, dy = pas * (hex ? Math.sqrt(3) / 2 : 1);
+          for(let j = -Math.floor(ly / dy); j * dy <= ly; j++){
+            const off = hex && (j % 2) ? pas / 2 : 0;
+            for(let i = -Math.floor((lx + off) / pas) - 1; i * pas + off <= lx; i++){
+              const x = i * pas + off, y = j * dy, r = Math.hypot(x, y);
+              if(Math.abs(x) <= lx && Math.abs(y) <= ly && r >= (pos.r_min_cm ?? 0) && r <= (pos.r_max_cm ?? Infinity) && out.punts.length < 400)
+                out.punts.push({x, y, eix: eixT, tong: ti, tenue: true});
+            }
+          }
+        }
+      } else cVals(pos.x).forEach(x => cVals(pos.y).forEach(y => out.punts.push({x, y, eix: eixT, tong: ti, tenue})));
+    } else if(pos.font === 'punts'){
+      (pos.punts || []).forEach((q, k) => { if(Number.isFinite(+q.x) && Number.isFinite(+q.y))
+        out.punts.push({x: +q.x, y: +q.y, eix: first(q.eix, eixT), drag: `${tp}.punts.${k}`, n: k + 1, tong: ti}); });
     }
-    out.nota = 'Posicions permeses de la malla (cada candidat n\'ocupa «tubs totals» a l\'atzar).';
-  } else if(g.tipus === 'llista'){
-    const c = (g.candidats || []).find(c => Array.isArray(c.tubs)) || {tubs: []};
-    c.tubs.forEach(t => { const x = Array.isArray(t) ? t[0] : t.x, y = Array.isArray(t) ? t[1] : t.y;
-      if(Number.isFinite(+x) && Number.isFinite(+y)) out.punts.push({x: +x, y: +y, eix: 'z'}); });
-    out.nota = 'Els tubs del primer candidat de la llista.';
-  } else if(g.tipus === 'posicions'){
-    (g.posicions || []).forEach((q, i) => { if(Number.isFinite(+q.x) && Number.isFinite(+q.y))
-      out.punts.push({x: +q.x, y: +q.y, eix: q.eix ?? 'z', drag: `${gp}.posicions.${i}`, n: i + 1}); });
-    out.nota = 'Arrossega una posició per moure-la: s\'escriu a x i y del formulari. Els tubs girats es dibuixen com a barra (mida orientativa).';
-  }
+  });
+  out.nota = cTongs().length ? 'Una combinació per tongada (la primera de cada ventall); els punts tènues són les posicions possibles d\'una malla. Arrossega un punt de «punts» per moure\'l: s\'escriu a x i y.' : '';
   return out;
 }
 function cBlocSvg(id = 'c-bloc'){
@@ -899,7 +857,7 @@ function cBlocSvg(id = 'c-bloc'){
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="0.9" fill="#c00000"/>` : '';
   const cercles = V.cercles.map(r => `<circle r="${r}" fill="none" stroke="#7a8da8" stroke-width="0.15" stroke-dasharray="0.8 0.8"/>`).join('');
   const tubs = V.punts.map(p => {
-    const c = p.tenue ? '#9db4cf' : '#1f5f99', dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
+    const PAL = ['#1f5f99', '#b5541c', '#2e7d32', '#7b3fa0'], base = PAL[(p.tong || 0) % PAL.length], c = p.tenue ? base + '66' : base, dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
     const forma = p.eix === 'x' ? `<rect x="${p.x - L_TUB_VISTA / 2}" y="${-p.y - R_TUB_VISTA}" width="${L_TUB_VISTA}" height="${2 * R_TUB_VISTA}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="0.2"/>`
       : p.eix === 'y' ? `<rect x="${p.x - R_TUB_VISTA}" y="${-p.y - L_TUB_VISTA / 2}" width="${2 * R_TUB_VISTA}" height="${L_TUB_VISTA}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="0.2"/>`
       : `<circle cx="${p.x}" cy="${-p.y}" r="${p.tenue ? 0.5 : R_TUB_VISTA}" fill="${c}" fill-opacity="${p.tenue ? 0.6 : 0.6}" stroke="${c}" stroke-width="0.2"/>`;
@@ -1021,11 +979,7 @@ function cFontHtml(d){
 }
 
 function cFormHtml(){
-  const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, g = et.generador, S = CP.schema;
-  const opG = x => `<option value="${escD(x.tipus)}" ${g && g.tipus === x.tipus ? 'selected' : ''}>${escD(x.tipus)} — ${escD((S.capacitats[x.tipus] || {}).etiqueta || '')}</option>`;
-  const grup = (gr, titol) => `<optgroup label="${titol}">${S.generadors.filter(x => (S.capacitats[x.tipus] || {}).grup === gr).map(opG).join('')}</optgroup>`;
-  const genSel = `<select data-gtipus="${escD(E)}"><option value="">— cap (no és una etapa de xarxa)</option>${grup('fixes', 'On són els tubs: posicions fixes')}${grup('varien', 'On són els tubs: posicions que varien (un ventall)')}</select>`;
-  const gen = g ? cGenHtml(E, g) : `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>generador</code>: no és una etapa de xarxa.</div>`;
+  const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, S = CP.schema;
   return `
   <h2>Identitat</h2>
   ${cLab('id de la campanya (lletres, xifres, «_» o «-»; és el nom de la carpeta)', cIn('id', f.id, 'str'))}
@@ -1058,14 +1012,10 @@ function cFormHtml(){
   <div class="hint">marge, separació i distància són distàncies de candidat.py (violacions, línies 255-287).</div>
 
   <h2>Estructura · etapa</h2>
-  <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option ${e === E ? 'selected' : ''}>${escD(e)}</option>`).join('')}</select>`)}
-    ${cLab('generador', genSel)}</div>
-  ${g ? cAjudaGen(g.tipus) : ''}
+  <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option ${e === E ? 'selected' : ''}>${escD(e)}</option>`).join('')}</select>`)}</div>
   ${cLab('nota (no afecta res)', cIn(`etapes.${E}.que`, et.que, 'ostr'))}
   <div class="hint">neudet la copia al resum.md com a «Què» (campanya.py:245); no canvia cap candidat ni cap càlcul.</div>
-  ${g ? cCapacitatsHtml(g.tipus) : ''}
-  ${g ? `<div id="c-bloc-wrap2">${cBlocSvg('c-bloc2')}</div>` : ''}
-  ${gen}
+  ${cEtapaHtml()}
   <div id="c-compta" class="compta"></div>
 
   <h2>Objectius</h2>
@@ -1128,7 +1078,8 @@ function cCompta(){
     try{
       const r = await api('/api/campanya/compta', {form: CP.f, etapa: CP.etapa});
       if(seq !== CP.cseq) return;
-      el.innerHTML = `<div class="cres">aquesta regla genera <span class="big ok">${r.n}</span> ${r.n === 1 ? 'candidat' : 'candidats'} <span class="hint">(abans de les restriccions)</span></div>`;
+      const per = (r.tongades || []).map(t => `<li><code>${escD(t.nom)}</code>: ${t.recompte}</li>`).join('');
+      el.innerHTML = `<div class="cres">aquesta etapa genera <span class="big ok">${r.n}</span> ${r.n === 1 ? 'candidat' : 'candidats'} <span class="hint">(la suma de les tongades, abans de treure repetits i de les restriccions; ho compta neudet)</span></div>${per ? `<ul class="hint">${per}</ul>` : ''}`;
     } catch(e){
       if(seq === CP.cseq) el.innerHTML = `<div class="panel bad"><b>neudet diu:</b><pre class="pre">${escD(e.message)}</pre></div>`;
     }
@@ -1142,19 +1093,50 @@ function cPrepara(p){
     cSet(CP.f, 'objectius.pareto', JSON.parse(JSON.stringify(CP.schema.objectius.pareto.defecte)));
   if(p.startsWith(`etapes.${E}.cerca.`) && cGetS(CP.f, `etapes.${E}.cerca`) === undefined)
     cSet(CP.f, `etapes.${E}.cerca`, {tipus: CP.schema.cerca.defecte.valor});
-  const m = p.match(/^(etapes\.[^.]+\.generador\.candidats\.\d+)\.tubs\.\d+\./);
-  if(m) cNormTubs(m[1]);
 }
 
 // Un canvi del formulari: només escriu el camp; els canvis de forma tornen a pintar el formulari.
 function cEdita(el, change){
   if(el.tagName === 'SELECT' && !change) return;
   if(el.dataset.etapa !== undefined){ if(change){ CP.etapa = el.value; cPintaForm(); cYaml(); } return; }
-  if(el.dataset.gmode !== undefined){ if(change){ cSetMode(el.dataset.gmode, el.value); cPintaForm(); cYaml(); } return; }
-  if(el.dataset.gtipus !== undefined){
+  if(el.dataset.tfont !== undefined){                               // canvi de font: les posicions de la plantilla, els atributs es mantenen
     if(change){
-      if(el.value) CP.f.etapes[el.dataset.gtipus].generador = cGenNou(el.value);
-      else delete CP.f.etapes[el.dataset.gtipus].generador;
+      const t = cTongs()[+el.dataset.tfont], nou = cGenNou(el.value);
+      t.posicions = nou.posicions;
+      if(el.value === 'dat'){ delete t.tipus; delete t.cd; delete t.eix; }
+      else { for(const k of ['tipus', 'cd', 'eix']) if(t[k] === undefined) t[k] = nou[k]; }
+      cPintaForm(); cYaml();
+    }
+    return;
+  }
+  if(el.dataset.forma !== undefined){                               // forma de la malla: només els camps de la forma triada
+    if(change){
+      const pos = cGetS(CP.f, el.dataset.forma);
+      pos.forma = el.value;
+      for(const k of ['x', 'y', 'r', 'theta', 'pas_cm', 'r_min_cm', 'r_max_cm']) delete pos[k];
+      if(el.value === 'polar'){ pos.r = [1]; pos.theta = [0]; } else if(el.value === 'hexagonal') pos.pas_cm = 5; else { pos.x = [0]; pos.y = [0]; }
+      cPintaForm(); cYaml();
+    }
+    return;
+  }
+  if(el.dataset.mallamode !== undefined){
+    if(change){
+      const pos = cGetS(CP.f, el.dataset.mallamode);
+      for(const k of ['x', 'y', 'pas_cm', 'r_min_cm', 'r_max_cm']) delete pos[k];
+      if(el.value === 'pas') pos.pas_cm = 5; else { pos.x = [0]; pos.y = [0]; }
+      cPintaForm(); cYaml();
+    }
+    return;
+  }
+  if(el.dataset.sel !== undefined){
+    if(change){ cTongs()[+el.dataset.sel].seleccio = el.value === 'mostres' ? {mostres: 100, llavor: 0} : 'exhaustiu'; cPintaForm(); cYaml(); }
+    return;
+  }
+  if(el.dataset.lig !== undefined){                                 // lligam d'un ventall: global | grup | tub
+    if(change){
+      const [pp, k] = el.dataset.lig.split('|'), o = cGetS(CP.f, pp), v = el.value;
+      if(k === 'cd'){ if(v === 'global') delete o.cd.lligam; else o.cd.lligam = v; }
+      else { const vals = cAtrVals(o[k]); o[k] = v === 'global' ? vals : {valors: vals, lligam: v}; }
       cPintaForm(); cYaml();
     }
     return;
@@ -1205,15 +1187,36 @@ function cArr(p){
   if(!Array.isArray(v)){ v = v === undefined ? [] : [v]; cSet(CP.f, p, v); }
   return v;
 }
+// Un ventall (més d'un valor) porta `lligam` explícit (fitxa: 1): quan un atribut passa a tenir diversos valors, es posa «global».
+function cNormLligams(){
+  const arreglaObj = o => {
+    if(!o || typeof o !== 'object') return;
+    for(const k of ['tipus', 'eix']){
+      const v = o[k];
+      if(Array.isArray(v) && v.length > 1) o[k] = {valors: v, lligam: 'global'};
+      else if(cLlig(v) && v.lligam === undefined && cAtrVals(v).length > 1) v.lligam = 'global';
+    }
+    const cd = o.cd;
+    if(cd && typeof cd === 'object' && cd.lligam === undefined
+       && ['fraction', 'arc', 'centre'].some(k => Array.isArray(cd[k]) ? cd[k].length > 1 : cEsRang(cd[k]))) cd.lligam = 'global';
+  };
+  cTongs().forEach(t => {
+    arreglaObj(t);
+    const pos = t.posicions || {};
+    (pos.punts || []).forEach(arreglaObj); (pos.anells || []).forEach(arreglaObj);
+  });
+}
 function cAccio(act, ds){
-  const g = CP.f.etapes[CP.etapa].generador;
-  if(act === 'anell+') g.anells.push({r: {de: 1, a: 1, pas: 1}, n: {de: 1, a: 1}, tipus: CP.f.domini.tipus_tub[0], cd: {fraction: 0}});
-  if(act === 'anell-') g.anells.splice(+ds.i, 1);
-  if(act === 'cand+') g.candidats.push({nom: 'c' + (g.candidats.length), tubs: []});
-  if(act === 'cand-') g.candidats.splice(+ds.i, 1);
-  if(act === 'pos+') g.posicions.push({x: 0, y: 0, z: 0, eix: 'z', tipus: [CP.f.domini.tipus_tub[0]], cd: {fraction: 0}});
-  if(act === 'pos-') g.posicions.splice(+ds.i, 1);
-  if(act === 'tp+') cArr(ds.p).push(CP.f.domini.tipus_tub[0]);
+  const E = CP.f.etapes[CP.etapa], tub0 = CP.f.domini.tipus_tub[0];
+  if(act === 'tg+') E.tongades.push(cGenNou(Q('#c-tg-font').value));
+  if(act === 'tg-' && E.tongades.length > 1) E.tongades.splice(+ds.i, 1);
+  if(act === 'anell+') cGetS(CP.f, ds.p).push({r: {de: 1, a: 1, pas: 1}, n: {de: 1, a: 1}, phi: 0});
+  if(act === 'anell-') cGetS(CP.f, ds.p).splice(+ds.i, 1);
+  if(act === 'pt+') cGetS(CP.f, ds.p).push({x: 0, y: 0, z: 0});
+  if(act === 'pt-') cGetS(CP.f, ds.p).splice(+ds.i, 1);
+  if(act === 'atrs+'){ const o = cGetS(CP.f, ds.p); o.tipus = [tub0]; o.cd = {fraction: 0}; o.eix = 'z'; }
+  if(act === 'atrs-'){ const o = cGetS(CP.f, ds.p); delete o.tipus; delete o.cd; delete o.eix; }
+  if(act === 'tp+') cArr(ds.p).push(ds.d === undefined ? tub0 : ds.d);
   if(act === 'tp-') cArr(ds.p).splice(+ds.i, 1);
   if(act && act.startsWith('en')){                                 // energies del domini
     let en = (CP.f.domini.energies_MeV || []).map(Number);
@@ -1231,11 +1234,7 @@ function cAccio(act, ds){
   }
   if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
   if(act === 'nl-') cArr(ds.p).splice(+ds.i, 1);
-  if(act === 'tub+' || act === 'tub-'){
-    const tubs = cNormTubs(ds.p.replace(/\.tubs$/, ''));
-    if(act === 'tub+') tubs.push({x: 0, y: 0, tipus: CP.f.domini.tipus_tub[0]});
-    else tubs.splice(+ds.i, 1);
-  }
+  cNormLligams();
   cPintaForm(); cYaml();
 }
 
@@ -1249,6 +1248,7 @@ async function cInit(){
 function cPintaRes(r){
   let h = '';
   h += `<div class="cres"><span class="big ok">${r.n_valids}</span> vàlids · <span class="big ${r.n_invalids ? 'bad' : ''}">${r.n_invalids}</span> invàlids · etapa <code>${escD(r.etapa)}</code></div>`;
+  if(r.tongades && r.tongades.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th>tongada</th><th>recompte</th><th>generats</th><th>repetits</th><th>vàlids</th><th>descartats</th></tr></thead><tbody>${r.tongades.map(t => `<tr><td>${escD(t.nom)}</td><td>${t.recompte}</td><td>${t.generats}</td><td>${t.repetits}</td><td>${t.valids}</td><td>${t.descartats}</td></tr>`).join('')}</tbody></table></div>`;
   if(r.motius.length) h += `<div class="tblwrap"><table class="tbl"><thead><tr><th>motiu (# = nombre)</th><th>candidats</th><th>exemple</th></tr></thead><tbody>${r.motius.map(m => `<tr><td>${escD(m.motiu)}</td><td>${m.n_candidats}</td><td>${escD(m.exemple)}</td></tr>`).join('')}</tbody></table></div>`;
   h += cPintaCert(r.certificacio);
   if(r.candidats && r.candidats.length) h += `<h2>Primers vàlids (${r.candidats.length} de ${r.n_valids}): un clic per obrir-lo com a disseny</h2>

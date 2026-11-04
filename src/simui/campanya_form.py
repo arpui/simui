@@ -156,139 +156,21 @@ NOTA_LINIA = 245
 #: la graella de slots (generadors.py): pas no nul, i ocupats
 SLOTS_PAS_LINIA = 184
 
-#: Camps de cada generador, tal com els llegeix neudet. `linia` és la línia (1-based) de
-#: `neudet/disseny/generadors.py` on hi ha la clau entre cometes; `ambit` diu on va dins del
-#: generador. El test `test_camps_citats_a_la_linia_de_generadors_py` comprova cada línia.
-_G = "generadors.py"
-CAMPS: Dict[str, Dict[str, Any]] = {
-    "anells": {
-        "linies": f"{_G}:106-130",
-        "camps": [
-            {"clau": "anells", "ambit": "generador", "obligatori": True, "linia": 110,
-             "nota": "llista d'anells; cada anell és {r, n, phi?, tipus?, cd?}"},
-            {"clau": "n_total", "ambit": "generador", "obligatori": False, "linia": 114,
-             "nota": "filtre: suma de tubs de tots els anells"},
-            {"clau": "ordenats", "ambit": "generador", "obligatori": False, "linia": 121,
-             "nota": "radis creixents entre anells no buits"},
-            {"clau": "r", "ambit": "anell", "obligatori": True, "linia": 111,
-             "nota": "radi (cm): número, llista o rang {de, a, pas}"},
-            {"clau": "n", "ambit": "anell", "obligatori": True, "linia": 111,
-             "nota": "tubs per anell: número, llista o rang {de, a, pas}; 0 = anell buit"},
-            {"clau": "phi", "ambit": "anell", "obligatori": False, "linia": 112,
-             "nota": "angle inicial (graus), o «mig_pas» (180/n)"},
-            {"clau": "tipus", "ambit": "anell", "obligatori": False, "linia": 112,
-             "nota": "tipus de tub; per defecte el primer de domini.tipus_tub"},
-            {"clau": "cd", "ambit": "anell", "obligatori": False, "linia": 113,
-             "nota": "Cd: {fraction, arc, centre}; fraction 0 = sense Cd"},
-            {"clau": "fraction", "ambit": "cd", "obligatori": False, "linia": 81,
-             "nota": "fracció axial coberta (0 a 1)"},
-            {"clau": "arc", "ambit": "cd", "obligatori": False, "linia": 85,
-             "nota": "arc en graus (per defecte 360)"},
-            {"clau": "centre", "ambit": "cd", "obligatori": False, "linia": 86,
-             "nota": "centre de l'arc en graus (0 = cap a l'eix del bloc)"},
-        ],
-    },
-    "mapa_un_tub": {
-        "linies": f"{_G}:133-145",
-        "camps": [
-            {"clau": "tipus_tub", "ambit": "generador", "obligatori": False, "linia": 135,
-             "nota": "tipus del tub del mapa"},
-            {"clau": "cd", "ambit": "generador", "obligatori": False, "linia": 135,
-             "nota": "Cd {fraction, arc, centre} (llistes = totes les opcions)"},
-            {"clau": "polar", "ambit": "generador", "obligatori": False, "linia": 136,
-             "nota": "graella polar {r, theta}; alternativa a x i y"},
-            {"clau": "r", "ambit": "polar", "obligatori": True, "linia": 138,
-             "nota": "radis (cm)"},
-            {"clau": "theta", "ambit": "polar", "obligatori": True, "linia": 138,
-             "nota": "angles (graus)"},
-            {"clau": "x", "ambit": "generador", "obligatori": False, "linia": 143,
-             "nota": "graella cartesiana: x (cm); obligatori si no hi ha polar"},
-            {"clau": "y", "ambit": "generador", "obligatori": False, "linia": 143,
-             "nota": "graella cartesiana: y (cm); obligatori si no hi ha polar"},
-        ],
-    },
-    "llista": {
-        "linies": f"{_G}:148-167",
-        "camps": [
-            {"clau": "candidats", "ambit": "generador", "obligatori": True, "linia": 151,
-             "nota": "candidats explícits"},
-            {"clau": "nom", "ambit": "candidat", "obligatori": False, "linia": 167,
-             "nota": "nom del candidat"},
-            {"clau": "dat", "ambit": "candidat", "obligatori": False, "linia": 152,
-             "nota": "camí a un .dat (alternativa a tubs)"},
-            {"clau": "tubs", "ambit": "candidat", "obligatori": False, "linia": 160,
-             "nota": "tubs: [x, y] o {x, y, tipus, z, cd_fraction, cd_arc_deg, cd_arc_centre_deg}"},
-            {"clau": "x", "ambit": "tub", "obligatori": False, "linia": 166, "nota": "cm"},
-            {"clau": "y", "ambit": "tub", "obligatori": False, "linia": 166, "nota": "cm"},
-            {"clau": "tipus", "ambit": "tub", "obligatori": False, "linia": 166,
-             "nota": "tipus del tub; per defecte el primer de domini.tipus_tub"},
-            {"clau": "z", "ambit": "tub", "obligatori": False, "linia": 166, "nota": "cm"},
-            {"clau": "cd_fraction", "ambit": "tub", "obligatori": False, "linia": 164,
-             "nota": "fracció de Cd del tub"},
-            {"clau": "cd_arc_deg", "ambit": "tub", "obligatori": False, "linia": 164,
-             "nota": "arc de Cd (graus)"},
-            {"clau": "cd_arc_centre_deg", "ambit": "tub", "obligatori": False, "linia": 165,
-             "nota": "centre de l'arc de Cd (graus)"},
-        ],
-    },
-    "posicions": {
-        "linies": f"{_G}:174-200",
-        "camps": [
-            {"clau": "posicions", "ambit": "generador", "obligatori": True, "linia": 177,
-             "nota": "llista de posicions fixes; el candidat és el producte cartesià de les opcions de totes"},
-            {"clau": "x", "ambit": "posicio", "obligatori": True, "linia": 182, "nota": "cm"},
-            {"clau": "y", "ambit": "posicio", "obligatori": True, "linia": 182, "nota": "cm"},
-            {"clau": "z", "ambit": "posicio", "obligatori": False, "linia": 191,
-             "nota": "cm; centre del tub (0 per defecte a neudet; fitxa: 1 l'exigeix explícit)"},
-            {"clau": "eix", "ambit": "posicio", "obligatori": False, "linia": 185,
-             "nota": "eix del tub: z (per defecte), x o y; un sol valor per posició"},
-            {"clau": "tipus", "ambit": "posicio", "obligatori": False, "linia": 188,
-             "nota": "tipus de tub: un valor o una llista (ventall); per defecte el primer de domini.tipus_tub"},
-            {"clau": "cd", "ambit": "posicio", "obligatori": False, "linia": 192,
-             "nota": "Cd {fraction, arc, centre}: valor, llista o rang; en un tub girat, només Cd sencer (arc 360)"},
-        ],
-    },
-    "slots": {
-        "linies": f"{_G}:170-203",
-        "camps": [
-            {"clau": "tipus_tub", "ambit": "generador", "obligatori": False, "linia": 174,
-             "nota": "tipus dels tubs de la malla"},
-            {"clau": "pas_cm", "ambit": "generador", "obligatori": True, "linia": 175,
-             "nota": "pas de la malla (cm)"},
-            {"clau": "forma", "ambit": "generador", "obligatori": False, "linia": 175,
-             "nota": "«quadrada» (per defecte) o «hexagonal»"},
-            {"clau": "r_min_cm", "ambit": "generador", "obligatori": False, "linia": 178,
-             "nota": "radi mínim de les posicions (cm)"},
-            {"clau": "r_max_cm", "ambit": "generador", "obligatori": False, "linia": 178,
-             "nota": "radi màxim de les posicions (cm)"},
-            {"clau": "ocupats", "ambit": "generador", "obligatori": False, "linia": 191,
-             "nota": "tubs a ocupar; per defecte n_tubs"},
-            {"clau": "llavor", "ambit": "generador", "obligatori": False, "linia": 194,
-             "nota": "llavor del sorteig (per defecte 0)"},
-            {"clau": "intents", "ambit": "generador", "obligatori": False, "linia": 195,
-             "nota": "intents de sorteig"},
-            {"clau": "mostres", "ambit": "generador", "obligatori": False, "linia": 195,
-             "nota": "candidats diferents a generar (per defecte 100)"},
-        ],
-    },
+#: Les tongades (GEN-U, contracte UI v1.3 §10): FONTS, LLIGAMS i ATRIBUTS són els de `neudet.disseny.generadors`.
+#: Les descripcions són el text del formulari (no una dada de neudet).
+FONTS_TEXT = {
+    "punts": "posicions fixes (x, y, z) que escrius una a una",
+    "malla": "una malla de posicions permeses: se'n trien k per candidat (k = 1: un tub a cada punt)",
+    "anells": "anells (radi r, n tubs, angle φ); r, n i φ poden ser un valor, una llista o un rang",
+    "dat": "un candidat fix d'un fitxer .dat",
 }
-
-
-#: Què fa variar cada generador (llegit del seu codi a generadors.py): on són els tubs i què són (tipus, Cd, eix).
-#: Valors: «ventall» (llista o rang: neudet en fa les combinacions), «fix» (un valor), «—» (neudet no ho llegeix).
-#: Són el que mostra el formulari a «Què permet», perquè es vegi que els generadors són combinacions d'A (posicions) i B (tubs).
-CAPACITATS: Dict[str, Dict[str, str]] = {
-    "anells": {"grup": "varien", "etiqueta": "en anells", "posicions": "ventall (r, n i φ de cada anell)", "tipus": "ventall per anell",
-               "cd": "ventall per anell", "eix": "—"},
-    "mapa_un_tub": {"grup": "varien", "etiqueta": "en una graella (un tub per candidat)", "posicions": "ventall (els punts de la graella)",
-                    "tipus": "ventall", "cd": "ventall", "eix": "—"},
-    "slots": {"grup": "varien", "etiqueta": "en una malla (se'n tria un subconjunt a l'atzar)",
-              "posicions": "ventall (`mostres` subconjunts de la malla, a l'atzar)", "tipus": "fix", "cd": "—", "eix": "—"},
-    "posicions": {"grup": "fixes", "etiqueta": "fixes (una estructura)", "posicions": "fixes", "tipus": "ventall per posició",
-                  "cd": "ventall per posició", "eix": "fix per posició (z, x o y)"},
-    "llista": {"grup": "fixes", "etiqueta": "fixes (candidats explícits o .dat)", "posicions": "fixes (cada candidat és una estructura)",
-               "tipus": "fix per tub", "cd": "fix per tub", "eix": "—"},
+LLIGAMS_TEXT = {
+    "global": "tots els tubs de la tongada iguals (un valor per candidat)",
+    "grup": "igual dins de cada grup (anell o grup de punts); cada grup pot ser diferent",
+    "tub": "cada tub pot ser diferent",
 }
+MALLA_FORMES = ["quadrada", "hexagonal", "polar"]
+INTERN_TRADUCCIO = ("_antic",)              # camps que neudet afegeix en traduir un `generador` antic; la UI no els escriu
 
 
 class FormError(ValueError):
@@ -316,7 +198,59 @@ def de_fitxer(f: Path) -> Dict[str, Any]:
     data = yaml.safe_load(f.read_text())
     if not isinstance(data, dict):
         raise DES.DesignError(f"{f}: el campanya.yaml no és un diccionari")
-    return _jsonable(data)
+    return _jsonable(_a_tongades(data))
+
+
+def _neteja_traduccio(x: Any) -> Any:
+    """Treu els camps propis de la traducció (`_antic`, `nom_candidat`, `params` de la tongada de `punts`): no són al contracte."""
+    if isinstance(x, dict):
+        return {k: _neteja_traduccio(v) for k, v in x.items() if k not in INTERN_TRADUCCIO and k not in ("nom_candidat", "params")}
+    if isinstance(x, list):
+        return [_neteja_traduccio(v) for v in x]
+    return x
+
+
+def _explicita(t: Dict[str, Any]) -> Dict[str, Any]:
+    """Els valors que la fitxa (`fitxa: 1`) exigeix explícits i que la traducció deixa per defecte: `seleccio`, `z`, `phi` i
+    `eix`. Cap no canvia el candidat: són els valors per defecte de neudet (exhaustiu, z = 0, φ = 0, eix z)."""
+    t.setdefault("seleccio", "exhaustiu")
+    pos = t.get("posicions") or {}
+    f = pos.get("font")
+    if f == "malla":
+        pos.setdefault("z", 0)
+    if f == "punts":
+        for q in pos.get("punts") or []:
+            q.setdefault("z", 0)
+    if f == "anells":
+        for a in pos.get("anells") or []:
+            a.setdefault("phi", 0)
+    if f in ("punts", "anells", "malla") and "eix" not in t:
+        its = pos.get("punts") if f == "punts" else pos.get("anells") if f == "anells" else []
+        if not its or any("eix" not in q for q in its):
+            t["eix"] = "z"
+    return t
+
+
+def _a_tongades(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Un campanya.yaml amb `generador` (antic) → el mateix amb `tongades` (GEN-U), traduït per neudet
+    (`generadors.tradueix_antic`): els mateixos candidats i hashes. No toca el que ja porta `tongades`."""
+    et = data.get("etapes") if isinstance(data, dict) else None
+    if not isinstance(et, dict) or not any(isinstance(e, dict) and "generador" in e for e in et.values()):
+        return data
+    _, gen = DES._neudet()
+    dom = data.get("domini") or {}
+    restr = dom.get("restriccions") or {}
+    out = copy.deepcopy(data)
+    for nom, e in out["etapes"].items():
+        if isinstance(e, dict) and "generador" in e and "tongades" not in e:
+            ctx = dict(tipus=list(dom.get("tipus_tub") or []), n_tubs=e.get("n_tubs", restr.get("n_tubs")),
+                       restriccions=restr, arrel=".")
+            ts = [_explicita(t) for t in _neteja_traduccio(gen.tradueix_antic(e["generador"], ctx))]
+            e2 = {}
+            for k, v in e.items():                           # `tongades` al lloc de `generador`
+                e2["tongades" if k == "generador" else k] = ts if k == "generador" else v
+            out["etapes"][nom] = e2
+    return out
 
 
 def defaults() -> Dict[str, Any]:
@@ -604,37 +538,31 @@ def _schema_verificacio() -> Dict[str, Any]:
 
 
 def _schema_plantilles() -> Dict[str, Any]:
-    """Les plantilles que el formulari posa en triar un generador. Cada una porta `cd` explícit: la fitxa
-    de neudet ho exigeix (fitxa.py:91 i 98). `__TUB__` és el tipus de tub del domini."""
+    """Les tongades que el formulari posa en triar una font. Cada una porta `tipus`, `cd.fraction` i `eix`
+    explícits i `seleccio`: la fitxa de neudet ho exigeix (fitxa.py, GEN-U). `__TUB__` és el tipus de tub del domini."""
+    base = {"tipus": [TUB], "cd": {"fraction": 0}, "eix": "z", "seleccio": "exhaustiu"}
     return {
-        "anells": {"tipus": "anells", "anells": [{"r": {"de": 5, "a": 5, "pas": 1}, "n": {"de": 4, "a": 4},
-                                                  "tipus": TUB, "cd": {"fraction": 0}}]},
-        "mapa_un_tub": {"tipus": "mapa_un_tub", "tipus_tub": TUB, "cd": {"fraction": 0}, "x": [0], "y": [0]},
-        "llista": {"tipus": "llista", "candidats": [{"nom": "c0", "tubs": []}]},
-        "slots": {"tipus": "slots", "tipus_tub": TUB, "cd": {"fraction": 0}, "pas_cm": 5},
-        "posicions": {"tipus": "posicions", "posicions": [{"x": 0, "y": 0, "z": 0, "eix": "z", "tipus": [TUB],
-                                                           "cd": {"fraction": 0}}]},
+        "punts": {"nom": "tongada", "posicions": {"font": "punts", "punts": [{"x": 0, "y": 0, "z": 0}]}, **copy.deepcopy(base)},
+        "malla": {"nom": "tongada", "posicions": {"font": "malla", "forma": "quadrada", "k": 1, "z": 0,
+                                                   "x": [0], "y": [0]}, **copy.deepcopy(base)},
+        "anells": {"nom": "tongada", "posicions": {"font": "anells", "anells": [
+            {"r": {"de": 5, "a": 5, "pas": 1}, "n": {"de": 4, "a": 4}, "phi": 0}]}, **copy.deepcopy(base)},
+        "dat": {"nom": "tongada", "posicions": {"font": "dat", "dat": ""}, "seleccio": "exhaustiu"},
     }
 
 
 def schema() -> Dict[str, Any]:
-    """Tipus de generador i els seus camps, llistes tancades de neudet, tubs del catàleg i estat de la
+    """Les fonts de tongada i els seus camps, llistes tancades de neudet, tubs del catàleg i estat de la
     validació. Tot ve de neudet, amb la línia on es llegeix."""
     _, gen = DES._neudet()                             # importa neudet.disseny.generadors de NEUDET_ROOT
     obj, cer = _mods_neudet()
-    ajudes_gen = _entrades_docstring(GENERADORS_PY)
-    generadors = []
-    for t in sorted(gen.GENERADORS):
-        ajuda = ajudes_gen.get(t)
-        if ajuda is None:
-            raise DES.DesignError(f"neudet: {GENERADORS_PY} no té l'entrada «{t}» al docstring del mòdul")
-        ajuda = {"text": ajuda["text"], "fitxer": GENERADORS_PY, "linia": ajuda["linia"]}
-        if t in CAMPS:
-            generadors.append({"tipus": t, **CAMPS[t], "ajuda": ajuda})
-        else:
-            generadors.append({"tipus": t, "linies": None, "camps": [], "ajuda": ajuda,
-                               "gap": "neudet té aquest generador però simphy no té els seus camps: "
-                                      "cal afegir-los a campanya_form.CAMPS"})
+    tongades = {"fonts": [{"valor": f, "text": FONTS_TEXT[f]} for f in gen.FONTS if f in FONTS_TEXT],
+                "lligams": [{"valor": l, "text": LLIGAMS_TEXT[l]} for l in gen.LLIGAMS if l in LLIGAMS_TEXT],
+                "atributs": list(gen.ATRIBUTS), "formes": MALLA_FORMES,
+                "max_candidats": gen.MAX_CANDIDATS, "fitxer": GENERADORS_PY}
+    falta = [f for f in gen.FONTS if f not in FONTS_TEXT] + [l for l in gen.LLIGAMS if l not in LLIGAMS_TEXT]
+    if falta:
+        raise DES.DesignError(f"neudet té fonts o lligams que el formulari no coneix: {falta}")
     reg = _validacions()
     F = _fitxa()
     tubs = []
@@ -657,9 +585,8 @@ def schema() -> Dict[str, Any]:
     _linia(GENERADORS_PY, SLOTS_PAS_LINIA, "pas")
     return {
         "neudet": str(DES.neudet_root()),
-        "generadors": generadors,
+        "tongades": tongades,
         "plantilles": _schema_plantilles(),
-        "capacitats": CAPACITATS,
         "tipus_tub": tubs,
         "energies_domini": energies_domini(),
         "validacio": {"registre": reg is not None,
@@ -830,89 +757,150 @@ def _errors_cd(cd: Any, ruta: str) -> List[str]:
     return []
 
 
-def _errors_generador(g: Any, ruta: str) -> List[str]:
-    if not isinstance(g, dict):
-        return [f"{ruta}: cal un diccionari amb `tipus`"]
-    t = g.get("tipus")
-    if t not in CAMPS:
-        return [f"{ruta}.tipus: {t!r} no és un generador conegut (n'hi ha: {', '.join(sorted(CAMPS))})"]
+def _llista_attr(v: Any) -> Any:
+    """Els valors d'un atribut (`tipus`, `eix`): un valor, una llista o {valors, lligam} → la llista, o None si no és llegible."""
+    if isinstance(v, dict):
+        v = v.get("valors")
+    if isinstance(v, list):
+        return v if v else None
+    return [v] if isinstance(v, str) and v else None
+
+
+def _errors_atributs(a: Any, ruta: str, eixos_ok: bool = True) -> List[str]:
+    """`tipus`, `cd` i `eix` d'una tongada, d'un punt o d'un anell (valor, llista o {valors, lligam})."""
     e: List[str] = []
-    for c in CAMPS[t]["camps"]:
-        if c["ambit"] == "generador" and c["obligatori"] and c["clau"] not in g:
-            e.append(f"{ruta}: falta «{c['clau']}» (generador {t})")
-    if t == "anells":
-        anells = g.get("anells")
-        if isinstance(anells, list):
-            for i, a in enumerate(anells):
-                if not isinstance(a, dict):
-                    e.append(f"{ruta}.anells[{i}]: cal un diccionari amb r i n")
-                    continue
-                for k in ("r", "n"):
-                    if k not in a:
-                        e.append(f"{ruta}.anells.{i}.{k}: falta «{k}» (anell {i + 1})")
-                nt = g.get("n_total")
-                nt = nt if isinstance(nt, int) and not isinstance(nt, bool) else None
-                if "r" in a:
-                    e += _errors_rang(a["r"], f"{ruta}.anells.{i}.r", f"r de l'anell {i + 1}")
-                    if not e and isinstance(a["r"], dict) and a["r"]["de"] < 0:
-                        e.append(f"{ruta}.anells.{i}.r.de: r de l'anell {i + 1} ha de ser ≥ 0")
-                if "n" in a:
-                    e += _errors_rang(a["n"], f"{ruta}.anells.{i}.n", f"tubs de l'anell {i + 1}", enter=True, maxim=nt)
-                if "cd" in a:
-                    e += _errors_cd(a["cd"], f"{ruta}.anells.{i}.cd")
-    elif t == "mapa_un_tub":
-        if "polar" not in g and not ("x" in g and "y" in g):
-            e.append(f"{ruta}: cal «polar» o bé «x» i «y»")
-        for camp in ("x", "y"):
-            if camp in g and not _valor_o_rang(g[camp]):
-                e.append(f"{ruta}.{camp}: una llista de números (cm), o un rang {{de, a, pas}}")
-        if "polar" in g:
-            p = g["polar"] if isinstance(g["polar"], dict) else {}
-            for camp in ("r", "theta"):
-                if camp in p and not _valor_o_rang(p[camp]):
-                    e.append(f"{ruta}.polar.{camp}: una llista de números, o un rang {{de, a, pas}}")
-        if "cd" in g:
-            e += _errors_cd(g["cd"], f"{ruta}.cd")
-    elif t == "llista":
-        for i, c in enumerate(g.get("candidats") or []):
-            if not isinstance(c, dict) or ("dat" not in c and "tubs" not in c):
-                e.append(f"{ruta}.candidats[{i}]: cal «dat» o «tubs»")
-    elif t == "posicions":
-        pos = g.get("posicions")
-        if not isinstance(pos, list) or not pos:
-            e.append(f"{ruta}.posicions: una llista no buida de posicions (generadors.py:177)")
-            pos = []
-        for i, q in enumerate(pos):
-            rp = f"{ruta}.posicions.{i}"
+    if not isinstance(a, dict):
+        return e
+    for k in ("tipus", "eix"):
+        if k not in a:
+            continue
+        v = a[k]
+        if isinstance(v, dict):
+            if "lligam" in v and v["lligam"] not in tuple(LLIGAMS_TEXT):
+                e.append(f"{ruta}.{k}.lligam: {v['lligam']!r} no és {', '.join(tuple(LLIGAMS_TEXT))}")
+        ll = _llista_attr(v)
+        if ll is None or not all(isinstance(x, str) and x for x in ll):
+            e.append(f"{ruta}.{k}: un valor, una llista no buida, o {{valors, lligam}}")
+        elif k == "eix":
+            for x in ll:
+                if x not in EIXOS:
+                    e.append(f"{ruta}.eix: {x!r} no és x, y ni z")
+    if "cd" in a:
+        cd = a["cd"]
+        if isinstance(cd, dict) and "lligam" in cd and cd["lligam"] not in tuple(LLIGAMS_TEXT):
+            e.append(f"{ruta}.cd.lligam: {cd['lligam']!r} no és {', '.join(tuple(LLIGAMS_TEXT))}")
+        e += _errors_cd(cd, f"{ruta}.cd")
+    return e
+
+
+def _errors_font(pos: Any, ruta: str) -> List[str]:
+    if not isinstance(pos, dict):
+        return [f"{ruta}: cal un diccionari amb `font`"]
+    f = pos.get("font")
+    if f not in tuple(FONTS_TEXT):
+        return [f"{ruta}.font: {f!r} no és una font (n'hi ha: {', '.join(tuple(FONTS_TEXT))})"]
+    e: List[str] = []
+    if f == "punts":
+        ps = pos.get("punts")
+        if not isinstance(ps, list) or not ps:
+            return [f"{ruta}.punts: una llista no buida de punts {{x, y, z}}"]
+        for i, q in enumerate(ps):
+            rp = f"{ruta}.punts.{i}"
             if not isinstance(q, dict):
-                e.append(f"{rp}: cal un diccionari amb x, y, eix, tipus i cd")
+                e.append(f"{rp}: cal un diccionari amb x i y")
                 continue
             for k in ("x", "y", "z"):
                 if k in q and not _num(q[k]):
                     e.append(f"{rp}.{k}: un número (cm)")
                 elif k != "z" and k not in q:
-                    e.append(f"{rp}.{k}: falta «{k}» (posició {i + 1})")
-            if q.get("eix", "z") not in EIXOS:
-                e.append(f"{rp}.eix: {q.get('eix')!r} no és x, y ni z (generadors.py:186)")
-            tp = q.get("tipus", [])
-            tp = tp if isinstance(tp, list) else [tp]
-            if "tipus" in q and (not tp or not all(isinstance(x, str) and x for x in tp)):
-                e.append(f"{rp}.tipus: un nom de tub o una llista no buida de noms del catàleg")
-            if "cd" in q:
-                ecd = _errors_cd(q["cd"], f"{rp}.cd")
-                e += ecd
-                if not ecd and q.get("eix", "z") != "z":
-                    cd = q["cd"]
-                    fr = [x for _, x in _punts_cd(cd.get("fraction", 0), "f")]
-                    arcs = [x for _, x in _punts_cd(cd.get("arc", 360), "a")]
-                    if any(f != 0 for f in fr) and any(a < 360 for a in arcs):
-                        e.append(f"{rp}.cd.arc: en un tub girat (eix {q['eix']}) el Cd només pot ser sencer (arc 360): "
-                                 f"neudet ho refusa a violacions")
-    elif t == "slots":
-        if "pas_cm" in g and not _pos(g["pas_cm"]):
-            e.append(f"{ruta}.pas_cm: un número positiu (cm); generadors.py:{SLOTS_PAS_LINIA} hi divideix")
-        if "cd" in g:
-            e += _errors_cd(g["cd"], f"{ruta}.cd")
+                    e.append(f"{rp}.{k}: falta «{k}» (punt {i + 1})")
+            e += _errors_atributs(q, rp)
+    elif f == "malla":
+        forma = pos.get("forma")
+        if forma not in MALLA_FORMES:
+            e.append(f"{ruta}.forma: {forma!r} no és {', '.join(MALLA_FORMES)}")
+        if not _enter(pos.get("k", 1)):
+            e.append(f"{ruta}.k: un enter ≥ 1 (tubs per candidat)")
+        if "z" in pos and not _num(pos["z"]):
+            e.append(f"{ruta}.z: un número (cm)")
+        if forma == "polar":
+            for k in ("r", "theta"):
+                if k not in pos:
+                    e.append(f"{ruta}.{k}: falta «{k}» (malla polar)")
+                elif not _valor_o_rang(pos[k]):
+                    e.append(f"{ruta}.{k}: una llista de números, o un rang {{de, a, pas}}")
+        elif forma in MALLA_FORMES:
+            if "pas_cm" in pos:
+                if not _pos(pos["pas_cm"]):
+                    e.append(f"{ruta}.pas_cm: un número positiu (cm); generadors.py hi divideix")
+            elif forma == "hexagonal":
+                e.append(f"{ruta}.pas_cm: falta «pas_cm» (malla hexagonal)")
+            else:
+                for k in ("x", "y"):
+                    if k not in pos:
+                        e.append(f"{ruta}.{k}: falta «{k}» (o «pas_cm») a la malla quadrada")
+                    elif not _valor_o_rang(pos[k]):
+                        e.append(f"{ruta}.{k}: una llista de números (cm), o un rang {{de, a, pas}}")
+    elif f == "anells":
+        an = pos.get("anells")
+        if not isinstance(an, list) or not an:
+            return [f"{ruta}.anells: una llista no buida d'anells {{r, n, phi}}"]
+        nt = pos.get("n_total")
+        nt = nt if isinstance(nt, int) and not isinstance(nt, bool) else None
+        for i, a in enumerate(an):
+            ra = f"{ruta}.anells.{i}"
+            if not isinstance(a, dict):
+                e.append(f"{ra}: cal un diccionari amb r i n")
+                continue
+            for k in ("r", "n"):
+                if k not in a:
+                    e.append(f"{ra}.{k}: falta «{k}» (anell {i + 1})")
+            if "r" in a:
+                e += _errors_rang(a["r"], f"{ra}.r", f"r de l'anell {i + 1}")
+                if isinstance(a["r"], dict) and not e and a["r"]["de"] < 0:
+                    e.append(f"{ra}.r.de: r de l'anell {i + 1} ha de ser ≥ 0")
+            if "n" in a:
+                e += _errors_rang(a["n"], f"{ra}.n", f"tubs de l'anell {i + 1}", enter=True, maxim=nt)
+            if "phi" in a and a["phi"] != "mig_pas" and not _valor_o_rang(a["phi"]):
+                e.append(f"{ra}.phi: graus (un valor, llista o rang) o «mig_pas»")
+            e += _errors_atributs(a, ra)
+    elif f == "dat":
+        if not isinstance(pos.get("dat"), str) or not pos["dat"].strip():
+            e.append(f"{ruta}.dat: el camí d'un fitxer .dat")
+    return e
+
+
+def _errors_tongades(ts: Any, ruta: str) -> List[str]:
+    if not isinstance(ts, list) or not ts:
+        return [f"{ruta}: una llista no buida de tongades"]
+    e: List[str] = []
+    noms: List[str] = []
+    for i, t in enumerate(ts):
+        rt = f"{ruta}.{i}"
+        if not isinstance(t, dict):
+            e.append(f"{rt}: cal un diccionari amb nom i posicions")
+            continue
+        nom = t.get("nom")
+        if not isinstance(nom, str) or not nom.strip():
+            e.append(f"{rt}.nom: cal un nom (únic dins de l'etapa)")
+        elif nom in noms:
+            e.append(f"{rt}.nom: «{nom}» ja és el d'una altra tongada de l'etapa")
+        else:
+            noms.append(nom)
+        pos = t.get("posicions")
+        e += _errors_font(pos, f"{rt}.posicions")
+        if isinstance(pos, dict) and pos.get("font") == "dat" and any(k in t for k in ("tipus", "cd", "eix")):
+            e.append(f"{rt}: una tongada «dat» és un candidat fix: no porta tipus, cd ni eix")
+        e += _errors_atributs(t, rt)
+        sel = t.get("seleccio", "exhaustiu")
+        if sel != "exhaustiu":
+            if not isinstance(sel, dict) or not _enter(sel.get("mostres", 0)):
+                e.append(f"{rt}.seleccio: «exhaustiu» o {{mostres: N (enter ≥ 1), llavor: s}}")
+            elif "llavor" in sel and not isinstance(sel["llavor"], int):
+                e.append(f"{rt}.seleccio.llavor: un enter")
+        mc = t.get("max_candidats")
+        if mc is not None and not _enter(mc, 0):
+            e.append(f"{rt}.max_candidats: un enter ≥ 0 (0 = sense límit)")
     return e
 
 
@@ -1040,8 +1028,10 @@ def _errors(f: Any) -> List[str]:
         e.append("etapes: cal almenys una etapa")
     else:
         for nom, etapa in et.items():
-            if isinstance(etapa, dict) and "generador" in etapa:
-                e += _errors_generador(etapa["generador"], f"etapes.{nom}.generador")
+            if isinstance(etapa, dict) and "generador" in etapa and "tongades" in etapa:
+                e.append(f"etapes.{nom}: porta `generador` i `tongades`; només una de les dues")
+            if isinstance(etapa, dict) and "tongades" in etapa:
+                e += _errors_tongades(etapa["tongades"], f"etapes.{nom}.tongades")
     if "draft" in f and not isinstance(f["draft"], bool):
         e.append("draft: sí o no (fitxa.py: decideix)")
     e += _errors_objectius(f)

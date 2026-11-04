@@ -185,16 +185,15 @@ def tanteig_de_campanya(de: str) -> Dict[str, Any]:
 
 
 def _tub_yaml(t: Any) -> Dict[str, Any]:
-    """Un tub de neudet com a tub de l'etapa `llista` (les claus que el generador llegeix, generadors.py)."""
-    out: Dict[str, Any] = {"x": float(t.x), "y": float(t.y), "z": float(t.z), "tipus": t.tipus}
+    """Un tub de neudet com a punt d'una tongada `punts`, amb tot explícit (la fitxa): x, y, z, eix, tipus i Cd."""
+    cd = {"fraction": float(t.cd_fraction)}
     if t.cd_fraction:
-        out.update(cd_fraction=float(t.cd_fraction), cd_arc_deg=float(t.cd_arc_deg),
-                   cd_arc_centre_deg=float(t.cd_arc_centre_deg))
-    return out
+        cd.update(arc=float(t.cd_arc_deg), centre=float(t.cd_arc_centre_deg))
+    return {"x": float(t.x), "y": float(t.y), "z": float(t.z), "eix": getattr(t, "eix", "z"), "tipus": t.tipus, "cd": cd}
 
 
 def tanteig_de_candidat(de: str, hash_: str, etapa: Optional[str] = None) -> Dict[str, Any]:
-    """El formulari de la campanya `de` amb UNA etapa `llista` que porta el candidat `hash_` (els seus tubs, tal
+    """El formulari de la campanya `de` amb UNA etapa d'una tongada `punts` que porta el candidat `hash_` (els seus tubs, tal
     com els genera neudet). L'etapa és la de l'original que el conté (o `etapa`), i les seves altres claus
     (cerca, etc.) es mantenen. No escriu res."""
     d = CV.dir_de(de)
@@ -203,10 +202,10 @@ def tanteig_de_candidat(de: str, hash_: str, etapa: Optional[str] = None) -> Dic
     nou = id_derivat(de, _ids_existents(CV.campanyes_root()))
     f = _form_tanteig(form, nou)
     orig = form["etapes"][nom_etapa]
-    nova = {k: v for k, v in orig.items() if k not in ("generador", "que")}
+    nova = {k: v for k, v in orig.items() if k not in ("generador", "tongades", "que")}
     nova = {"que": f"tanteig de {de}: candidat {cand.nom} (etapa {nom_etapa})", **nova}
-    nova["generador"] = {"tipus": "llista",
-                         "candidats": [{"nom": cand.nom, "tubs": [_tub_yaml(t) for t in cand.tubs]}]}
+    nova["tongades"] = [{"nom": cand.nom, "posicions": {"font": "punts", "punts": [_tub_yaml(t) for t in cand.tubs]},
+                         "seleccio": "exhaustiu"}]
     f["etapes"] = {f"llista_{nom_etapa}": nova}
     _ha_de_passar_el_formulari(f, de)
     return {"de": de, "id": nou, "form": f, "etapa": f"llista_{nom_etapa}",

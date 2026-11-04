@@ -10,6 +10,7 @@ Sense neudet, els tests que en necessiten es salten.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sys
@@ -38,18 +39,27 @@ def _neudet_o_skip() -> Path:
         pytest.skip(f"neudet no és present: {e}")
 
 
-def _form_posicions(posicions, mides=(80.0, 40.0, 90.0)):
+def _tongada(posicions, **atrs):
+    t = {"nom": "t", "posicions": posicions, "tipus": ["lnd_252285"], "cd": {"fraction": 0}, "eix": "z", "seleccio": "exhaustiu"}
+    t.update(atrs)
+    return t
+
+
+def _form(tongades, mides=(80.0, 40.0, 90.0), n_tubs=2):
     f = CF.defaults()
     f["domini"]["bloc"]["mides_cm"] = list(mides)
     f["domini"]["tipus_tub"] = ["lnd_252285", "lnd_252248"]
-    f["domini"]["restriccions"]["n_tubs"] = len(posicions)
-    f["etapes"]["S1"]["generador"] = {"tipus": "posicions", "posicions": posicions}
+    f["domini"]["restriccions"]["n_tubs"] = n_tubs
+    f["etapes"]["S1"].pop("generador", None)
+    f["etapes"]["S1"]["tongades"] = tongades
     return f
 
 
 def _mixt():
-    return [{"x": -6, "y": 0, "z": 0, "eix": "z", "tipus": ["lnd_252285", "lnd_252248"], "cd": {"fraction": [0, 1]}},
-            {"x": 0, "y": 8, "z": 10, "eix": "x", "tipus": ["lnd_252248"], "cd": {"fraction": 0}}]
+    """Dos punts: el 1 vertical amb ventall de tipus i de Cd; el 2 horitzontal."""
+    return _tongada({"font": "punts", "punts": [
+        {"x": -6, "y": 0, "z": 0, "tipus": ["lnd_252285", "lnd_252248"], "cd": {"fraction": [0, 1]}, "eix": "z"},
+        {"x": 0, "y": 8, "z": 10, "tipus": ["lnd_252248"], "cd": {"fraction": 0}, "eix": "x"}]})
 
 
 @pytest.fixture(scope="module")
@@ -68,66 +78,130 @@ def mix_dat(tmp_path_factory):
 
 # ── el formulari ────────────────────────────────────────────────────────────
 
-def test_posicions_es_un_generador_del_formulari():
+def test_el_formulari_ofereix_les_fonts_de_neudet():
+    """Test bessó: les fonts i els lligams del formulari són els de neudet (generadors.py)."""
     _neudet_o_skip()
-    s = CF.schema()
-    g = next(x for x in s["generadors"] if x["tipus"] == "posicions")
-    assert "gap" not in g
-    assert {"posicions", "x", "y", "z", "eix", "tipus", "cd"} <= {c["clau"] for c in g["camps"]}
-    assert "posicions" in s["plantilles"]
+    _, G = DES._neudet()
+    s = CF.schema()["tongades"]
+    assert [f["valor"] for f in s["fonts"]] == list(G.FONTS)
+    assert [l["valor"] for l in s["lligams"]] == list(G.LLIGAMS)
+    assert tuple(CF.FONTS_TEXT) == tuple(G.FONTS) and tuple(CF.LLIGAMS_TEXT) == tuple(G.LLIGAMS)
 
 
-def test_la_plantilla_de_posicions_es_valida_i_passa_fitxa():
-    """Test bessó: la plantilla satisfà el que el formulari exigeix i el que la fitxa de neudet demana."""
+def test_defaults_i_camps_antics_es_tradueixen_a_tongades_sense_camps_interns():
+    """Un campanya.yaml amb `generador` s'obre com a `tongades`, i el yaml que en surt no porta els camps propis de la traducció."""
+    root = _neudet_o_skip()
+    for c in ("c01_8tubs_30x30x80", "c02_cd_2grups", "c03_3anells_grups", "c04_draft"):
+        f = CF.de_fitxer(root / "disseny" / "campanyes" / c / "campanya.yaml")
+        txt = CF.to_yaml(f)
+        assert "_antic" not in txt and "nom_candidat" not in txt and "generador:" not in txt, c
+        assert not any("generador" in e for e in f["etapes"].values()), c
+
+
+def test_les_tongades_traduides_donen_els_mateixos_candidats_que_el_generador_antic():
+    """La traducció de la UI (amb els valors explícits que demana la fitxa) no canvia el que neudet genera."""
+    root = _neudet_o_skip()
+    from neudet.disseny.campanya import Campanya
+    for c in ("c01_8tubs_30x30x80", "c04_draft"):
+        orig = Campanya(root / "disseny" / "campanyes" / c)
+        f = CF.de_fitxer(root / "disseny" / "campanyes" / c / "campanya.yaml")
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "campanya.yaml").write_text(CF.to_yaml(f))
+            nou = Campanya(Path(tmp))
+            for etapa, e in orig.cfg["etapes"].items():
+                if "generador" not in e:
+                    continue
+                a = sorted(x.hash() for x, _ in orig.candidats(etapa)[0])
+                b = sorted(x.hash() for x, _ in nou.candidats(etapa)[0])
+                assert a == b, (c, etapa)
+
+
+@pytest.mark.parametrize("tipus", ["punts", "malla", "anells"])
+def test_la_plantilla_de_cada_font_es_valida_i_passa_fitxa(tipus):
+    """Test bessó: la plantilla que el formulari posa en triar una font satisfà el formulari i la fitxa de neudet."""
     _neudet_o_skip()
     from neudet.disseny import fitxa
     f = CF.defaults()
     tub = f["domini"]["tipus_tub"][0]
-    f["etapes"]["S1"]["generador"] = json.loads(json.dumps(CF.schema()["plantilles"]["posicions"]).replace("__TUB__", tub))
+    f["etapes"]["S1"]["tongades"] = [json.loads(json.dumps(CF.schema()["plantilles"][tipus]).replace("__TUB__", tub))]
     cfg = yaml.safe_load(CF.to_yaml(f))
-    assert [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.generador")] == []
+    assert [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.tongades")] == []
 
 
-def test_la_plantilla_de_la_pagina_porta_les_accions_de_posicions():
-    for act in ("pos+", "pos-", "tp+", "tp-"):
+def test_la_pagina_porta_les_accions_i_els_editors_de_tongades():
+    for act in ("tg+", "tg-", "pt+", "pt-", "anell+", "anell-", "atrs+", "atrs-", "tp+", "tp-"):
         assert f"act === '{act}'" in INDEX, act
-    assert "g.tipus === 'posicions'" in INDEX and "function cPosicionsHtml" in INDEX
+    for f in ("cTongadaHtml", "cPuntsHtml", "cMallaHtml", "cAnellsHtml", "cAtrsHtml", "cNormLligams", "cTubsVista"):
+        assert f"function {f}" in INDEX, f
+    assert "el.dataset.lig" in INDEX and "el.dataset.tfont" in INDEX
 
 
 def test_el_formulari_accepta_un_ventall_amb_eixos():
     _neudet_o_skip()
-    cfg = yaml.safe_load(CF.to_yaml(_form_posicions(_mixt())))
-    assert cfg["etapes"]["S1"]["generador"]["posicions"][1]["eix"] == "x"
+    cfg = yaml.safe_load(CF.to_yaml(_form([_mixt()])))
+    assert cfg["etapes"]["S1"]["tongades"][0]["posicions"]["punts"][1]["eix"] == "x"
 
 
-@pytest.mark.parametrize("mal,missatge", [
-    ({"x": 0, "y": 0, "eix": "w"}, "eix"),
-    ({"x": 0, "eix": "z"}, "falta «y»"),
-    ({"x": 0, "y": 0, "tipus": []}, "tipus"),
-    ({"x": 0, "y": 0, "eix": "x", "cd": {"fraction": 1, "arc": 180}}, "només pot ser sencer"),
-    ({"x": 0, "y": 0, "cd": {"fraction": 2}}, "cd"),
+@pytest.mark.parametrize("canvi,missatge", [
+    (lambda t: t["posicions"]["punts"][0].__setitem__("eix", "w"), "eix"),
+    (lambda t: t["posicions"]["punts"][0].pop("y"), "falta «y»"),
+    (lambda t: t.__setitem__("tipus", []), "tipus"),
+    (lambda t: t.__setitem__("cd", {"fraction": 2}), "cd"),
+    (lambda t: t.__setitem__("seleccio", {"mostres": 0}), "seleccio"),
+    (lambda t: t.__setitem__("eix", {"valors": ["z", "x"], "lligam": "cap"}), "lligam"),
 ])
-def test_el_formulari_refusa_posicions_que_neudet_no_llegiria(mal, missatge):
+def test_el_formulari_refusa_tongades_que_neudet_no_llegiria(canvi, missatge):
+    _neudet_o_skip()
+    t = _tongada({"font": "punts", "punts": [{"x": 0, "y": 0, "z": 0}]})
+    canvi(t)
+    with pytest.raises(CF.FormError) as exc:
+        CF.to_yaml(_form([t], n_tubs=1))
+    assert missatge in str(exc.value)
+
+
+def test_una_tongada_dat_no_porta_atributs_i_els_noms_son_unics():
     _neudet_o_skip()
     with pytest.raises(CF.FormError) as exc:
-        CF.to_yaml(_form_posicions([mal]))
-    assert missatge in str(exc.value)
+        CF.to_yaml(_form([{"nom": "d", "posicions": {"font": "dat", "dat": "x.dat"}, "tipus": ["lnd_252285"]}]))
+    assert "dat" in str(exc.value)
+    t1 = _tongada({"font": "punts", "punts": [{"x": 0, "y": 0, "z": 0}]})
+    with pytest.raises(CF.FormError) as exc:
+        CF.to_yaml(_form([t1, copy.deepcopy(t1)]))
+    assert "ja és el d'una altra tongada" in str(exc.value)
 
 
 def test_cd_parcial_en_un_tub_vertical_es_valid():
     _neudet_o_skip()
-    CF.to_yaml(_form_posicions([{"x": 0, "y": 0, "eix": "z", "cd": {"fraction": 1, "arc": 180}}]))
+    CF.to_yaml(_form([_tongada({"font": "punts", "punts": [{"x": 0, "y": 0, "z": 0}]}, cd={"fraction": 1, "arc": 180})], n_tubs=1))
 
 
-def test_comprova_compta_el_producte_de_les_posicions_i_dibuixa_el_tub_horitzontal():
-    """3 opcions a la posició 1 (2 tipus, el primer amb Cd 0 o 1: 1 + 2 = 3 opcions) × 1 a la 2."""
+def test_compta_diu_quants_surten_per_tongada_i_comprova_dibuixa_el_tub_horitzontal():
+    """Punt 1: 2 tipus × (Cd 0 | Cd 1) = 4 candidats; el punt 2 és fix. El recompte és el de neudet, per tongada."""
     _neudet_o_skip()
-    txt = CF.to_yaml(_form_posicions(_mixt()))
+    txt = CF.to_yaml(_form([_mixt()]))
+    c = CC.compta(txt, "S1")
+    assert c["tongades"] == [{"nom": "t", "recompte": 4}] and c["n"] == 4
     r = CC.comprova(txt, "S1")
-    assert r["n_valids"] + r["n_invalids"] == 4                      # 2 tipus × 2 Cd × 1
-    assert r["n_valids"] >= 1
-    # el tub d'eix x es veu com un rectangle (no com un cercle) a la vista XY de la targeta
-    assert any("<rect" in c["xy_svg"] and "lnd_252248" in c["nom"] for c in r["candidats"])
+    assert r["n_valids"] + r["n_invalids"] == 4 and r["n_valids"] >= 1
+    assert any("<rect" in x["xy_svg"] and "lnd_252248" in x["nom"] for x in r["candidats"])
+
+
+def test_diverses_tongades_se_sumen_i_es_compten_una_a_una():
+    """La idea d'Albert: malla i anells a la mateixa etapa. Cada tongada té el seu recompte."""
+    _neudet_o_skip()
+    malla = _tongada({"font": "malla", "forma": "quadrada", "k": 1, "z": 0, "x": [-6, 6], "y": [0]}, nom="malla")
+    anells = _tongada({"font": "anells", "anells": [{"r": 6, "n": {"de": 1, "a": 2}, "phi": 0}]}, nom="anells")
+    c = CC.compta(CF.to_yaml(_form([malla, anells], n_tubs=1)), "S1")
+    assert [(t["nom"], t["recompte"]) for t in c["tongades"]] == [("malla", 2), ("anells", 2)] and c["n"] == 4
+
+
+def test_la_vista_dels_tubs_cobreix_totes_les_fonts():
+    """Test bessó: cada font que el formulari ofereix té el seu cas a `cTubsVista`, i es pinta al bloc."""
+    vista = INDEX.split("function cTubsVista")[1].split("function cBlocSvg")[0]
+    for f in CF.FONTS_TEXT:
+        if f != "dat":                                             # un .dat no té posicions al formulari
+            assert f"pos.font === '{f}'" in vista, f
+    assert "cTubsVista()" in INDEX and "data-drag" in INDEX and "pointerdown" in INDEX
 
 
 # ── el visor ────────────────────────────────────────────────────────────────
@@ -181,57 +255,12 @@ def test_un_disseny_de_tots_els_tubs_drets_passa():
     cfg.exigeix_tubs_drets("MCNP")
 
 
-# ── vista aproximada dels tubs al formulari ────────────────────────────────
-
-def test_la_vista_dels_tubs_cobreix_tots_els_generadors():
-    """Test bessó: cada generador que el formulari ofereix té el seu cas a `cTubsVista`, i es pinta al bloc."""
-    for tipus in CF.CAMPS:
-        assert f"g.tipus === '{tipus}'" in INDEX.split("function cTubsVista")[1].split("function cBlocSvg")[0], tipus
-    assert "cTubsVista()" in INDEX and "data-drag" in INDEX and "pointerdown" in INDEX
-
-
-# ── un sol model: on són els tubs (A) i què són (B) ───────────────────────
-
-def test_cada_generador_te_la_seva_fila_de_capacitats():
+def test_comprova_porta_els_numeros_per_tongada_de_neudet():
+    """Per tongada: recompte, generats, repetits, vàlids i descartats (els del `meta` de neudet); sumen els vàlids i invàlids de l'etapa."""
     _neudet_o_skip()
-    s = CF.schema()
-    assert set(s["capacitats"]) == {g["tipus"] for g in s["generadors"]}
-    for t, c in s["capacitats"].items():
-        assert {"etiqueta", "posicions", "tipus", "cd", "eix"} <= set(c), t
-
-
-def test_les_capacitats_diuen_el_mateix_que_neudet_fa():
-    """Test bessó de la taula: on diu «ventall» o «fix per…», neudet genera de debò aquelles opcions."""
-    _neudet_o_skip()
-    from neudet.disseny.candidat import Bloc
-    from neudet.disseny.generadors import genera
-    bloc = Bloc((80.0, 40.0, 90.0), 0.0)
-    ctx = dict(tipus=["lnd_252285", "lnd_252248"], n_tubs=2, restriccions={}, arrel=".")
-    mapa = genera({"tipus": "mapa_un_tub", "tipus_tub": ["lnd_252285", "lnd_252248"], "cd": {"fraction": [0, 1]},
-                   "x": [0], "y": [0]}, bloc, ctx)
-    assert len(mapa) == 4 and CF.CAPACITATS["mapa_un_tub"]["tipus"] == "ventall" == CF.CAPACITATS["mapa_un_tub"]["cd"]
-    anells = genera({"tipus": "anells", "anells": [{"r": 5, "n": 2, "tipus": ["lnd_252285", "lnd_252248"],
-                                                    "cd": {"fraction": 0}}]}, bloc, ctx)
-    assert len(anells) == 2 and CF.CAPACITATS["anells"]["tipus"].startswith("ventall")
-    llista = genera({"tipus": "llista", "candidats": [{"nom": "a", "tubs": [
-        {"x": 0, "y": 0, "tipus": "lnd_252285", "cd_fraction": 1.0}]}]}, bloc, ctx)
-    assert llista[0].tubs[0].cd_fraction == 1.0 and CF.CAPACITATS["llista"]["cd"].startswith("fix")
-    slots = genera({"tipus": "slots", "pas_cm": 10, "mostres": 3, "cd": {"fraction": 1}}, bloc, ctx)
-    assert all(not t.te_cd for c in slots for t in c.tubs) and CF.CAPACITATS["slots"]["cd"] == "—"
-
-
-def test_el_formulari_accepta_tipus_en_ventall_a_anells_i_mapa():
-    _neudet_o_skip()
-    f = CF.defaults()
-    f["domini"]["tipus_tub"] = ["lnd_252285", "lnd_252248"]
-    f["etapes"]["S1"]["generador"] = {"tipus": "mapa_un_tub", "tipus_tub": ["lnd_252285", "lnd_252248"],
-                                      "cd": {"fraction": 0}, "x": [0], "y": [0]}
-    CF.to_yaml(f)
-    f["etapes"]["S1"]["generador"] = {"tipus": "anells", "anells": [{"r": 5, "n": 3, "tipus": ["lnd_252285", "lnd_252248"],
-                                                                      "cd": {"fraction": 0}}]}
-    CF.to_yaml(f)
-
-
-def test_la_pagina_porta_les_capacitats_i_el_ventall_de_tipus():
-    for t in ("function cCapacitatsHtml", "function cTipusLlista", "cd_fraction", "S.capacitats"):
-        assert t in INDEX, t
+    malla = _tongada({"font": "malla", "forma": "quadrada", "k": 1, "z": 0, "x": [-6, 6], "y": [0]}, nom="malla")
+    anells = _tongada({"font": "anells", "anells": [{"r": 6, "n": {"de": 1, "a": 2}, "phi": 0}]}, nom="anells")
+    r = CC.comprova(CF.to_yaml(_form([malla, anells], n_tubs=1)), "S1")
+    assert [t["nom"] for t in r["tongades"]] == ["malla", "anells"]
+    assert sum(t["valids"] for t in r["tongades"]) == r["n_valids"]
+    assert sum(t["descartats"] for t in r["tongades"]) == r["n_invalids"]

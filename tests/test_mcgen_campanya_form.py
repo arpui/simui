@@ -70,14 +70,16 @@ def test_defaults_es_el_c04_de_neudet():
     d = CF.defaults()
     assert d["id"] == "c04_draft"
     assert d["creada"] == "2026-10-26"                       # data → text ISO
-    assert d == _sense_dates(_c04_dict())                    # ni una clau de més ni de menys
+    # ni una clau de més ni de menys: el c04 de neudet, amb el `generador` antic traduït a `tongades` (GEN-U)
+    assert d == _sense_dates(CF._a_tongades(_c04_dict()))
+    assert "generador" not in d["etapes"]["S1"] and d["etapes"]["S1"]["tongades"]
 
 
 def test_to_yaml_round_trip_amb_c04():
     """defaults() → to_yaml → safe_load = el c04 de neudet, per a totes les claus."""
     _neudet_o_skip()
     torna = yaml.safe_load(CF.to_yaml(CF.defaults()))
-    assert torna == _c04_dict()
+    assert torna == CF._a_tongades(_c04_dict())
     assert isinstance(torna["creada"], dt.date)              # neudet la llegirà com a data
 
 
@@ -97,7 +99,8 @@ def test_to_yaml_no_posa_cometes_a_les_dates_ni_a_les_cadenes_normals():
         "tipus_tub": ["lnd_252285"],
         "restriccions": {"n_tubs": 1, "marge_bloc_cm": 1.0, "sep_min_cm": 0.1, "r_min_font_cm": 0.5},
     }
-    etapes = {"S1": {"que": "prova", "generador": {"tipus": "mapa_un_tub", "x": [1], "y": [2]}}}
+    etapes = {"S1": {"que": "prova", "tongades": [{"nom": "t", "posicions": {"font": "malla", "forma": "quadrada", "k": 1, "z": 0, "x": [1], "y": [2]},
+                                                  "tipus": ["lnd_252285"], "cd": {"fraction": 0}, "eix": "z", "seleccio": "exhaustiu"}]}}
     f = {"id": "x1", "fitxa": 1, "draft": True, "estat": "definida", "creada": "2026-01-02",
          "domini": dom, "etapes": etapes}
     text = CF.to_yaml(f)
@@ -115,7 +118,8 @@ def _form_minim() -> dict:
         "bloc": {"material": "PE", "mides_cm": [30, 30, 80], "forat_cm": 0},
         "font": {"tipus": "iso", "pos_cm": [0, 0, 0]}, "energies_MeV": [0.001, 1.0],
         "tipus_tub": ["lnd_252285"], "restriccions": {"n_tubs": 2}},
-        "etapes": {"S1": {"generador": {"tipus": "anells", "anells": [{"r": 3, "n": 2}]}}}}
+        "etapes": {"S1": {"tongades": [{"nom": "t", "posicions": {"font": "anells", "anells": [{"r": 3, "n": 2, "phi": 0}]},
+                                    "tipus": ["lnd_252285"], "cd": {"fraction": 0}, "eix": "z", "seleccio": "exhaustiu"}]}}}
 
 
 def test_formulari_minim_es_escriu():
@@ -128,9 +132,11 @@ def test_formulari_minim_es_escriu():
     (lambda f: f["domini"]["energies_MeV"].__setitem__(0, -1), "energies_MeV"),
     (lambda f: f["domini"]["restriccions"].__setitem__("n_tubs", 0), "n_tubs"),
     (lambda f: f["domini"]["font"].__setitem__("tipus", "pla"), "font.tipus"),
-    (lambda f: f["etapes"]["S1"]["generador"].__setitem__("tipus", "inventat"), "no és un generador conegut"),
-    (lambda f: f["etapes"]["S1"]["generador"]["anells"][0].pop("r"), "falta «r»"),
-    (lambda f: f["etapes"]["S1"]["generador"].pop("anells"), "falta «anells»"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0]["posicions"].__setitem__("font", "inventada"), "no és una font"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][0].pop("r"), "falta «r»"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0]["posicions"].pop("anells"), "anells: una llista no buida"),
+    (lambda f: f["etapes"]["S1"].__setitem__("generador", {"tipus": "anells"}), "només una de les dues"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0].__setitem__("nom", ""), "nom"),
     (lambda f: f.pop("etapes"), "etapes"),
 ])
 def test_formulari_invalid_diu_que_cal_canviar(canvi, missatge):
@@ -153,25 +159,16 @@ def test_formulari_invalid_dona_tots_els_motius():
 
 # ── schema: de neudet ───────────────────────────────────────────────────────
 
-def test_schema_tipus_son_els_de_generadors_py():
+def test_schema_fonts_i_lligams_son_els_de_generadors_py():
+    """Test bessó: les fonts i els lligams que el formulari ofereix (i valida) són els de neudet."""
     _neudet_o_skip()
     _, G = DES._neudet()                                       # importa neudet.disseny.generadors
     s = CF.schema()
-    assert [g["tipus"] for g in s["generadors"]] == sorted(G.GENERADORS)
-    assert set(CF.CAMPS) == set(G.GENERADORS), "cada generador de neudet ha de tenir els seus camps a simphy"
-    assert not [g for g in s["generadors"] if "gap" in g]
-
-
-def test_camps_citats_a_la_linia_de_generadors_py():
-    """Test bessó de la taula CAMPS: la clau és entre cometes a la línia que la taula diu."""
-    root = _neudet_o_skip()
-    linies = (root / "src" / "neudet" / "disseny" / "generadors.py").read_text().splitlines()
-    fallades = []
-    for tipus, info in CF.CAMPS.items():
-        for c in info["camps"]:
-            if not any(f'"{c["clau"]}"' in l for l in linies):
-                fallades.append(f'{tipus}.{c["clau"]} no és a generadors.py:{c["linia"]}')
-    assert not fallades, "\n".join(fallades)
+    assert [f["valor"] for f in s["tongades"]["fonts"]] == list(G.FONTS)
+    assert [l["valor"] for l in s["tongades"]["lligams"]] == list(G.LLIGAMS)
+    assert tuple(CF.FONTS_TEXT) == tuple(G.FONTS) and tuple(CF.LLIGAMS_TEXT) == tuple(G.LLIGAMS)
+    assert set(CF.MALLA_FORMES) == {"quadrada", "hexagonal", "polar"}
+    assert set(s["plantilles"]) == set(G.FONTS) - {"dat"} | {"dat"}
 
 
 def test_tubs_del_catalog_sense_registre_de_validacio():
@@ -356,19 +353,6 @@ def test_cerca_i_avaluacio_citades():
     assert [x["valor"] for x in s["avaluacio"]["mode"]["valors"]] == ["lots", "per_energia", "continu"]
 
 
-def test_ajuda_del_generador_es_el_paragraf_del_docstring():
-    """L'ajuda és el text de generadors.py: la línia citada és l'entrada del generador, i el paràgraf hi és."""
-    _neudet_o_skip()
-    lg = _linies(CF.GENERADORS_PY)
-    for g in CF.schema()["generadors"]:
-        a = g["ajuda"]
-        assert lg[a["linia"] - 1].startswith("    " + g["tipus"]), g["tipus"]
-        primer = lg[a["linia"] - 1].split("·", 1)[1].strip().split(" ")[0]
-        assert a["text"].startswith(primer), g["tipus"]                 # el text comença per la frase de neudet
-    anells = [g for g in CF.schema()["generadors"] if g["tipus"] == "anells"][0]["ajuda"]["text"]
-    assert "producte cartesià" in anells and "mig_pas" in anells      # text de neudet
-
-
 def test_objectius_valids_passen_to_yaml():
     _neudet_o_skip()
     f = CF.defaults()
@@ -401,8 +385,8 @@ def test_objectius_valids_passen_to_yaml():
     (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "aleatoria"}), "mostres"),
     (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "halving", "fraccio": 0}), "fraccio"),
     (lambda f: f["etapes"]["S1"].__setitem__("cerca", {"tipus": "halving", "min_finalistes": 0}), "min_finalistes"),
-    (lambda f: f["etapes"]["S1"]["generador"]["anells"][0].__setitem__("cd", {"fraction": 2}), "fraction"),
-    (lambda f: f["etapes"]["S1"]["generador"]["anells"][0].__setitem__("cd", {"fraction": 0.5, "arc": 400}), "arc"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][0].__setitem__("cd", {"fraction": 2}), "fraction"),
+    (lambda f: f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][0].__setitem__("cd", {"fraction": 0.5, "arc": 400}), "arc"),
 ])
 def test_llista_tancada_fora_de_neudet_diu_el_camp(canvi, camp):
     """to_yaml no escriu un valor fora de les llistes de neudet, i diu quin camp és."""
@@ -424,25 +408,27 @@ def test_llistes_tancades_de_simphy_son_les_de_neudet():
     assert set(CF.DEFECTE_NOMS) == {n for n in O.METRIQUES if n not in O.GEOMETRIQUES}
 
 
-@pytest.mark.parametrize("tipus", ["anells", "mapa_un_tub", "llista", "slots"])
-def test_plantilla_de_generador_passa_to_yaml_i_fitxa(tipus):
+@pytest.mark.parametrize("tipus", ["punts", "malla", "anells"])
+def test_plantilla_de_tongada_passa_to_yaml_i_fitxa(tipus):
     """Les plantilles que el formulari posa en triar un generador: to_yaml les accepta, i neudet (fitxa)
     no en falta cap camp en aquella etapa."""
     _neudet_o_skip()
     from neudet.disseny import fitxa
     f = CF.defaults()
     tub = f["domini"]["tipus_tub"][0]
-    f["etapes"]["S1"]["generador"] = json.loads(json.dumps(CF.schema()["plantilles"][tipus]).replace("__TUB__", tub))
+    f["etapes"]["S1"].pop("tongades", None)
+    f["etapes"]["S1"]["tongades"] = [json.loads(json.dumps(CF.schema()["plantilles"][tipus]).replace("__TUB__", tub))]
     cfg = yaml.safe_load(CF.to_yaml(f))
-    falten = [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.generador")]
+    falten = [x for x in fitxa.falten(cfg) if x.startswith("etapes.S1.tongades")]
     assert falten == [], falten
 
 
-def test_compta_es_el_que_genera_neudet():
-    """`compta` és el recompte de `generadors.genera` (valids + invalids de la campanya)."""
-    neudet = _neudet_o_skip()
+def test_compta_es_el_recompte_de_neudet_per_tongada():
+    """`compta` és `generadors.recompte_etapa` (la UI no expandeix ni compta): `n` és la suma, i els vàlids i invàlids
+    de l'etapa no passen del recompte (es treuen repetits)."""
+    _neudet_o_skip()
     from neudet.disseny.campanya import Campanya
-    from neudet.disseny.generadors import genera
+    from neudet.disseny.generadors import recompte_etapa
     import tempfile
     f = CF.defaults()
     txt = CF.to_yaml(f)
@@ -451,11 +437,11 @@ def test_compta_es_el_que_genera_neudet():
         c = Campanya(Path(tmp))
         e = c.etapa("S1")
         ctx = dict(tipus=c.tipus, n_tubs=e.get("n_tubs", c.restr.get("n_tubs")), restriccions=c.restr, arrel=c.dir)
-        direct = len(genera(e["generador"], c.bloc, ctx))
+        directe = recompte_etapa(e, c.bloc, ctx, "S1")
     r = CC.compta(txt, "S1")
-    assert r == {"etapa": "S1", "n": direct}
-    assert r["n"] == 287                                       # 259 vàlids + 28 invàlids (DEFINICIO.md, comprova)
-    assert r["n"] == CC.comprova(txt, "S1")["n_valids"] + CC.comprova(txt, "S1")["n_invalids"]
+    assert r["tongades"] == directe and r["n"] == sum(t["recompte"] for t in directe) and r["etapa"] == "S1"
+    ok = CC.comprova(txt, "S1")
+    assert ok["n_valids"] + ok["n_invalids"] <= r["n"]
 
 
 # ── rangs dels anells: l'error diu el camp (Albert, 2026-10-28: «ZeroDivisionError» sense saber on) ──
@@ -463,16 +449,16 @@ def test_compta_es_el_que_genera_neudet():
 def _anell0(**kw):
     _neudet_o_skip()
     f = copy.deepcopy(CF.defaults())
-    f["etapes"]["S1"]["generador"]["anells"][0].update(kw)
+    f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][0].update(kw)
     return f
 
 
 @pytest.mark.parametrize("kw,camp", [
-    ({"n": {"de": 0, "a": 8, "pas": 0}}, "etapes.S1.generador.anells.0.n.pas"),
-    ({"r": {"de": 3, "a": 9, "pas": 0}}, "etapes.S1.generador.anells.0.r.pas"),
-    ({"n": {"de": 0, "a": 8, "pas": 0.5}}, "etapes.S1.generador.anells.0.n.pas"),
-    ({"n": {"de": 8, "a": 0}}, "etapes.S1.generador.anells.0.n.a"),
-    ({"n": {"de": 0, "a": 9}}, "etapes.S1.generador.anells.0.n.a"),     # n_total = 8
+    ({"n": {"de": 0, "a": 8, "pas": 0}}, "etapes.S1.tongades.0.posicions.anells.0.n.pas"),
+    ({"r": {"de": 3, "a": 9, "pas": 0}}, "etapes.S1.tongades.0.posicions.anells.0.r.pas"),
+    ({"n": {"de": 0, "a": 8, "pas": 0.5}}, "etapes.S1.tongades.0.posicions.anells.0.n.pas"),
+    ({"n": {"de": 8, "a": 0}}, "etapes.S1.tongades.0.posicions.anells.0.n.a"),
+    ({"n": {"de": 0, "a": 9}}, "etapes.S1.tongades.0.posicions.anells.0.n.a"),     # n_total = 8
 ])
 def test_rang_sense_sentit_diu_el_camp(kw, camp):
     with pytest.raises(CF.FormError) as e:
@@ -528,7 +514,7 @@ def test_cd_llista_fora_del_domini_diu_el_camp(cd, camp):
     """Una llista o un rang de Cd amb un valor que neudet no accepta s'atura amb el camp exacte (el `data-p`)."""
     _neudet_o_skip()
     f = CF.defaults()
-    f["etapes"]["S1"]["generador"]["anells"][0]["cd"] = cd
+    f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][0]["cd"] = cd
     with pytest.raises(CF.FormError) as exc:
         CF.to_yaml(f)
     assert camp in str(exc.value), str(exc.value)
@@ -592,12 +578,3 @@ def test_l_avis_del_cd_es_nomes_el_limit_de_neudet():
 def test_la_pagina_no_pinta_el_panell_del_cd_si_no_hi_ha_avis():
     html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
     assert "S.cd.avis ?" in html
-
-
-def test_la_pagina_no_ofereix_ocupats_si_el_yaml_no_el_porta():
-    """«ocupats» és el nombre total de tubs (el mateix que `n_tubs` del domini) i ofert a part confonia: la pàgina
-    només el mostra si el yaml ja el porta, i diu que els tubs totals són els del domini."""
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
-    slots = html[html.index("function cSlotsHtml("):html.index("function cGenHtml(")]
-    assert "g.ocupats === undefined ? ''" in slots
-    assert "tubs totals" in slots and "n_tubs" in slots

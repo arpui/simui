@@ -45,9 +45,9 @@ def _primera_etapa_de_xarxa(yaml_text: str) -> str:
     data = yaml.safe_load(yaml_text)
     etapes = (data or {}).get("etapes") if isinstance(data, dict) else None
     for nom, e in (etapes or {}).items():
-        if isinstance(e, dict) and "generador" in e:
+        if isinstance(e, dict) and ("generador" in e or "tongades" in e):
             return str(nom)
-    raise ValueError("el yaml no té cap etapa amb `generador` (una etapa de xarxa)")
+    raise ValueError("el yaml no té cap etapa amb `tongades` (o `generador`): una etapa de xarxa")
 
 
 def _motiu_de(exc: BaseException) -> str:
@@ -129,6 +129,8 @@ def _amb_candidats(dir_: Path, etapa: str, tmp: Path, script: Optional[Path] = N
     valids, invalids = camp.candidats(etapa)
     return {"via": "candidats", "etapa": etapa, "llegible_per_maquina": True,
             "n_valids": len(valids), "n_invalids": len(invalids), "motius": _motius(invalids),
+            # GEN-U: per tongada, els números que neudet porta al meta (`extra.tongades`): recompte, generats, repetits, vàlids, descartats
+            "tongades": [dict(t) for t in (getattr(camp, "tongades_info", None) or {}).get("tongades", [])],
             "candidats": _candidats(valids, tmp, camp.font),
             "certificacio": _certifica(script, dir_) if script is not None
                             else {"disponible": False, "motiu": NO_CERTIFICAT, "elements": []}}
@@ -186,7 +188,7 @@ def candidat_de(dir_: Path, hash_: str, etapa: Optional[str] = None) -> Tuple[st
         from neudet.disseny.campanya import Campanya     # neudet importat de NEUDET_ROOT/src
         C = Campanya(Path(dir_))
         etapes = [etapa] if etapa else [n for n, e in (C.cfg.get("etapes") or {}).items()
-                                        if isinstance(e, dict) and "generador" in e]
+                                        if isinstance(e, dict) and ("generador" in e or "tongades" in e)]
         for nom in etapes:
             valids, _ = C.candidats(nom)
             for c, _v in valids:
@@ -243,8 +245,8 @@ def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
 
 
 def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
-    """Quants candidats genera la regla de l'etapa, ABANS de les restriccions. És `Campanya.candidats` de
-    neudet (que crida `generadors.genera` amb el bloc i el context de la campanya): valids + invalids.
+    """Quants candidats donen les tongades de l'etapa, ABANS de treure repetits i de les restriccions: és
+    `generadors.recompte_etapa` de neudet (la UI no expandeix ni compta). `tongades` és [{nom, recompte}]; `n` és la suma.
     Qualsevol error de neudet arriba tal com és (`ValueError` amb el seu missatge)."""
     if not isinstance(yaml_text, str) or not yaml_text.strip():
         raise ValueError("el campanya.yaml és buit")
@@ -260,7 +262,11 @@ def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             if etapa is None:
                 etapa = _primera_etapa_de_xarxa(yaml_text)
             from neudet.disseny.campanya import Campanya     # neudet importat de NEUDET_ROOT/src
-            valids, invalids = Campanya(dir_).candidats(etapa)
-            return {"etapa": etapa, "n": len(valids) + len(invalids)}
+            from neudet.disseny.generadors import recompte_etapa
+            C = Campanya(dir_)
+            e = C.etapa(etapa)
+            ctx = dict(tipus=C.tipus, n_tubs=e.get("n_tubs", C.restr.get("n_tubs")), restriccions=C.restr, arrel=C.dir)
+            ts = recompte_etapa(e, C.bloc, ctx, etapa)
+            return {"etapa": etapa, "n": sum(t["recompte"] for t in ts), "tongades": ts}
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None

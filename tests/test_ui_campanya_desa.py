@@ -71,7 +71,7 @@ def neudet_tmp(tmp_path, monkeypatch):
     if _REAL_NEUDET is not None and (_REAL_NEUDET / CF.C04_YAML).exists():
         d = root / "disseny" / "campanyes" / "c04_draft"
         d.mkdir()
-        shutil.copy(_REAL_NEUDET / CF.C04_YAML, d / "campanya.yaml")
+        (d / "campanya.yaml").write_text(CF.to_yaml(_form("c04_draft")), encoding="utf-8")
     monkeypatch.setenv("NEUDET_ROOT", str(root))
     return root
 
@@ -81,8 +81,17 @@ def _arbre(root: Path) -> dict:
             for p in sorted(root.rglob("*"))}
 
 
+_FORM_C04: dict = {}
+try:                                  # amb el neudet real, abans que cap fixture canviï NEUDET_ROOT (la traducció a tongades el necessita)
+    if _REAL_NEUDET is not None and (_REAL_NEUDET / CF.C04_YAML).exists():
+        _FORM_C04.update(CF.de_fitxer(_REAL_NEUDET / CF.C04_YAML))
+except Exception:                     # noqa: BLE001
+    pass
+
+
 def _form(id_: str) -> dict:
-    f = CF.de_fitxer(_REAL_NEUDET / CF.C04_YAML)
+    import copy
+    f = copy.deepcopy(_FORM_C04)
     f["id"] = id_
     return f
 
@@ -198,4 +207,4 @@ def test_tanteig_de_candidat_per_http_es_una_llista(url):
     code, r = _json(url, "/api/campanya/tanteig", {"de": "c04_draft", "hash": h})
     assert code == 200, r
     assert r["etapa"] == "llista_S1" and r["candidat"]["hash"] == h
-    assert r["form"]["etapes"]["llista_S1"]["generador"]["tipus"] == "llista"
+    assert r["form"]["etapes"]["llista_S1"]["tongades"][0]["posicions"]["font"] == "punts"

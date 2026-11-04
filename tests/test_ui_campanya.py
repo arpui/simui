@@ -95,7 +95,7 @@ def test_schema_i_defaults(url):
     _neudet_o_skip()
     code, s = _json(url, "/api/campanya/schema")
     assert code == 200
-    assert "anells" in [g["tipus"] for g in s["generadors"]]
+    assert [f["valor"] for f in s["tongades"]["fonts"]] == ["punts", "malla", "anells", "dat"]
     assert s["cd"]["exemples_contracte"] == [0, 0.25, 0.5, 0.75, 1]   # exemples del contracte, no llista de neudet
     code, d = _json(url, "/api/campanya/defaults")
     assert code == 200 and d["id"] == "c04_draft"
@@ -158,12 +158,13 @@ def test_etapa_inexistent_mostra_el_missatge_de_neudet(url):
 # ── el recompte en viu: /api/campanya/compta ─────────────────────────────────
 
 def test_compta_c04_s1_per_la_ruta(url):
-    """El recompte de la ruta és el que genera neudet per a c04 S1: 259 vàlids + 28 invàlids = 287."""
+    """El recompte de la ruta és el de neudet (`recompte_etapa`) per a c04 S1: una tongada, abans de treure repetits."""
     _neudet_o_skip()
     _, d = _json(url, "/api/campanya/defaults")
     code, r = _json(url, "/api/campanya/compta", {"form": d, "etapa": "S1"})
     assert code == 200, r
-    assert r == {"etapa": "S1", "n": 287}
+    assert r["etapa"] == "S1" and r["n"] == sum(t["recompte"] for t in r["tongades"]) and r["n"] >= 287
+    assert [t["nom"] for t in r["tongades"]] == ["anells"]
 
 
 def test_compta_error_de_neudet_arriba_verbatim(url):
@@ -171,14 +172,17 @@ def test_compta_error_de_neudet_arriba_verbatim(url):
     _neudet_o_skip()
     from simphy.mcgen import campanya_check as CC, campanya_form as CF
     _, d = _json(url, "/api/campanya/defaults")
-    d["etapes"]["S1"]["generador"] = {"tipus": "slots", "pas_cm": 5, "ocupats": 9999,
-                                      "tipus_tub": "lnd_252285", "cd": {"fraction": 0}}
+    d["etapes"]["S1"]["tongades"] = [{"nom": "t", "posicions": {"font": "anells", "anells": [{"r": 3, "n": 2, "phi": 0}]},
+                                      "tipus": ["lnd_252285", "lnd_252248"], "cd": {"fraction": 0}, "eix": "z",
+                                      "seleccio": "exhaustiu"}]       # un ventall sense `lligam`: neudet (fitxa) ho diu
     code, body = _json(url, "/api/campanya/compta", {"form": d, "etapa": "S1"})
     assert code == 400
     with pytest.raises(ValueError) as exc:
         CC.compta(CF.to_yaml(d), "S1")
-    assert body["error"] == str(exc.value)
-    assert body["error"].startswith("⛔ slots: ") and "en cal ocupar 9999" in body["error"]
+    import re
+    net = lambda m: re.sub(r"simphy_campanya_\w+", "simphy_campanya_X", m)      # el directori temporal canvia a cada crida
+    assert net(body["error"]) == net(str(exc.value))
+    assert body["error"].startswith("⛔") and "lligam" in body["error"]
 
 
 def test_compta_formulari_invalid_es_400_amb_el_motiu(url):
@@ -207,11 +211,11 @@ def test_pagina_campanya_nota_i_recompte_i_candidat_nomes_a_llista(url):
     assert code == 200
     assert "nota (no afecta res)" in html and "què fa l'etapa" not in html
     assert 'id="c-compta"' in html and "/api/campanya/compta" in html
-    assert "aquesta regla genera" in html
-    # «+ candidat» només existeix dins del generador de llista
-    i_llista, i_slots = html.index("function cLlistaHtml"), html.index("function cSlotsHtml")
-    assert html.count('data-act="cand+"') == 1
-    assert i_llista < html.index('data-act="cand+"') < i_slots
+    assert "aquesta etapa genera" in html
+    # les tongades: «+ tongada» i els editors de cada font
+    assert html.count('data-act="tg+"') == 1 and "function cTongadaHtml" in html
+    for f in ("cPuntsHtml", "cMallaHtml", "cAnellsHtml"):
+        assert f"function {f}" in html, f
 
 
 def test_pagina_campanya_sense_textarea_ni_text_lliure_de_camps(url):

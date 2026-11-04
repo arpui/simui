@@ -21,6 +21,7 @@ Sense neudet real (c04_draft), els tests que la necessiten es salten.
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 import sys
@@ -85,8 +86,20 @@ def _arbre(root: Path) -> dict:
             for p in sorted(root.rglob("*"))}
 
 
+_FORM_C04: dict = {}
+try:
+    if _REAL_NEUDET is not None and (_REAL_NEUDET / CF.C04_YAML).exists():
+        _FORM_C04.update(CF.de_fitxer(_REAL_NEUDET / CF.C04_YAML))
+except Exception:                                  # noqa: BLE001 — sense neudet importable, els tests es salten
+    pass
+
+
 def _form_c04(id_: str = "c05_prova") -> dict:
-    f = CF.de_fitxer(_real_c04())
+    """El c04 de neudet com a formulari (amb `tongades`). Es llegeix amb el neudet real, abans de les fixtures que
+    canvien NEUDET_ROOT (traduir `generador` a `tongades` necessita el codi de neudet)."""
+    if not _FORM_C04:
+        pytest.skip("neudet no és present: no es pot llegir el c04")
+    f = copy.deepcopy(_FORM_C04)
     f["id"] = id_
     return f
 
@@ -341,19 +354,19 @@ def test_vista_de_proposta_amb_pareto_pero_sense_etapes_no_falla(neudet_tmp):
 
 def test_tanteig_de_campanya_porta_un_id_lliure_i_no_toca_loriginal(neudet_tmp, cert_ok):
     real = _real_c04()
-    d = _camp(neudet_tmp, "c04_draft", real.read_text(encoding="utf-8"))
+    d = _camp(neudet_tmp, "c04_draft", CF.to_yaml(_form_c04("c04_draft")))
     antes = _arbre(neudet_tmp)
     t = CD.tanteig_de_campanya("c04_draft")
     assert _arbre(neudet_tmp) == antes, "tanteig no escriu res"
     assert t["id"] == "c04b_draft" and t["de"] == "c04_draft"
     assert t["form"]["id"] == "c04b_draft" and t["form"]["estat"] == "proposta"
-    assert t["form"]["etapes"] == CF.de_fitxer(real)["etapes"], "el disseny és el de l'original"
+    assert t["form"]["etapes"] == _form_c04()["etapes"], "el disseny és el de l'original"
     assert t["candidat"] is None and t["etapa"] == next(iter(t["form"]["etapes"]))
 
 
 def test_tanteig_i_desa_fan_una_campanya_nova_sense_tocar_loriginal(neudet_tmp, cert_ok):
     real = _real_c04()
-    d = _camp(neudet_tmp, "c04_draft", real.read_text(encoding="utf-8"))
+    d = _camp(neudet_tmp, "c04_draft", CF.to_yaml(_form_c04("c04_draft")))
     original = (d / "campanya.yaml").read_bytes()
     t = CD.tanteig_de_campanya("c04_draft")
     r = CD.desa_proposta(t["form"])
@@ -384,9 +397,9 @@ def test_tanteig_de_candidat_es_un_llista_que_torna_el_mateix_hash():
     t = CD.tanteig_de_candidat("c04_draft", h)
     assert t["candidat"]["hash"] == h and t["candidat"]["etapa"] == "S1"
     assert t["etapa"] == "llista_S1" and list(t["form"]["etapes"]) == ["llista_S1"]
-    gen = t["form"]["etapes"]["llista_S1"]["generador"]
-    assert gen["tipus"] == "llista" and len(gen["candidats"]) == 1
-    assert len(gen["candidats"][0]["tubs"]) == len(cand.tubs)
+    ts = t["form"]["etapes"]["llista_S1"]["tongades"]
+    assert len(ts) == 1 and ts[0]["posicions"]["font"] == "punts"
+    assert len(ts[0]["posicions"]["punts"]) == len(cand.tubs)
     # el yaml que surt de les claus de neudet, llegit per neudet, dona el mateix candidat (mateix hash)
     text = CF.to_yaml(t["form"])
     import tempfile
