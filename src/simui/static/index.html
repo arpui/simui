@@ -657,7 +657,7 @@ function cEnergiesDomini(d){
     Font: ${escD(G.font || 'validacions.json')} (contracte §8). Els objectius en trien un subconjunt; més energies = més temps de xarxa i de Geant4.</div>`;
 }
 // Cd per anell o per al mapa. Fracció 0 = sense Cd (candidat.py:221); arc (0, 360] (candidat.py:224).
-function cCdHtml(p, cd){
+function cCdHtml(p, cd, senseAjuda = false){
   const c = cd || {};
   const camp = (k, lab, o) => {
     const v = c[k], q = `${p}.cd.${k}`;
@@ -667,11 +667,11 @@ function cCdHtml(p, cd){
     return cLab(lab, `${cRO(v)} <span class="hint">rang: es canvia a neudet</span>`);
   };
   return `<div class="row3">${camp('fraction', 'Cd fracció (0 = sense Cd)', {min: 0, max: 1, ph: '0'})}${camp('arc', 'Cd arc (°)', {min: 0, max: 360, ph: '360'})}${camp('centre', 'Cd centre (°)', {ph: '0'})}</div>
-  <div class="hint">Fracció en [0, 1]: neudet la llegeix a ${escD(cSrc(CP.schema.cd.fraccio.fitxer, CP.schema.cd.fraccio.linia))}; arc en (0, 360] a ${escD(cSrc(CP.schema.cd.arc.fitxer, CP.schema.cd.arc.linia))}.
+  ${senseAjuda ? '' : `<div class="hint">Fracció en [0, 1]: neudet la llegeix a ${escD(cSrc(CP.schema.cd.fraccio.fitxer, CP.schema.cd.fraccio.linia))}; arc en (0, 360] a ${escD(cSrc(CP.schema.cd.arc.fitxer, CP.schema.cd.arc.linia))}.
   <b>Diversos valors</b> («+ valor»): cada valor és una opció i neudet les combina (fracció × arc × centre), com a c01 i c02.
   <b>Arc</b>: la part del perímetre del tub coberta de Cd (360 = tot). <b>Centre</b>: l'angle, al voltant de l'eix del tub, on queda el mig de l'arc;
   0 = el costat del tub que mira cap a l'eix del bloc (la font, si és al centre); els angles creixen en sentit antihorari vist des de +z
-  (Geant4, <code>counterUPC.cc</code>: φ = atan2(−y, −x) + centre). La fracció és el tram axial cobert, centrat al gas.</div>`;
+  (Geant4, <code>counterUPC.cc</code>: φ = atan2(−y, −x) + centre). La fracció és el tram axial cobert, centrat al gas.</div>`}`;
 }
 // Llista de números editable (x i y de la graella, r i θ del polar). Un rang {de, a, pas} és de només lectura.
 function cNumList(p, v, lab, d = 0){
@@ -745,6 +745,47 @@ function cLlistaHtml(p, g){
     <div class="hint">Cada candidat és una posició de tubs. Els Cd per tub i els fitxers .dat, a la llista de la fase C3.</div>`;
 }
 
+// FLEX-G: posicions fixes (x, y, z, eix). Per posició, un ventall de tipus i de Cd; el candidat és el producte
+// cartesià de les opcions de totes les posicions (generadors.py: _posicions).
+function cPosicionsHtml(p, g){
+  const ttip = CP.f.domini.tipus_tub[0];
+  const eixos = [{valor: 'z'}, {valor: 'x'}, {valor: 'y'}];
+  const nTipus = q => (Array.isArray(q.tipus) ? q.tipus.length : (q.tipus ? 1 : 1));
+  const opcCd = cd => {
+    const n = v => Array.isArray(v) ? v.length : (cEsRang(v) ? null : 1);
+    const f = n((cd || {}).fraction ?? 0);
+    if(f === null) return null;
+    const fv = (cd || {}).fraction;
+    const nz = Array.isArray(fv) ? fv.filter(x => Number(x) !== 0).length : (Number(fv ?? 0) !== 0 ? 1 : 0);
+    const z = f - nz;
+    const a = n((cd || {}).arc ?? 360), c = n((cd || {}).centre ?? 0);
+    return a === null || c === null ? null : z + nz * a * c;
+  };
+  let combos = 1, exacte = true;
+  const blocs = (g.posicions || []).map((q, i) => {
+    const pp = `${p}.posicions.${i}`;
+    if(!Array.isArray(q.tipus)) q.tipus = [q.tipus ?? ttip];     // l'editor porta `tipus` a llista
+    const tps = q.tipus;
+    const oc = opcCd(q.cd);
+    if(oc === null) exacte = false; else combos *= tps.length * oc;
+    const girat = (q.eix ?? 'z') !== 'z';
+    return `<div class="anell"><div class="anell-h"><b>Posició ${i + 1}</b>
+        <button class="x" data-act="pos-" data-i="${i}">treu</button></div>
+      <div class="row3">${cLab('x (cm)', cNumIn(`${pp}.x`, q.x, {ph: '0'}))}${cLab('y (cm)', cNumIn(`${pp}.y`, q.y, {ph: '0'}))}${cLab('z (cm, centre del tub)', cNumIn(`${pp}.z`, q.z, {ph: '0'}))}</div>
+      <div class="row">${cLab('eix del tub', cSel(`${pp}.eix`, eixos, q.eix ?? 'z'))}</div>
+      <div class="nl"><div class="nl-h">tipus de tub (ventall: cada tipus és una opció)</div>${tps.map((tp, k) =>
+        `<span class="nlc">${cSelTub(`${pp}.tipus.${k}`, tp)}${tps.length > 1 ? `<button class="x" data-act="tp-" data-p="${escD(pp + '.tipus')}" data-i="${k}">×</button>` : ''}</span>`).join('')}
+        <button class="ghost" data-act="tp+" data-p="${escD(pp + '.tipus')}">+ tipus</button></div>
+      ${cCdHtml(pp, q.cd, i > 0)}
+      ${girat ? `<div class="hint">Tub girat (eix ${escD(q.eix)}): només els tubs genèrics del catàleg es poden girar, i el Cd només pot ser sencer (arc 360). Si no, neudet el declara invàlid (<code>violacions</code>).</div>` : ''}</div>`;
+  }).join('');
+  return `${blocs}<div class="bar"><button class="ghost" data-act="pos+">+ posició</button></div>
+    <div class="hint">Cada posició és fixa; el candidat és el producte de les opcions de totes (tipus × Cd de cada una).
+      ${exacte ? `Ara: <b>${combos}</b> candidats.` : 'Amb un rang de Cd, el nombre de candidats el compta neudet.'}
+      L'eix és un sol valor per posició: per comparar orientacions, una etapa per orientació.
+      Un tub horitzontal ha de cabre al bloc (un <code>lnd_252285</code> fa 68 cm).</div>`;
+}
+
 function cSlotsHtml(p, g){
   return `<div class="row">${cLab('tipus del tub', cSelTub(p + '.tipus_tub', g.tipus_tub ?? CP.f.domini.tipus_tub[0]))}
       ${cLab('forma', cSel(p + '.forma', [{valor: 'quadrada'}, {valor: 'hexagonal'}], g.forma ?? 'quadrada'))}</div>
@@ -762,6 +803,7 @@ function cGenHtml(E, g){
   if(g.tipus === 'mapa_un_tub') return cMapaHtml(p, g);
   if(g.tipus === 'llista') return cLlistaHtml(p, g);
   if(g.tipus === 'slots') return cSlotsHtml(p, g);
+  if(g.tipus === 'posicions') return cPosicionsHtml(p, g);
   return `<div class="panel bad">El generador «${escD(g.tipus)}» no té formulari a la UI.</div>`;
 }
 
@@ -1070,6 +1112,10 @@ function cAccio(act, ds){
   if(act === 'anell-') g.anells.splice(+ds.i, 1);
   if(act === 'cand+') g.candidats.push({nom: 'c' + (g.candidats.length), tubs: []});
   if(act === 'cand-') g.candidats.splice(+ds.i, 1);
+  if(act === 'pos+') g.posicions.push({x: 0, y: 0, z: 0, eix: 'z', tipus: [CP.f.domini.tipus_tub[0]], cd: {fraction: 0}});
+  if(act === 'pos-') g.posicions.splice(+ds.i, 1);
+  if(act === 'tp+') cArr(ds.p).push(CP.f.domini.tipus_tub[0]);
+  if(act === 'tp-') cArr(ds.p).splice(+ds.i, 1);
   if(act && act.startsWith('en')){                                 // energies del domini
     let en = (CP.f.domini.energies_MeV || []).map(Number);
     if(act === 'en-') en.splice(+ds.i, 1);

@@ -231,6 +231,23 @@ CAMPS: Dict[str, Dict[str, Any]] = {
              "nota": "centre de l'arc de Cd (graus)"},
         ],
     },
+    "posicions": {
+        "linies": f"{_G}:174-200",
+        "camps": [
+            {"clau": "posicions", "ambit": "generador", "obligatori": True, "linia": 177,
+             "nota": "llista de posicions fixes; el candidat és el producte cartesià de les opcions de totes"},
+            {"clau": "x", "ambit": "posicio", "obligatori": True, "linia": 182, "nota": "cm"},
+            {"clau": "y", "ambit": "posicio", "obligatori": True, "linia": 182, "nota": "cm"},
+            {"clau": "z", "ambit": "posicio", "obligatori": False, "linia": 191,
+             "nota": "cm; centre del tub (0 per defecte a neudet; fitxa: 1 l'exigeix explícit)"},
+            {"clau": "eix", "ambit": "posicio", "obligatori": False, "linia": 185,
+             "nota": "eix del tub: z (per defecte), x o y; un sol valor per posició"},
+            {"clau": "tipus", "ambit": "posicio", "obligatori": False, "linia": 188,
+             "nota": "tipus de tub: un valor o una llista (ventall); per defecte el primer de domini.tipus_tub"},
+            {"clau": "cd", "ambit": "posicio", "obligatori": False, "linia": 192,
+             "nota": "Cd {fraction, arc, centre}: valor, llista o rang; en un tub girat, només Cd sencer (arc 360)"},
+        ],
+    },
     "slots": {
         "linies": f"{_G}:170-203",
         "camps": [
@@ -578,6 +595,8 @@ def _schema_plantilles() -> Dict[str, Any]:
         "mapa_un_tub": {"tipus": "mapa_un_tub", "tipus_tub": TUB, "cd": {"fraction": 0}, "x": [0], "y": [0]},
         "llista": {"tipus": "llista", "candidats": [{"nom": "c0", "tubs": []}]},
         "slots": {"tipus": "slots", "tipus_tub": TUB, "cd": {"fraction": 0}, "pas_cm": 5},
+        "posicions": {"tipus": "posicions", "posicions": [{"x": 0, "y": 0, "z": 0, "eix": "z", "tipus": [TUB],
+                                                           "cd": {"fraction": 0}}]},
     }
 
 
@@ -840,6 +859,37 @@ def _errors_generador(g: Any, ruta: str) -> List[str]:
         for i, c in enumerate(g.get("candidats") or []):
             if not isinstance(c, dict) or ("dat" not in c and "tubs" not in c):
                 e.append(f"{ruta}.candidats[{i}]: cal «dat» o «tubs»")
+    elif t == "posicions":
+        pos = g.get("posicions")
+        if not isinstance(pos, list) or not pos:
+            e.append(f"{ruta}.posicions: una llista no buida de posicions (generadors.py:177)")
+            pos = []
+        for i, q in enumerate(pos):
+            rp = f"{ruta}.posicions.{i}"
+            if not isinstance(q, dict):
+                e.append(f"{rp}: cal un diccionari amb x, y, eix, tipus i cd")
+                continue
+            for k in ("x", "y", "z"):
+                if k in q and not _num(q[k]):
+                    e.append(f"{rp}.{k}: un número (cm)")
+                elif k != "z" and k not in q:
+                    e.append(f"{rp}.{k}: falta «{k}» (posició {i + 1})")
+            if q.get("eix", "z") not in EIXOS:
+                e.append(f"{rp}.eix: {q.get('eix')!r} no és x, y ni z (generadors.py:186)")
+            tp = q.get("tipus", [])
+            tp = tp if isinstance(tp, list) else [tp]
+            if "tipus" in q and (not tp or not all(isinstance(x, str) and x for x in tp)):
+                e.append(f"{rp}.tipus: un nom de tub o una llista no buida de noms del catàleg")
+            if "cd" in q:
+                ecd = _errors_cd(q["cd"], f"{rp}.cd")
+                e += ecd
+                if not ecd and q.get("eix", "z") != "z":
+                    cd = q["cd"]
+                    fr = [x for _, x in _punts_cd(cd.get("fraction", 0), "f")]
+                    arcs = [x for _, x in _punts_cd(cd.get("arc", 360), "a")]
+                    if any(f != 0 for f in fr) and any(a < 360 for a in arcs):
+                        e.append(f"{rp}.cd.arc: en un tub girat (eix {q['eix']}) el Cd només pot ser sencer (arc 360): "
+                                 f"neudet ho refusa a violacions")
     elif t == "slots":
         if "pas_cm" in g and not _pos(g["pas_cm"]):
             e.append(f"{ruta}.pas_cm: un número positiu (cm); generadors.py:{SLOTS_PAS_LINIA} hi divideix")

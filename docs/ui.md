@@ -89,6 +89,18 @@ tub i per codi, amb la provenance de cada xifra. **Una xifra sense provenance no
 Dependència: **F2 és el format comú de resultats per tub**, i l'ha de fixar neudet. Fins
 llavors, aquesta pestanya només pot llegir el que neudet ja publica.
 
+### 4 · Disseny flexible (FLEX-UI, contracte v1.2 §9)
+- **Generador `posicions`** al formulari de campanya: posicions fixes (x, y, z, `eix`) amb, per posició, un ventall de tipus de tub i de Cd.
+  El candidat és el producte de les opcions de totes les posicions; el formulari diu quants en surten.
+  `eix` (z, x o y) és un sol valor per posició: per comparar orientacions, una etapa per orientació.
+- **Visor:** un tub girat és un rectangle a la vista XY; al tall XZ (y = 0), una franja si l'eix és x i un cercle si és y. La taula afegeix la
+  columna «Eix» només si hi ha tubs girats. L'eix es llegeix del `.json` del costat (`tubes[i].eix`).
+- **Validesa:** la fa neudet (`violacions` en 3D); la UI la mostra. El formulari només refusa el que neudet no llegiria (eix fora de x|y|z,
+  Cd amb sector en un tub girat, posició sense x o y).
+- **Límit:** MCNP, OpenMC i FLUKA de simphy construeixen tots els tubs al llarg de z. Amb un tub girat **refusen** (`exigeix_tubs_drets`), no
+  generen un altre detector en silenci. Geant4 (app `detector`) i el motor de neudet sí que els fan.
+- Proves: `tests/test_flex_ui.py`.
+
 ## Fora d'abast, de moment
 
 - **Llançar simulacions des de la UI.** Les tirades llargues passen per runbooks a
