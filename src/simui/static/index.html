@@ -815,8 +815,9 @@ const R_TUB_VISTA = 1.3, L_TUB_VISTA = 16;
 function cVals(v, max = 40){
   if(typeof v === 'number') return [v];
   if(Array.isArray(v)) return v.map(Number).filter(Number.isFinite);
-  if(cEsRang(v) && v.pas > 0 && v.a >= v.de){
-    const o = []; for(let x = v.de; x <= v.a + 1e-9 && o.length < max; x += v.pas) o.push(Math.round(x * 1e6) / 1e6); return o;
+  if(cEsRang(v) && (v.pas === undefined || v.pas > 0) && v.a >= v.de){
+    const pas = v.pas === undefined ? 1 : v.pas;                       // neudet: pas per defecte 1
+    const o = []; for(let x = v.de; x <= v.a + 1e-9 && o.length < max; x += pas) o.push(Math.round(x * 1e6) / 1e6); return o;
   }
   return [];
 }
@@ -829,11 +830,27 @@ function cTubsVista(){
     const pos = t.posicions || {}, tp = `etapes.${CP.etapa}.tongades.${ti}.posicions`;
     const eixT = first(t.eix, 'z');
     if(pos.font === 'anells'){
-      (pos.anells || []).forEach((a, ai) => {
-        const rs = cVals(a.r), ns = cVals(a.n).filter(n => n > 0);
-        rs.forEach(r => { if(r > 0) out.cercles.push(r); });
-        if(!rs.length || !ns.length) return;
-        const n = ns[0], r = rs[0], eix = first(a.eix, eixT);
+      // Una combinació: si hi ha `n_total`, la primera combinació de n que hi suma; si no, la primera n > 0 de cada anell.
+      const an = pos.anells || [];
+      an.forEach(a => cVals(a.r).forEach(r => { if(r > 0) out.cercles.push(r); }));
+      const Ns = an.map(a => { const v = cVals(a.n); return v.length ? v : [0]; });
+      const nt = typeof pos.n_total === 'number' ? pos.n_total : null;
+      let tria = null;
+      const dfs = (i, acc) => {
+        if(tria) return;
+        if(i === Ns.length){ if((nt === null ? acc.some(x => x > 0) : acc.reduce((s, x) => s + x, 0) === nt)) tria = acc.slice(); return; }
+        const cand = nt === null ? [Ns[i].find(n => n > 0) ?? 0] : Ns[i];
+        for(const n of cand){ acc.push(n); dfs(i + 1, acc); acc.pop(); if(tria) return; }
+      };
+      dfs(0, []);
+      let rPrev = -Infinity;
+      an.forEach((a, ai) => {
+        const n = tria ? tria[ai] : 0;
+        if(!(n > 0)) return;
+        const rs = cVals(a.r).filter(r => !pos.ordenats || r > rPrev);
+        if(!rs.length) return;
+        const r = rs[0]; rPrev = r;
+        const eix = first(a.eix, eixT);
         const phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : (cVals(a.phi)[0] ?? 0));
         for(let k = 0; k < n && k < 60; k++){
           const th = (phi + 360 * k / n) * Math.PI / 180;

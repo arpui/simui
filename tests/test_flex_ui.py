@@ -286,3 +286,9 @@ def test_la_pagina_porta_els_atributs_dins_de_cada_anell_i_punt():
     assert "cAtrsHtml(ap, a, true)" in anells and "Filtres sobre els anells" in anells
     assert "cAtrsHtml(qp, q, true)" in punts
     assert anells.index("anell+") < anells.index("n_total")             # els filtres, sota tots els anells
+
+
+def test_la_vista_dels_anells_usa_el_pas_per_defecte_de_neudet_i_el_n_total():
+    """Un rang sense `pas` val 1 a neudet (`valors`): si la vista no ho fes, un rang com {de: 0, a: 8} no dibuixaria cap tub."""
+    vista = INDEX.split("function cVals")[1].split("function cBlocSvg")[0]
+    assert "v.pas === undefined" in vista and "pos.n_total" in vista
