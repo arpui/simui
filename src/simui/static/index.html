@@ -1302,6 +1302,23 @@ function cPintaCert(c){
     c.elements.map(e => `<tr><td>${marca[e.estat] || '?'}</td><td>${escD(e.element)}</td><td>${escD(e.estat)}</td><td>${escD(e.motiu || '')}</td><td>${escD(e.document || '')}</td></tr>`).join('')}</tbody></table></div>`;
   return h;
 }
+// Després de desar: el que neudet ha trobat malament, en vermell (no es perd entre la resta). Errors = camps que falten i
+// elements prohibits (o no validats si atura); descartats = candidats invàlids per etapa, amb el motiu i quants.
+function cAvisosDesa(c){
+  if(!c) return '';
+  const out = [];
+  if(c.camps_falten) out.push(`<b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre>`);
+  const mal = (c.elements || []).filter(e => e.estat === 'prohibit' || (c.atura && e.estat === 'no_validat'));
+  if(mal.length) out.push('<b>Elements que neudet no accepta:</b><ul class="msgs">' +
+    mal.map(e => `<li>${e.estat === 'prohibit' ? '⛔' : '⚠'} ${escD(e.element)} — ${escD(e.estat)}${e.motiu ? ': ' + escD(e.motiu) : ''}</li>`).join('') + '</ul>');
+  for(const [nom, e] of Object.entries(c.etapes || {})){
+    if(!e.invalids) continue;
+    const mot = Object.entries(e.motius || {}).sort((x, y) => y[1] - x[1]);
+    out.push(`<b>Etapa ${escD(nom)}: ${e.invalids} candidats descartats</b> (${e.valids} vàlids)` +
+      (mot.length ? '<ul class="msgs">' + mot.map(([m, n]) => `<li>${escD(m)} <span class="hint">× ${n}</span></li>`).join('') + '</ul>' : ''));
+  }
+  return out.length ? `<div class="panel bad" data-avis-desa>${out.join('')}</div>` : '';
+}
 async function cDesa(){
   Q('#c-desat').innerHTML = '<div class="hint">neudet certifica la proposta…</div>';
   try{
@@ -1314,6 +1331,7 @@ async function cDesa(){
       <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
         <li>Ell revisa i prepara el pla i el runbook; l'agent <code>runbook-run</code> corre la xarxa i el Geant4.</li>
         <li>Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
+      ${cAvisosDesa(r.certificacio)}
       ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
     // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
     await nzLlegeixLlista().catch(() => {});

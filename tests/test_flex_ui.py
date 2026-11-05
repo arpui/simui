@@ -312,3 +312,12 @@ def test_pagina_mostra_resposta_d_etapa_i_formulari_congelat():
     # el Markdown de la resposta porta figures i taules; el congelat no deixa desar ni editar
     assert "<img loading=\"lazy\" style=\"max-width:100%\"" in html
     assert "if(!CP.congelat) cEdita" in html
+
+
+def test_desa_mostra_en_vermell_errors_i_descartats():
+    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    assert "function cAvisosDesa" in html and "data-avis-desa" in html
+    assert "${cAvisosDesa(r.certificacio)}" in html           # i és dins de la resposta de desar
+    for tros in ("camps_falten", "candidats descartats", "e.motius", "'prohibit'"):
+        assert tros in html, tros
+    assert '<div class="panel bad" data-avis-desa>' in html     # vermell, com la resta d'errors
