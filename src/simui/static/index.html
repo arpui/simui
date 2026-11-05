@@ -1054,6 +1054,8 @@ function cFormHtml(){
 
   <h2>Estructura · etapa</h2>
   <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option ${e === E ? 'selected' : ''}>${escD(e)}</option>`).join('')}</select>`)}</div>
+  ${cLab('Què vull saber (la pregunta d\'aquesta etapa)', cIn(`etapes.${E}.pregunta`, et.pregunta, 'ostr'))}
+  <div class="hint">El teu text, tal com el dius; el planificador l'interpreta i et demana confirmar-lo abans que res corri (contracte UI §13). Si és buit, el resum dirà «no n'hi ha».</div>
   ${cLab('nota (no afecta res)', cIn(`etapes.${E}.que`, et.que, 'ostr'))}
   <div class="hint">neudet la copia al resum.md com a «Què» (campanya.py:245); no canvia cap candidat ni cap càlcul.</div>
   ${cEtapaHtml()}
@@ -1081,6 +1083,8 @@ function cPintaForm(){
 // Congelat: res del formulari no es pot tocar, ni es pot desar; l'explicació del flux sobra.
 function cCongela(){
   const c = !!CP.congelat;
+  const hi = (KC.lista || []).some(x => x.id === (CP.f && CP.f.id));
+  Q('#c-desa').textContent = hi ? 'Modifica la proposta' : 'Desa la proposta';   // contracte §13: cada desada refà la certificació i torna l'estat a «proposta»
   Q('#c-flux').hidden = c; Q('#c-desa').parentNode.hidden = c;
   if(c) Q('#c-form').querySelectorAll('input,select,textarea,button').forEach(n => { n.disabled = n.dataset.etapa === undefined; });   // triar l'etapa és mirar, no editar
 }

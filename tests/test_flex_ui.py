@@ -321,3 +321,24 @@ def test_desa_mostra_en_vermell_errors_i_descartats():
     for tros in ("camps_falten", "candidats descartats", "e.motius", "'prohibit'"):
         assert tros in html, tros
     assert '<div class="panel bad" data-avis-desa>' in html     # vermell, com la resta d'errors
+
+
+def test_pregunta_per_etapa_passa_pel_formulari_i_neudet_la_tolera():
+    """CONF-UI (contracte UI §13): «Què vull saber» és `etapes.<e>.pregunta`; el formulari la conserva i neudet no la rebutja."""
+    import os
+    from simphy.mcgen import campanya_check as CC
+    y = Path(os.path.expanduser("~/projects/neudet/disseny/campanyes/c0_2anells/campanya.yaml"))
+    if not y.is_file():
+        pytest.skip("neudet no és present")
+    f = CF.de_fitxer(y)
+    e = next(iter(f["etapes"]))
+    f["etapes"][e]["pregunta"] = "Què canvia a la frontera?"
+    text = CF.to_yaml(f)
+    assert "Què canvia a la frontera?" in text
+    assert CC.comprova(text).get("camps_falten") is None
+
+
+def test_pagina_te_pregunta_i_boto_modifica():
+    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    assert "Què vull saber" in html and "etapes.${E}.pregunta" in html
+    assert "Modifica la proposta" in html and "Desa la proposta" in html
