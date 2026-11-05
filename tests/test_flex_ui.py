@@ -442,3 +442,24 @@ def test_el_visor_de_candidats_dona_tambe_el_tall_yz():
     assert r["yz_svg"].startswith("<svg") and "x = 0" in r["yz_svg"] and "y (cm)" in r["yz_svg"]
     assert "y = 0" in r["xz_svg"] and "x (cm)" in r["xz_svg"]            # l'XZ de sempre no canvia
     assert r["caption_yz"][0].startswith("Tall a x = 0")
+
+
+# ── CONF-UI: resum, interpretació i confirmació (contracte UI §13) ──────────
+
+def test_la_vista_porta_resum_confirmacio_interpretacio_i_etapes_declarades():
+    from simphy.mcgen import campanya_vista as CV
+    root = _neudet_o_skip()
+    if not (root / "disseny/campanyes/c0_2a0511/campanya_ui.json").is_file():
+        pytest.skip("c0_2a0511 no és a neudet")
+    v = CV.vista(CV.dir_de("c0_2a0511"))
+    assert v["certificacio"]["resum_text"].startswith("Estat:") and v["certificacio"]["confirmacio"]["estat"]
+    assert v["interpretacio"] and v["etapes"][0]["executada"] is False and v["etapes"][0]["candidats"] == []
+    assert v["etapes"][0]["pla"]
+
+
+def test_la_pagina_porta_el_resum_la_interpretacio_i_el_boto_de_confirmar_nomes_en_interpretada():
+    for tros in ("function kConfirmaHtml", "Confirmar i congelar", "Confirma i congela", "/api/campanya/confirma",
+                 "function kResumInterp", "Interpretació del planificador", "Què entén neudet que farà", "encara no ha corregut"):
+        assert tros in INDEX, tros
+    assert "v.estat_yaml !== 'interpretada'" in INDEX          # el botó només surt amb la campanya interpretada
+    assert "interpretada" in INDEX.split('id="c-flux"')[1].split("</details>")[0]     # el flux explica el pas nou

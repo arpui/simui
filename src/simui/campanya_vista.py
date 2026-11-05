@@ -425,6 +425,8 @@ def _certificacio(d: Path, rel: Optional[str]) -> Dict[str, Any]:
     doc = _json(_dins(d, rel, "certificacio"))
     return {"disponible": True, "motiu": "", "fitxer": rel, "atura": doc.get("atura"),
             "draft": doc.get("draft"), "elements": doc.get("elements") or [],
+            "resum_text": doc.get("resum_text"), "confirmacio": doc.get("confirmacio"),   # CONF-P: text i estat de neudet, tal qual
+            "avisos_en_paraules": doc.get("avisos_en_paraules"),
             "camps_falten": doc.get("camps_falten"), "etapes": doc.get("etapes") or {}}
 
 
@@ -487,6 +489,11 @@ def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[str, Any], List[str]]:
+    if not e.get("candidats"):                    # CONF-PLA: etapa declarada al yaml que encara no ha corregut (`executada: false`)
+        return ({"nom": e["nom"], "motor": e.get("motor"), "verifica": None, "n_candidats": 0, "n_csv": 0, "citable": False,
+                 "motius": [], "figures": [], "fitxers": {"dir": None, "candidats": None, "resultats_tub": None, "meta": None},
+                 "columnes": [], "energies_MeV": None, "candidats": [], "executada": False,
+                 "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None, "resposta": None}, [])
     csvp = _dins(d, e["candidats"], e["nom"])
     if not csvp.is_file():
         raise CampanyaError(f"{e['nom']}: el manifest diu {e['candidats']} i no hi és")
@@ -539,6 +546,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "metriques": metriques,
         "etapes": etapes,
         "judici": m["judici"],
+        "interpretacio": m.get("interpretacio") if isinstance(m.get("interpretacio"), str) else None,   # CONF-PLA: PLA.md des d'«interpretada»
         "report": list(m["report"]),
         "export": m["export"],
         "avisos": avisos,

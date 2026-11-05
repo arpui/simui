@@ -336,6 +336,11 @@ def campanya_desa(body: Dict[str, Any]) -> Dict[str, Any]:
     return CD.desa_proposta(body.get("form"))
 
 
+def campanya_confirma(body: Dict[str, Any]) -> Dict[str, Any]:
+    """«Confirmar i congelar» una campanya `interpretada` (neudet escriu la confirmació; vegeu `campanya_desa.confirma_campanya`)."""
+    return CD.confirma_campanya(body.get("id"), body.get("per"))
+
+
 def campanya_tanteig(body: Dict[str, Any]) -> Dict[str, Any]:
     """«Tanteja»: el formulari d'una campanya (`de`) amb un id derivat lliure; o, amb `hash`, el candidat d'aquella
     campanya com a etapa `llista` (`etapa` opcional). No escriu res."""
@@ -375,7 +380,9 @@ def campanya_vista(id_: str) -> Dict[str, Any]:
 def campanya_carrega(id_: str) -> Dict[str, Any]:
     """El `campanya.yaml` de neudet com a formulari, per obrir-lo a la pestanya Campanya. No escriu res."""
     d = CV.dir_de(id_)
-    return {"id": id_, "form": CF.de_fitxer(d / "campanya.yaml")}
+    cert = CV._certificacio(d, "comprova.json" if (d / "comprova.json").is_file() else None)
+    return {"id": id_, "form": CF.de_fitxer(d / "campanya.yaml"),
+            "resum_text": cert.get("resum_text"), "confirmacio": cert.get("confirmacio")}     # CONF-P: el que neudet entén que farà
 
 
 def campanya_candidat(id_: str, hash_: str, etapa: Optional[str] = None) -> Dict[str, Any]:

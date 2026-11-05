@@ -277,7 +277,8 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
         <ol class="flux">
           <li><b>Aquí (la UI):</b> defineixes la campanya i prems «Desa la proposta». neudet la certifica en desar; si certifica, escriu <code>campanya.yaml</code> i
             <code>comprova.json</code> a <code>neudet/disseny/campanyes/&lt;id&gt;/</code> amb <code>estat: proposta</code>. <b>La UI no corre cap simulació.</b></li>
-          <li><b>Tu al planificador de neudet:</b> li dius «campanya <code>&lt;id&gt;</code> proposta». Ell revisa la definició i la certificació, i escriu el <code>PLA.md</code> i el runbook.</li>
+          <li><b>Tu al planificador de neudet:</b> li dius «campanya <code>&lt;id&gt;</code> proposta». Ell l'interpreta (escriu el <code>PLA.md</code> amb preguntes i portes) i la campanya passa a <b>interpretada</b>.</li>
+          <li><b>Tu, a «Campanyes»:</b> revises el resum i la interpretació i prems <b>Confirmar i congelar</b>. Cap simulació no corre sense això.</li>
           <li><b>L'agent <code>runbook-run</code>:</b> corre la xarxa i el Geant4. Quan acaba, tu dius al planificador «<code>&lt;id&gt;</code> executada».</li>
           <li><b>El planificador:</b> fa el judici i el report. Quan diu a simphy «<code>&lt;id&gt;</code> jutjada», la campanya surt amb resultats a la pestanya «Campanyes».</li>
         </ol>
@@ -1462,11 +1463,12 @@ async function cDesa(){
     const marca = r.atura ? '<span class="tag t-no">neudet diu: cal aturar</span>' : '<span class="tag t-ok">certificada</span>';
     const id = escD(r.id);
     Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada: <code>${id}</code></b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
+      ${r.certificacio && r.certificacio.resum_text ? `<details class="fold" open><summary>Què entén neudet que farà (resum)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.certificacio.resum_text)}</div></details>` : ''}
       <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
       <p><b>Ara et toca a tu</b> (la UI s'atura aquí i no ha corregut cap simulació):</p>
       <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
-        <li>Ell revisa i prepara el pla i el runbook; l'agent <code>runbook-run</code> corre la xarxa i el Geant4.</li>
-        <li>Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
+        <li>Ell l'interpreta (escriu el <code>PLA.md</code>) i la campanya passa a <b>interpretada</b>. Llavors la veus a «Campanyes» amb la interpretació i el botó <b>Confirmar i congelar</b>: cap simulació no corre sense la teva confirmació.</li>
+        <li>Quan confirmes, l'agent <code>runbook-run</code> corre la xarxa i el Geant4. Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
       ${cAvisosDesa(r.certificacio)}
       ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
     // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
@@ -1571,7 +1573,10 @@ function kPinta(){
   out.push(kAccions());
   if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
   v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
+  out.push(kEstatConf(v));
   out.push(kDefinicio(v));
+  out.push(kResumInterp(v));
+  out.push(kConfirmaHtml(v));
   out.push('<h2>Certificació</h2>' + kCert(v));
   if(basica) out.push('<div class="panel">Sense manifest: els resultats per etapa, el judici i el report s\'hi afegeixen quan neudet publiqui la campanya.</div>');
   else {
@@ -1594,6 +1599,38 @@ async function kCongela(){
   nzVeu();
   Q('#c-torna').onclick = () => nzCampanya(id);
 }
+// CONF-UI (contracte §13): l'estat que diu neudet (si es pot córrer o no), el resum en paraules i la interpretació del planificador.
+function kEstatConf(v){
+  const c = (v.certificacio && v.certificacio.confirmacio) || null;
+  if(!c) return '';
+  return `<div class="panel ${c.bloqueja ? 'warn' : 'ok'}"><b>Estat: ${escD(c.estat || 'sense estat')}</b> — ${escD(c.text)}</div>`;
+}
+function kResumInterp(v){
+  const rs = v.certificacio && v.certificacio.resum_text;
+  return (rs ? `<details class="fold" open><summary>Què entén neudet que farà (resum)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(rs)}</div></details>` : '') +
+    (v.interpretacio ? `<details class="fold" open><summary>Interpretació del planificador (PLA.md)</summary><div class="panel">${kMd(v.interpretacio)}</div></details>` : '');
+}
+// «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
+function kConfirmaHtml(v){
+  if(v.estat_yaml !== 'interpretada') return '';
+  return `<div class="panel warn" id="k-conf"><b>Confirmar i congelar</b>
+    <div>Revisa la definició (formulari congelat), el resum i la interpretació. En confirmar, neudet escriu la confirmació (hash del yaml i del PLA) i la campanya queda <b>congelada</b>:
+      si després es toca el yaml o el PLA, caldrà tornar-la a interpretar i confirmar. Cap simulació no corre sense aquesta confirmació.</div>
+    <div class="row">${cLab('qui confirma', '<input id="k-per" value="Albert">')}</div>
+    <div class="bar"><button id="k-conf-si">Confirma i congela</button></div><div id="k-conf-res"></div></div>`;
+}
+async function kConfirma(){
+  const per = Q('#k-per').value.trim(), id = KC.id, res = Q('#k-conf-res');
+  res.innerHTML = '<div class="hint">neudet escriu la confirmació…</div>';
+  try{
+    const r = await api('/api/campanya/confirma', {id, per});
+    await nzLlegeixLlista().catch(() => {});
+    await kCarrega(id);
+    const top = document.getElementById('k-out');
+    top.insertAdjacentHTML('afterbegin', `<div class="panel ok"><b>Confirmada i congelada: <code>${escD(id)}</code></b> el ${escD(r.confirmacio.data)} per ${escD(r.confirmacio.per)}. ${escD(r.text)}
+      <div>Ara ja es pot córrer: avisa el planificador que la campanya és confirmada.</div></div>`);
+  } catch(e){ res.innerHTML = `<div class="panel bad"><b>No es confirma:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
+}
 // «Tanteja»: una proposta nova amb el contingut d'aquesta campanya (id derivat). L'original no es toca.
 function kAccions(){
   return '<div class="bar"><button class="ghost" data-k="tanteja" title="Una campanya nova (id derivat) amb el contingut d’aquesta, per modificar-la. L’original no es toca">Proposta</button>' +
@@ -1614,6 +1651,8 @@ function kCert(v){
   return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cPintaCert(c);
 }
 function kEtapa(e){
+  if(e.executada === false)
+    return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kPla(e)}</article>`;
   const eix = KC.v.pareto.eixos;
   const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
     e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null]
@@ -1632,7 +1671,7 @@ function kEtapa(e){
 }
 // El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
 function kPla(e){
-  return e.pla ? `<details class="fold"><summary>Per què aquesta etapa (del PLA)</summary>${kMd(e.pla)}</details>` : '';
+  return e.pla ? `<details class="fold" ${e.executada === false ? 'open' : ''}><summary>Per què aquesta etapa (del PLA)</summary>${kMd(e.pla)}</details>` : '';
 }
 function kResposta(e){
   const r = e.resposta, f = e.fitxers || {};
@@ -1773,6 +1812,7 @@ document.getElementById('k-out').addEventListener('click', e => {
   if(tr){ nzObreCandidat({hash: tr.dataset.h, nom: tr.dataset.n, de: KC.id}).catch(err => dErr(err.message)); return; }
   const b = e.target.closest('button[data-k="tanteja"]');
   if(b) cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
+  if(e.target.closest('#k-conf-si')) kConfirma();
   if(e.target.closest('button[data-k="congela"]')) kCongela().catch(err => kErr(err.message));
 });
 </script>
@@ -1889,7 +1929,8 @@ async function nzCampanya(id){
     await cInit();
     const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
     cCarrega(r.form, `Proposta de neudet <code>${escD(id)}</code> (estat: proposta). «Desa la proposta» la torna a escriure: només una proposta es pot sobreescriure.` +
-      `<div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${id}\` proposta`)}</pre>`);
+      `<div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${id}\` proposta`)}</pre>` +
+      (r.resum_text ? `<details class="fold"><summary>Què entén neudet que farà (resum de l'última desada)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.resum_text)}</div></details>` : ''));
     NZ.sel = {k: 'form', id};
     return nzVeu();
   }

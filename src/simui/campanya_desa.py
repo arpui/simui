@@ -153,6 +153,30 @@ def desa_proposta(form: Any, root: Optional[Path] = None) -> Dict[str, Any]:
             "atura": bool(cert.get("atura")), "draft": cert.get("draft"), "certificacio": cert}
 
 
+# ── confirmació (CONF-UI; contracte UI §13) ─────────────────────────────────
+
+def confirma_campanya(id_: Any, per: Any) -> Dict[str, Any]:
+    """«Confirmar i congelar»: escriu `confirmacio` i `estat: confirmada` al `campanya.yaml` de neudet, amb el codi de neudet
+    (`confirmacio.confirma`: només des d'`interpretada`, amb `PLA.md`, i sempre amb el nom de qui confirma). La UI no calcula
+    cap hash. El motiu d'un refús és el de neudet, tal com és."""
+    valida_id(id_)
+    if not isinstance(per, str) or not per.strip():
+        raise DesaError("cal dir qui confirma: la confirmació no és automàtica")
+    try:
+        d = CV.dir_de(id_)
+    except CV.CampanyaError as exc:
+        raise DesaError(str(exc)) from None
+    try:
+        CC.DES._neudet()
+        from neudet.disseny.confirmacio import confirma, estat_i_confirmacio     # neudet importat de NEUDET_ROOT/src
+        c = confirma(d, per.strip())
+        text = estat_i_confirmacio(d)["text"]
+    except SystemExit as exc:                              # «⛔ …» de neudet: el motiu, verbatim
+        raise DesaError(str(exc).replace("⛔", "").strip()) from None
+    return {"id": id_, "estat": "confirmada",
+            "confirmacio": {k: c[k] for k in ("data", "per", "hash_yaml", "hash_pla")}, "text": text}
+
+
 # ── tanteig ─────────────────────────────────────────────────────────────────
 
 def _form_tanteig(form: Dict[str, Any], nou: str) -> Dict[str, Any]:

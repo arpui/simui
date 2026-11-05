@@ -425,3 +425,44 @@ def test_tanteig_de_campanya_amb_cd_com_a_llista_es_pot_fer():
         pytest.skip("no hi ha c01 a neudet")
     r = CD.tanteig_de_campanya("c01_8tubs_30x30x80")
     CF.to_yaml(r["form"])
+
+
+# ── CONF-UI: «Confirmar i congelar» (neudet escriu la confirmació; contracte UI §13) ──
+
+@pytest.fixture
+def camp_confirmable(tmp_path, monkeypatch):
+    """Una campanya temporal; la carpeta és fora de neudet (no s'hi escriu mai) i `dir_de` hi apunta. Es fa servir el codi real de neudet."""
+    root = _real_c04()
+    d = tmp_path / "c07_prova"
+    d.mkdir()
+    (d / "campanya.yaml").write_text("id: c07_prova\nestat: interpretada\ndomini: {a: 1}\n", encoding="utf-8")
+    (d / "PLA.md").write_text("# PLA\n", encoding="utf-8")
+    monkeypatch.setattr(CD.CV, "dir_de", lambda i: d)
+    return d
+
+
+def test_confirma_escriu_confirmacio_i_estat_i_no_toca_el_pla(camp_confirmable):
+    d = camp_confirmable
+    pla = (d / "PLA.md").read_bytes()
+    r = CD.confirma_campanya("c07_prova", "Albert")
+    y = yaml.safe_load((d / "campanya.yaml").read_text())
+    assert y["estat"] == "confirmada" and y["confirmacio"]["per"] == "Albert"
+    assert y["confirmacio"]["hash_yaml"] == r["confirmacio"]["hash_yaml"] and len(r["confirmacio"]["hash_pla"]) == 64
+    assert "Confirmada el" in r["text"] and (d / "PLA.md").read_bytes() == pla
+
+
+def test_confirma_refusa_una_proposta_amb_el_motiu_de_neudet(camp_confirmable):
+    d = camp_confirmable
+    (d / "campanya.yaml").write_text("id: c07_prova\nestat: proposta\n", encoding="utf-8")
+    with pytest.raises(CD.DesaError, match="només es pot confirmar una campanya `interpretada`"):
+        CD.confirma_campanya("c07_prova", "Albert")
+    assert "confirmacio" not in (d / "campanya.yaml").read_text()
+
+
+def test_confirma_sense_nom_o_sense_pla_es_refusa(camp_confirmable):
+    d = camp_confirmable
+    with pytest.raises(CD.DesaError, match="qui confirma"):
+        CD.confirma_campanya("c07_prova", "  ")
+    (d / "PLA.md").unlink()
+    with pytest.raises(CD.DesaError, match="no hi ha PLA.md"):
+        CD.confirma_campanya("c07_prova", "Albert")

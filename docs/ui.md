@@ -136,3 +136,12 @@ la font i cada tub (llargada total, clar, i zona activa, fosc) a la seva z; un t
 vista i un cercle si el travessa. Al full d'un candidat, el selector tria entre el tall XZ (y = 0) i el YZ (x = 0), que genera el
 servidor (`design_view._svg_xz(v, "yz")`, girant x↔y). Al costat de cada selector de tub surten les mides aproximades
 (Ø, llargada activa / total, pressió, paret), llegides de `tubs.json` i `tubGeneric.cc` per `campanya_form._mides_tub`.
+
+## Resum, interpretació i confirmació (CONF-UI, contracte §13)
+- **Formulari:** «Què vull saber» per etapa (`etapes.<e>.pregunta`) i el botó «Desa la proposta» / «Modifica la proposta».
+- **Després de desar, i a la pàgina de la campanya:** el `resum_text` de neudet (pregunta, candidats per tongada, cribratge, frontera, Geant4, cost, avisos), tal com és.
+- **Pàgina de campanya:** l'estat que diu neudet (`comprova.json.confirmacio`: si es pot córrer o no), el resum, la interpretació del planificador
+  (`interpretacio` del manifest, el `PLA.md`) i, per a cada etapa declarada que encara no ha corregut, el seu «Per què».
+- **Confirmar i congelar:** només amb l'estat `interpretada`. `POST /api/campanya/confirma {id, per}` crida `neudet.disseny.confirmacio.confirma`
+  (escriu `confirmacio` amb hash del yaml i del PLA i `estat: confirmada`); la UI no calcula cap hash. El motiu d'un refús és el de neudet.
+  Si després es toca el yaml o el PLA, neudet exigeix reinterpretar i reconfirmar.
