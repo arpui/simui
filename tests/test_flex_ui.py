@@ -411,3 +411,34 @@ def test_la_pagina_porta_l_inventari_i_ja_no_el_selector_del_domini():
                  "function cInvMode", "function cSyncInv", "abans de la simetria", "t.avis"):
         assert tros in INDEX, tros
     assert "cSelTub('domini.tipus_tub.0'" not in INDEX and "tipus_tub[0]" not in INDEX
+
+
+# ── VISTA-UI: vista lateral i dimensions del tub ────────────────────────────
+
+def test_schema_porta_les_mides_dels_tubs_llegides_del_cataleg_de_neudet():
+    _neudet_o_skip()
+    tubs = {t["nom"]: t for t in CF.schema()["tipus_tub"]}
+    m = tubs["lnd_252285"]["mides"]
+    assert m["diametre_cm"] == 2.54 and m["llargada_activa_cm"] == 60.0 and m["pressio_atm"] == 8.0 and m["paret"] == "SST"
+    assert m["llargada_total_cm"] > m["llargada_activa_cm"]
+    assert all(t["mides"] is None or set(t["mides"]) == {"diametre_cm", "llargada_activa_cm", "llargada_total_cm", "pressio_atm", "paret"}
+               for t in tubs.values())
+
+
+def test_la_pagina_porta_la_vista_lateral_i_les_dimensions_al_selector():
+    for tros in ("function cBlocLateral", "data-vista", "lateral (x, z)", "lateral (y, z)", "const cMidesTxt",
+                 "llargada_activa_cm", "function dPintaLateral", 'id="d-lat"', "yz_svg"):
+        assert tros in INDEX, tros
+
+
+def test_el_visor_de_candidats_dona_tambe_el_tall_yz():
+    import glob
+    from simphy.mcgen import design_view as DV
+    root = _neudet_o_skip()
+    dats = sorted(glob.glob(str(root / "disseny/campanyes/c01_8tubs_30x30x80/export/*.dat")))
+    if not dats:
+        pytest.skip("c01 sense export")
+    r = DV.preview(Path(dats[0]))
+    assert r["yz_svg"].startswith("<svg") and "x = 0" in r["yz_svg"] and "y (cm)" in r["yz_svg"]
+    assert "y = 0" in r["xz_svg"] and "x (cm)" in r["xz_svg"]            # l'XZ de sempre no canvia
+    assert r["caption_yz"][0].startswith("Tall a x = 0")

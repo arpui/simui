@@ -129,3 +129,10 @@ o punt hi ha «tipus permesos» (tots marcats = sense restricció), la malla té
 (abans → després, en paraules) i l'`avis` de `max_candidats` si cal triar `mostres`. El formulari ja no escriu `domini.tipus_tub`
 (neudet el deriva dels tipus de les tongades), excepte en un yaml antic on alguna tongada deixa el tipus al domini: treure'l canviaria
 els hashes.
+
+## Vista lateral i dimensions del tub (VISTA-UI)
+El visor del formulari té un selector **de dalt (x, y) · lateral (x, z) · lateral (y, z)**. Les vistes laterals dibuixen el bloc, el forat,
+la font i cada tub (llargada total, clar, i zona activa, fosc) a la seva z; un tub d'eix horitzontal és un rectangle si és al pla de la
+vista i un cercle si el travessa. Al full d'un candidat, el selector tria entre el tall XZ (y = 0) i el YZ (x = 0), que genera el
+servidor (`design_view._svg_xz(v, "yz")`, girant x↔y). Al costat de cada selector de tub surten les mides aproximades
+(Ø, llargada activa / total, pressió, paret), llegides de `tubs.json` i `tubGeneric.cc` per `campanya_form._mides_tub`.

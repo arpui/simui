@@ -110,6 +110,7 @@ input.bad,textarea.bad{border-color:var(--bad);background:#fbeeea}
 .pre{white-space:pre-line}
 pre.pre,pre.yamlbox{font-size:12px;line-height:1.35;background:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:4px;overflow:auto;white-space:pre-wrap}
 pre.yamlbox{max-height:560px;white-space:pre}
+svg.blocl{width:240px;height:240px;background:#fff;border:1px solid var(--line);margin:6px 0}
 svg.bloc{width:240px;height:240px;touch-action:none;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:crosshair}
 .cres{margin:6px 0 10px;font-size:14px}
 .cres .big{font-size:22px;font-weight:700}
@@ -581,9 +582,12 @@ function cSel(p, opts, valor, t = 'str', extra = ''){
   return `<select data-p="${escD(p)}" data-t="${t}" ${extra}>${list.map(o =>
     `<option value="${escD(o.valor)}" ${String(o.valor) === String(valor) ? 'selected' : ''}>${escD(o.text ?? o.valor)}</option>`).join('')}</select>`;
 }
+// Dimensions aproximades d'un tub del catàleg (neudet les llegeix de tubs.json i tubGeneric.cc; aquí només es mostren).
+const cMidesTub = nom => { const t = (CP.schema.tipus_tub || []).find(x => x.nom === nom || x.alies === nom); return t && t.mides ? t.mides : null; };
+const cMidesTxt = m => m ? ` · Ø ${m.diametre_cm} cm × ${m.llargada_activa_cm} actius / ${m.llargada_total_cm} totals${m.pressio_atm ? ' · ' + m.pressio_atm + ' atm' : ''}${m.paret ? ' · ' + m.paret : ''}` : ' · sense mides al catàleg';
 function cTubOpts(valor){
   const tubs = CP.schema.tipus_tub, trobat = tubs.some(t => t.nom === valor);
-  const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}</option>`);
+  const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}${escD(cMidesTxt(t.mides))}</option>`);
   if(valor && !trobat) opts.unshift(`<option value="${escD(valor)}" selected>${escD(valor)} — no és al catàleg</option>`);
   return opts.join('');
 }
@@ -922,14 +926,14 @@ function cTubsVista(){
         const phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : (cVals(a.phi)[0] ?? 0));
         for(let k = 0; k < n && k < 60; k++){
           const th = (phi + 360 * k / n) * Math.PI / 180;
-          out.punts.push({x: r * Math.cos(th), y: r * Math.sin(th), eix, tong: ti});
+          out.punts.push({x: r * Math.cos(th), y: r * Math.sin(th), z: 0, eix, tong: ti, tipus: first(a.tipus, first(t.tipus, Object.keys(t.inventari || {})[0]))});
         }
       });
     } else if(pos.font === 'malla'){
       const k1 = (pos.k ?? 1) <= 1, tenue = !k1;
       if(pos.forma === 'polar'){
         cVals(pos.r).forEach(r => cVals(pos.theta).forEach(th => out.punts.push(
-          {x: r * Math.cos(th * Math.PI / 180), y: r * Math.sin(th * Math.PI / 180), eix: eixT, tong: ti, tenue})));
+          {x: r * Math.cos(th * Math.PI / 180), y: r * Math.sin(th * Math.PI / 180), z: +pos.z || 0, eix: eixT, tong: ti, tenue, tipus: first(t.tipus, Object.keys(t.inventari || {})[0])})));
       } else if(pos.pas_cm !== undefined || pos.forma === 'hexagonal'){
         const pas = Number(pos.pas_cm) > 0 ? Number(pos.pas_cm) : 0, hex = pos.forma === 'hexagonal';
         if(pas){
@@ -939,20 +943,55 @@ function cTubsVista(){
             for(let i = -Math.floor((lx + off) / pas) - 1; i * pas + off <= lx; i++){
               const x = i * pas + off, y = j * dy, r = Math.hypot(x, y);
               if(Math.abs(x) <= lx && Math.abs(y) <= ly && r >= (pos.r_min_cm ?? 0) && r <= (pos.r_max_cm ?? Infinity) && out.punts.length < 400)
-                out.punts.push({x, y, eix: eixT, tong: ti, tenue: true});
+                out.punts.push({x, y, z: +pos.z || 0, eix: eixT, tong: ti, tenue: true, tipus: first(t.tipus, Object.keys(t.inventari || {})[0])});
             }
           }
         }
-      } else cVals(pos.x).forEach(x => cVals(pos.y).forEach(y => out.punts.push({x, y, eix: eixT, tong: ti, tenue})));
+      } else cVals(pos.x).forEach(x => cVals(pos.y).forEach(y => out.punts.push({x, y, z: +pos.z || 0, eix: eixT, tong: ti, tenue, tipus: first(t.tipus, Object.keys(t.inventari || {})[0])})));
     } else if(pos.font === 'punts'){
       (pos.punts || []).forEach((q, k) => { if(Number.isFinite(+q.x) && Number.isFinite(+q.y))
-        out.punts.push({x: +q.x, y: +q.y, eix: first(q.eix, eixT), drag: `${tp}.punts.${k}`, n: k + 1, tong: ti}); });
+        out.punts.push({x: +q.x, y: +q.y, z: +q.z || 0, tipus: first(q.tipus, first(t.tipus, Object.keys(t.inventari || {})[0])), eix: first(q.eix, eixT), drag: `${tp}.punts.${k}`, n: k + 1, tong: ti}); });
     }
   });
   out.nota = cTongs().length ? 'Una combinació per tongada (la primera de cada ventall); els punts tènues són les posicions possibles d\'una malla. Arrossega un punt de «punts» per moure\'l: s\'escriu a x i y.' : '';
   return out;
 }
+// Selector de vista i la vista triada: de dalt (x, y), o lateral XZ / YZ (VISTA-UI). Només informa; no valida res.
 function cBlocSvg(id = 'c-bloc'){
+  const v = CP.vista || 'xy';
+  const sel = `<select data-vista="1" title="vista del bloc i dels tubs">${[['xy', 'de dalt (x, y)'], ['xz', 'lateral (x, z)'], ['yz', 'lateral (y, z)']].map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+  return `<div class="bar">${sel}</div>` + (v === 'xy' ? cBlocXY(id) : cBlocLateral(id, v));
+}
+// Vista lateral (VISTA-UI): el bloc, el forat, la font i cada tub amb la seva llargada total i la zona activa (mides del catàleg de
+// neudet; sense mides, un tub orientatiu). Un tub vertical és un rectangle; un d'horitzontal, un rectangle si és al pla i un cercle si no.
+function cBlocLateral(id, pla){
+  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hz = m[2] / 2, hh = (pla === 'xz' ? m[0] : m[1]) / 2;
+  const pos = d.font.pos_cm || [0, 0, 0], V = cTubsVista(), h = pla === 'xz' ? 'x' : 'y';
+  const dim = p => { const q = cMidesTub(p.tipus); return q ? {R: q.diametre_cm / 2, Lt: q.llargada_total_cm, La: q.llargada_activa_cm, real: true} : {R: R_TUB_VISTA, Lt: L_TUB_VISTA, La: 0, real: false}; };
+  let W = hh, H = hz;
+  V.punts.forEach(p => { const q = dim(p), c = p[h]; W = Math.max(W, Math.abs(c) + (p.eix === h ? q.Lt / 2 : q.R) + 1); H = Math.max(H, Math.abs(p.z || 0) + (p.eix === 'z' ? q.Lt / 2 : q.R) + 1); });
+  W += 2; H += 2;
+  const PAL = ['#1f5f99', '#b5541c', '#2e7d32', '#7b3fa0'];
+  const tubs = V.punts.map(p => {
+    const q = dim(p), c = p[h], z = p.z || 0, col = PAL[(p.tong || 0) % PAL.length], f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="0.2"`;
+    if(p.eix === 'z'){
+      const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+      return `<g><rect x="${c - q.R}" y="${-z - q.Lt / 2}" width="${2 * q.R}" height="${q.Lt}" ${f}/>${act}</g>`;
+    }
+    if(p.eix === h){
+      const act = q.La ? `<rect x="${c - q.La / 2}" y="${-z - q.R}" width="${q.La}" height="${2 * q.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+      return `<g><rect x="${c - q.Lt / 2}" y="${-z - q.R}" width="${q.Lt}" height="${2 * q.R}" ${f}/>${act}</g>`;
+    }
+    return `<circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/>`;
+  }).join('');
+  const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="0.2" stroke-dasharray="0.6 0.6"/>` : '';
+  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="0.9" fill="#c00000"/>` : '';
+  const sense = V.punts.some(p => !dim(p).real) ? ' Un tub sense mides al catàleg es dibuixa orientatiu.' : '';
+  return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" aria-label="vista lateral ${pla}">
+    <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="0.25"/>${forat}${tubs}${font}</svg>
+    <div class="hint">Vista lateral (${h}, z) del bloc de ${m[0]} × ${m[1]} × ${m[2]} cm: la font en vermell; cada tub amb la seva llargada total (clar) i la zona activa (fosc), a la z de la posició. Orientativa: no valida res.${sense}</div>`;
+}
+function cBlocXY(id = 'c-bloc'){
   const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2;
   const pos = d.font.pos_cm || [0, 0, 0], V = cTubsVista();
   const ext = V.punts.reduce((a, p) => Math.max(a, Math.abs(p.x), Math.abs(p.y)), 0);
@@ -1214,6 +1253,7 @@ function cPrepara(p){
 function cEdita(el, change){
   if(el.tagName === 'SELECT' && !change) return;
   if(el.dataset.etapa !== undefined){ if(change){ CP.etapa = el.value; cPintaForm(); cYaml(); } return; }
+  if(el.dataset.vista !== undefined){ if(change){ CP.vista = el.value; for(const [w, i] of [['#c-bloc-wrap', undefined], ['#c-bloc-wrap2', 'c-bloc2']]){ const n = Q(w); if(n) n.innerHTML = cBlocSvg(i); } } return; }
   if(el.dataset.invmode !== undefined){ if(change){ cInvMode(+el.dataset.invmode, el.value); cNormLligams(); cPintaForm(); cYaml(); } return; }
   if(el.dataset.invtipus !== undefined){                            // un altre tipus per a aquesta fila de l'inventari (la quantitat es conserva)
     if(change){
@@ -2064,11 +2104,17 @@ function dPintaCheck(){
   Q('#d-viol').innerHTML = violHtml(c.verificat, c.motiu, c.violations);
   Q('#d-nota').innerHTML = (c.notes || []).map(n => `<div class="panel">${escD(n)}</div>`).join('');
 }
+// Vista lateral del candidat: tall y = 0 (XZ) o x = 0 (YZ), amb un selector (VISTA-UI). Els dos dibuixos els fa el servidor.
+function dPintaLateral(){
+  const v = DS.vista, yz = DS.lat === 'yz';
+  Q('#d-xz').innerHTML = `<div class="bar"><select id="d-lat" title="pla del tall lateral"><option value="xz" ${yz ? '' : 'selected'}>lateral (x, z): tall a y = 0</option><option value="yz" ${yz ? 'selected' : ''}>lateral (y, z): tall a x = 0</option></select></div>` + (yz && v.yz_svg ? v.yz_svg : v.xz_svg);
+  Q('#d-lat').onchange = e => { DS.lat = e.target.value; dPintaLateral(); };
+}
 function dPintaVista(v){
   Q('#d-xy').innerHTML = v.xy_svg;
-  Q('#d-xz').innerHTML = v.xz_svg;
+  DS.vista = v; dPintaLateral();
   Q('#d-taula').innerHTML = tableHtml(v.cols, v.rows);
-  const avisos = [...v.notes, ...v.caption];
+  const avisos = [...v.notes, ...v.caption, ...(v.caption_yz || [])];
   Q('#d-avisos').innerHTML = `<details><summary>Notes del visor (${avisos.length})</summary>` +
     `<div class="panel">${avisos.map(x => `<div>${escD(x)}</div>`).join('')}</div>` +
     tableHtml(['Camp', 'Valor'], v.resum) + '</details>';

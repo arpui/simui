@@ -555,6 +555,23 @@ def _schema_plantilles() -> Dict[str, Any]:
     }
 
 
+def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Les dimensions aproximades d'un tub del catàleg (VISTA-UI), llegides com les llegeix Geant4/neudet
+    (`DC.TUBE_TYPES`, que ve de `tubs.json` i `tubGeneric.cc`): res no es copia. `None` si el tipus no es pot resoldre."""
+    for nom in (e.get("nom"), e.get("alies")):
+        if not nom:
+            continue
+        try:
+            tt = DC.TUBE_TYPES[nom]
+        except Exception:                                   # noqa: BLE001 — sense mides, el selector no les mostra
+            continue
+        return {"diametre_cm": round(2 * tt.wall_radius_cm, 3), "llargada_activa_cm": round(tt.gas_length_cm, 3),
+                "llargada_total_cm": round(tt.wall_length_cm, 3),
+                "pressio_atm": (round(tt.gas_pressure_atm, 3) if tt.gas_pressure_atm else None),
+                "paret": e.get("material_paret") or None}
+    return None
+
+
 def schema() -> Dict[str, Any]:
     """Les fonts de tongada i els seus camps, llistes tancades de neudet, tubs del catàleg i estat de la
     validació. Tot ve de neudet, amb la línia on es llegeix."""
@@ -581,7 +598,7 @@ def schema() -> Dict[str, Any]:
             motiu = (v or {}).get("motiu") or ("no hi ha veredicte al registre" if v is None else "")
             validat = estat == "validat"
         tubs.append({"nom": nom, "alies": e.get("alies"), "validat": validat, "estat": estat,
-                     "motiu": motiu})
+                     "motiu": motiu, "mides": _mides_tub(e)})
     _linia(CANDIDAT_PY, FONT_LINIA, "feix")
     _linia(CANDIDAT_PY, EIX_DEFECTE_LINIA, 'eix')
     _linia(CANDIDAT_PY, CD_FRACCIO_LINIA, "cd_fraction fora de")
