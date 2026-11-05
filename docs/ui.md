@@ -112,3 +112,10 @@ Una etapa és una o més **tongades**; cada una és **on són els tubs × què s
   railab. Una cua des de la UI és una decisió a part (cost, seguretat).
 - **Accés compartit.** Per defecte només la màquina local (`--host 127.0.0.1`). Obrir-la
   a la xarxa demana autenticació, i no n'hi ha.
+
+## Resposta d'etapa i formulari congelat (RESP-UI, contracte v1.4 §11b i §12)
+A la pàgina d'una campanya que no és proposta, cada etapa mostra: el `pla` del manifest («Per què aquesta etapa»), la resposta
+(`resposta` del manifest o, si no hi és, `etapes/<etapa>/resposta.md`) renderitzada amb figures i taules, i enllaços a
+`candidats.csv`, `resultats_tub.json` i `meta.json`. Si l'etapa no té resposta, ho diu. «Veu el formulari (congelat)» obre
+el `campanya.yaml` amb el mateix formulari de definició, sense editar ni desar (només es pot triar l'etapa), i la certificació
+de neudet al costat. La UI no en calcula res. El resum de la petició (§11b) hi surt quan neudet l'afegeixi al `comprova.json`.

@@ -266,3 +266,48 @@ def test_el_manifest_real_de_c04_amb_les_claus_del_6b(c04):
     assert [r.rsplit(".", 1)[1] for r in m["report"]] == ["md", "pdf"]
     v = V.vista(c04)
     assert [len(e["candidats"]) for e in v["etapes"]] == [10, 2]
+
+
+# ── RESP-UI: el relat de l'etapa (contracte UI §12) ─────────────────────────
+
+def test_vista_etapa_sense_resposta_ho_diu_amb_none(c04, tmp_path):
+    d = _copia(c04, tmp_path)
+    (d / "etapes" / "S1_draft" / "resposta.md").unlink(missing_ok=True)
+    for e in V.vista(d)["etapes"]:
+        assert e["resposta"] is None and e["pla"] is None
+
+
+def test_vista_etapa_amb_resposta_md_porta_el_text_i_la_base(c04, tmp_path):
+    d = _copia(c04, tmp_path)
+    (d / "etapes" / "S1_draft" / "resposta.md").write_text("# Resposta\n\n![x](resposta/a.png)\n", encoding="utf-8")
+    et = {e["nom"]: e for e in V.vista(d)["etapes"]}
+    r = et["S1_draft"]["resposta"]
+    assert r["md"] == "etapes/S1_draft/resposta.md" and r["base"] == "etapes/S1_draft"
+    assert r["text"].startswith("# Resposta")
+    assert et["S1_draft_g4"]["resposta"] is None
+    assert V.fitxer(d, r["md"]).is_file()
+
+
+def test_manifest_amb_pla_i_resposta_els_passa_a_la_vista(c04, tmp_path):
+    d = _copia(c04, tmp_path)
+    m = _provisional(c04)
+    (d / "notes.md").write_text("relat", encoding="utf-8")
+    m["etapes"][0]["pla"] = "Per què: perquè sí"
+    m["etapes"][0]["resposta"] = "notes.md"
+    (d / "campanya_ui.json").write_text(json.dumps(m), encoding="utf-8")
+    e = V.vista(d)["etapes"][0]
+    assert e["pla"] == "Per què: perquè sí" and e["resposta"]["text"] == "relat"
+
+
+def test_manifest_amb_resposta_que_no_hi_es_diu_quina_etapa(c04, tmp_path):
+    d = _copia(c04, tmp_path)
+    m = _provisional(c04)
+    m["etapes"][0]["resposta"] = "no_hi_es.md"
+    (d / "campanya_ui.json").write_text(json.dumps(m), encoding="utf-8")
+    with pytest.raises(V.CampanyaError, match=m["etapes"][0]["nom"]):
+        V.vista(d)
+
+
+def test_el_csv_de_l_etapa_es_servible(c04):
+    assert V.fitxer(c04, "etapes/S1_draft/candidats.csv").is_file()
+    assert V.tipus_de(Path("candidats.csv")).startswith("text/csv")

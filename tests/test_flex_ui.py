@@ -299,3 +299,16 @@ def test_despres_de_desar_la_pagina_diu_que_es_fa_i_amb_quin_missatge():
     desa = INDEX.split("async function cDesa(){")[1].split("// Un formulari carregat")[0]
     for t in ("Ara et toca a tu", "r.missatge", "executada", "runbook-run", "no ha corregut cap simulació"):
         assert t in desa, t
+
+
+# ── RESP-UI: resposta d'etapa i formulari congelat a la pàgina ──────────────
+
+def test_pagina_mostra_resposta_d_etapa_i_formulari_congelat():
+    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    for tros in ("function kResposta", "function kPla", "Aquesta etapa encara no té <code>resposta.md</code>",
+                 "Per què aquesta etapa", "function kCongela", 'data-k="congela"', "Definició congelada",
+                 "function cCongela", "CP.congelat"):
+        assert tros in html, tros
+    # el Markdown de la resposta porta figures i taules; el congelat no deixa desar ni editar
+    assert "<img loading=\"lazy\" style=\"max-width:100%\"" in html
+    assert "if(!CP.congelat) cEdita" in html

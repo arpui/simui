@@ -1075,7 +1075,14 @@ function cFormHtml(){
 function cPintaForm(){
   const y = window.scrollY;
   Q('#c-form').innerHTML = cFormHtml();
+  cCongela();
   window.scrollTo(0, y);
+}
+// Congelat: res del formulari no es pot tocar, ni es pot desar; l'explicació del flux sobra.
+function cCongela(){
+  const c = !!CP.congelat;
+  Q('#c-flux').hidden = c; Q('#c-desa').parentNode.hidden = c;
+  if(c) Q('#c-form').querySelectorAll('input,select,textarea,button').forEach(n => { n.disabled = n.dataset.etapa === undefined; });   // triar l'etapa és mirar, no editar
 }
 // Cada error del formulari comença pel camp (el data-p de l'entrada): es marca i el missatge surt a sota.
 function cErr(msg){
@@ -1314,8 +1321,8 @@ async function cDesa(){
   } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
 }
 // Un formulari carregat (de neudet o d'un tanteig): substitueix el que hi havia.
-function cCarrega(form, nota){
-  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null;
+function cCarrega(form, nota, congelat){
+  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat;
   cPintaForm(); cYaml();
   Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>`;
 }
@@ -1342,9 +1349,10 @@ async function cBaixa(){
 // Els identificadors i les funcions d'ajut (Q, api) són de l'script següent: cal esperar que la pàgina
 // sigui llesta abans de connectar els esdeveniments.
 document.addEventListener('DOMContentLoaded', () => {
-Q('#c-form').addEventListener('input', e => cEdita(e.target, false));
-Q('#c-form').addEventListener('change', e => cEdita(e.target, true));
+Q('#c-form').addEventListener('input', e => { if(!CP.congelat) cEdita(e.target, false); });
+Q('#c-form').addEventListener('change', e => { if(!CP.congelat || e.target.dataset.etapa !== undefined) cEdita(e.target, true); });
 Q('#c-form').addEventListener('click', e => {
+  if(CP.congelat) return;
   const svg = e.target.closest('svg.bloc');
   if(svg){ if(cArr_ARROSSEGAT){ cArr_ARROSSEGAT = false; return; } return cClicBloc(svg, e); }
   const b = e.target.closest('button[data-act]');
@@ -1354,7 +1362,7 @@ Q('#c-form').addEventListener('click', e => {
 let cArr_ARROSSEGAT = false;
 Q('#c-form').addEventListener('pointerdown', e => {
   const g = e.target.closest('g[data-drag]'), svg = e.target.closest('svg.bloc');
-  if(!g || !svg) return;
+  if(!g || !svg || CP.congelat) return;
   const path = g.dataset.drag;
   const mou = ev => {
     const r = svg.getBoundingClientRect(), L = svg.viewBox.baseVal.width / 2;
@@ -1419,6 +1427,19 @@ function kPinta(){
   }
   document.getElementById('k-out').innerHTML = out.join('');
 }
+// Formulari congelat (contracte UI §11b): la definició d'una campanya ja no editable, amb el mateix formulari i el que neudet
+// n'ha certificat al costat. Cap botó escriu res.
+async function kCongela(){
+  const id = KC.id, v = KC.v;
+  await cInit();
+  const r = await api('/api/campanya/carrega?id=' + kEnc(id));
+  cCarrega(r.form, `<b>Definició congelada</b> de <code>${escD(id)}</code> (només lectura). ` +
+    `<button class="ghost" id="c-torna">Torna a la campanya</button>` +
+    `<h3>Certificació de neudet</h3>${kCert(v)}`, true);
+  NZ.sel = {k: 'form', id, congelat: true};
+  nzVeu();
+  Q('#c-torna').onclick = () => nzCampanya(id);
+}
 // «Tanteja»: una proposta nova amb el contingut d'aquesta campanya (id derivat). L'original no es toca.
 function kAccions(){
   return '<div class="bar"><button class="ghost" data-k="tanteja" title="Una campanya nova (id derivat) amb el contingut d’aquesta, per modificar-la. L’original no es toca">Proposta</button>' +
@@ -1429,6 +1450,7 @@ function kDefinicio(v){
   const links = [d.yaml && ['campanya.yaml', d.yaml], d.md && ['DEFINICIO.md', d.md]].filter(Boolean)
     .map(([t, rel]) => `<a class="btn" href="${kFit(rel)}" target="_blank" rel="noopener">${escD(t)}</a>`).join('');
   return `<h2>Definició</h2><div>${links}` +
+    ` <button class="ghost" data-k="congela" title="El mateix formulari de la proposta, només lectura">Veu el formulari (congelat)</button>` +
     (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>';
 }
 function kCert(v){
@@ -1447,10 +1469,24 @@ function kEtapa(e){
     (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>') +
     `<span class="meta">${escD(meta)}</span></header>
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
+    ${kPla(e)}
+    ${kResposta(e)}
     <div class="tblw">${kTaula(e)}</div>
     ${eix ? kPareto(e, eix) : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`}
     ${e.figures.length ? kGaleria(e.figures) : ''}
   </article>`;
+}
+// El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
+function kPla(e){
+  return e.pla ? `<details class="fold"><summary>Per què aquesta etapa (del PLA)</summary>${kMd(e.pla)}</details>` : '';
+}
+function kResposta(e){
+  const r = e.resposta, f = e.fitxers || {};
+  const enllac = (t, rel) => rel ? `<a class="btn ghost" href="${kFit(rel)}" target="_blank" rel="noopener">${escD(t)}</a>` : '';
+  const dades = [enllac('candidats.csv', f.candidats), enllac('resultats_tub.json', f.resultats_tub), enllac('meta.json', f.meta)].join(' ');
+  if(!r) return `<div class="hint" style="margin:6px 0">Aquesta etapa encara no té <code>resposta.md</code> (la fa neudet quan l'etapa acaba).</div><div>${dades}</div>`;
+  return `<details class="fold" open><summary>Resposta de l'etapa <span class="hint">(${escD(r.md)})</span></summary>` +
+    `<div class="kresp">${kMd(r.text, r.base)}</div><div>${enllac('resposta.md', r.md)} ${dades}</div></details>`;
 }
 function kTaula(e){
   const cols = [{k: 'nom', t: 'nom'}, {k: 'hash', t: 'hash'}, {k: 'ronda', t: 'ronda'}, {k: 'n', t: 'n'}, {k: 'pareto_rang', t: 'rang Pareto'},
@@ -1532,18 +1568,34 @@ function kReport(v){
   return `<div>${botons}</div><div class="hint">${escD(v.report.join(' · '))}</div>`;
 }
 // Markdown mínim per al judici: títols, llistes, negreta i codi. El text ja és escapat abans.
-function kMd(t){
+// `base` (opcional): la carpeta de la campanya on viu el text; les figures `![x](a/b.png)` es resolen contra ella.
+function kMd(t, base){
   const inl = s => s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
   const out = [];
-  let para = [], lst = null;
+  let para = [], lst = null, taula = [];
+  const fila = l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
   const fin = () => {
     if(para.length){ out.push(`<p>${inl(para.join(' '))}</p>`); para = []; }
     if(lst){ out.push(`</${lst}>`); lst = null; }
+    if(taula.length){
+      const cos = taula.filter(r => !/^\|?\s*:?-{2,}/.test(r));
+      const [cap, ...resta] = cos.map(fila);
+      out.push('<div class="tblw"><table class="tbl"><thead><tr>' + cap.map(c => `<th>${inl(c)}</th>`).join('') + '</tr></thead><tbody>' +
+        resta.map(r => '<tr>' + r.map(c => `<td>${inl(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
+      taula = [];
+    }
   };
   for(const raw of escD(t).split('\n')){
     const l = raw.trim();
     let m;
     if(!l){ fin(); continue; }
+    if(l.startsWith('|')){ if(para.length || lst){ fin(); } taula.push(l); continue; }
+    if(taula.length) fin();
+    if(base != null && (m = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(l))){
+      fin(); const rel = (base ? base + '/' : '') + m[2];
+      out.push(`<a href="${kFit(rel)}" target="_blank" rel="noopener"><img loading="lazy" style="max-width:100%" src="${kFit(rel)}" alt="${m[1]}"></a>`); continue;
+    }
+    if((m = /^&gt;\s?(.*)$/.exec(l))){ fin(); out.push(`<p class="hint">${inl(m[1])}</p>`); continue; }
     if((m = /^(#{1,3})\s+(.*)$/.exec(l))){ fin(); const h = m[1].length + 3; out.push(`<h${h}>${inl(m[2])}</h${h}>`); continue; }
     if((m = /^[-*]\s+(.*)$/.exec(l))){
       if(lst !== 'ul'){ fin(); out.push('<ul>'); lst = 'ul'; }
@@ -1567,6 +1619,7 @@ document.getElementById('k-out').addEventListener('click', e => {
   if(tr){ nzObreCandidat({hash: tr.dataset.h, nom: tr.dataset.n, de: KC.id}).catch(err => dErr(err.message)); return; }
   const b = e.target.closest('button[data-k="tanteja"]');
   if(b) cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
+  if(e.target.closest('button[data-k="congela"]')) kCongela().catch(err => kErr(err.message));
 });
 </script>
 

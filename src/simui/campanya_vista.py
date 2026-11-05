@@ -31,6 +31,8 @@ quan arribi CAMP-2:
   a la cribratge hi són). `verifica` és el nom de l'etapa de xarxa que verifica una `_g4` (el mateix
   nom sense `_g4`), o null.
 - `export`: `"export"` | null
+- `etapes[].pla` (text de la secció de l'etapa del `PLA.md`) i `etapes[].resposta` (camí de
+  `etapes/<e>/resposta.md`) són opcionals (RESP-E de neudet); sense `resposta`, es busca `<dir>/resposta.md`.
 - `judici`: text de la secció «## Judici» de `PLA.md` | null
 - `report`: llista de camins **relatius al repo de neudet** (el `.md` i el `.pdf` de
   `docs/site/report/` que contenen l'id de la campanya)
@@ -72,6 +74,7 @@ TIPUS = {
     ".md": "text/plain; charset=utf-8",
     ".yaml": "text/plain; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
 }
 #: Columnes del csv que són text (la resta es llegeixen com a números, si ho són).
 _TEXT = ("nom", "hash", "ronda")
@@ -467,6 +470,22 @@ def _encaixa_g4(etapes: List[Dict[str, Any]], avisos: List[str]) -> None:
             c["g4"].append({"etapa": g["nom"], "eps_mitja": cg.get("eps_mitja")})
 
 
+def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """La resposta d'etapa (contracte UI §12): `resposta` del manifest, o `<dir de l'etapa>/resposta.md` si hi és.
+    La UI en mostra el text tal com és (neudet l'escriu; aquí no se'n calcula res). `base` és la carpeta del
+    `.md`, perquè les figures relatives (`resposta/x.png`) es resolguin. Sense fitxer, `None`."""
+    rel = e.get("resposta")
+    if not rel and e.get("dir"):
+        cand = PurePosixPath(e["dir"]) / "resposta.md"
+        rel = cand.as_posix() if (d / cand).is_file() else None
+    if not rel:
+        return None
+    f = _dins(d, rel, e["nom"])
+    if not f.is_file():
+        raise CampanyaError(f"{e['nom']}: el manifest diu resposta {rel} i no hi és")
+    return {"md": rel, "base": str(PurePosixPath(rel).parent), "text": f.read_text(encoding="utf-8")}
+
+
 def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[str, Any], List[str]]:
     csvp = _dins(d, e["candidats"], e["nom"])
     if not csvp.is_file():
@@ -486,6 +505,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "n_candidats": e.get("n_candidats"), "n_csv": e.get("n_csv"), "citable": bool(e.get("citable")),
              "motius": list(e.get("motius") or []), "figures": list(e.get("figures") or []),
              "fitxers": fit, "columnes": header,
+             "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
+             "resposta": _resposta(d, e),
              "energies_MeV": list(doc["energies_MeV"]) if doc is not None else None,
              "candidats": cands}, header)
 
