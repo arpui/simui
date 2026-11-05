@@ -89,7 +89,10 @@ border-radius:4px;font-size:11.5px;line-height:1.4;overflow:auto;max-height:340p
 .rrow input,.rrow select{padding:4px 5px;font-size:12.5px}
 .svgbox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;overflow:auto;min-width:0}
 .svgbox svg{max-width:100%;height:auto}
-.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start}
+.tres{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.tres>div{flex:1 1 220px;min-width:0}
+.tres svg.bloc,.tres svg.blocl{width:100%;height:auto;max-width:340px}
 @media (max-width:1100px){.dgrid,.cmp{grid-template-columns:1fr}}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 .tblwrap{overflow:auto;max-width:100%;margin:8px 0}
@@ -333,6 +336,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
       <div class="dgrid">
         <div class="svgbox" id="d-xy"></div>
         <div class="svgbox" id="d-xz"></div>
+        <div class="svgbox" id="d-yz"></div>
       </div>
       <div id="d-avisos"></div>
       <h3>Tubs</h3>
@@ -1036,11 +1040,10 @@ function cTubsVista(){
   out.nota = cTongs().length ? 'Una combinació per tongada (la primera de cada ventall); els punts tènues són les posicions possibles d\'una malla. Arrossega un punt de «punts» per moure\'l: s\'escriu a x i y.' : '';
   return out;
 }
-// Selector de vista i la vista triada: de dalt (x, y), o lateral XZ / YZ (VISTA-UI). Només informa; no valida res.
+// Les tres vistes alhora, una al costat de l'altra (VISTA-3): de dalt (x, y), lateral (x, z) i lateral (y, z). En pantalla estreta, una sota l'altra.
+// Només informen; la de dalt és la que té la font i els punts arrossegables.
 function cBlocSvg(id = 'c-bloc'){
-  const v = CP.vista || 'xy';
-  const sel = `<select data-vista="1" title="vista del bloc i dels tubs">${[['xy', 'de dalt (x, y)'], ['xz', 'lateral (x, z)'], ['yz', 'lateral (y, z)']].map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
-  return `<div class="bar">${sel}</div>` + (v === 'xy' ? cBlocXY(id) : cBlocLateral(id, v));
+  return `<div class="tres"><div>${cBlocXY(id)}</div><div>${cBlocLateral(id + '-xz', 'xz')}</div><div>${cBlocLateral(id + '-yz', 'yz')}</div></div>`;
 }
 // Vista lateral (VISTA-UI): el bloc, el forat, la font i cada tub amb la seva llargada total i la zona activa (mides del catàleg de
 // neudet; sense mides, un tub orientatiu). Un tub vertical és un rectangle; un d'horitzontal, un rectangle si és al pla i un cercle si no.
@@ -1069,7 +1072,7 @@ function cBlocLateral(id, pla){
   const sense = V.punts.some(p => !dim(p).real) ? ' Un tub sense mides al catàleg es dibuixa orientatiu.' : '';
   return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" aria-label="vista lateral ${pla}">
     <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="0.25"/>${forat}${tubs}${font}</svg>
-    <div class="hint">Vista lateral (${h}, z) del bloc de ${m[0]} × ${m[1]} × ${m[2]} cm: la font en vermell; cada tub amb la seva llargada total (clar) i la zona activa (fosc), a la z de la posició. Orientativa: no valida res.${sense}</div>`;
+    <div class="hint">Lateral (${h}, z): cada tub amb la llargada total (clar) i la zona activa (fosc); font en vermell.${sense}</div>`;
 }
 function cBlocXY(id = 'c-bloc'){
   const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2;
@@ -1334,7 +1337,6 @@ function cPrepara(p){
 function cEdita(el, change){
   if(el.tagName === 'SELECT' && !change) return;
   if(el.dataset.etapa !== undefined){ if(change){ CP.etapa = el.value; cPintaForm(); cYaml(); } return; }
-  if(el.dataset.vista !== undefined){ if(change){ CP.vista = el.value; for(const [w, i] of [['#c-bloc-wrap', undefined], ['#c-bloc-wrap2', 'c-bloc2']]){ const n = Q(w); if(n) n.innerHTML = cBlocSvg(i); } } return; }
   if(el.dataset.reccd !== undefined){                               // INV: Cd d'un recurs: sense | fix | variable
     if(change){
       const r = cGetS(CP.f, el.dataset.reccd), v = el.value;
@@ -2201,7 +2203,7 @@ async function dCarrega(body){
 function dBuit(){
   DS.cur = null; DS.orig = null;
   Q('#d-status').innerHTML = '<span class="note">Tria un disseny per defecte, carrega’n un de fitxers o demana’n un en text.</span>';
-  ['#d-nota', '#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz', '#c-o-xy', '#c-a-xy'].forEach(s => Q(s).innerHTML = '');
+  ['#d-nota', '#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz', '#d-yz', '#c-o-xy', '#c-a-xy'].forEach(s => Q(s).innerHTML = '');
   Q('#d-compare').hidden = true; Q('#d-fixnote').textContent = '';
   dVisibilitat();
 }
@@ -2209,7 +2211,7 @@ function dBuit(){
 function dSenseDisseny(){
   const c = NZ.dis;
   Q('#d-status').innerHTML = `<b>${escD(c.nom || '—')}</b> · hash <code>${escD(c.hash || '—')}</code> · <span class="tag t-nt">sense .dat a neudet</span>`;
-  ['#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz'].forEach(s => Q(s).innerHTML = '');
+  ['#d-viol', '#d-avisos', '#d-taula', '#d-xy', '#d-xz', '#d-yz'].forEach(s => Q(s).innerHTML = '');
   Q('#d-nota').innerHTML = '<div class="panel">Aquest candidat no té <code>.dat</code> a neudet: el visor i els inputs dels quatre codis ' +
     'només es generen d\'un disseny amb <code>.dat</code> (els de <code>export/</code>, o el de la comprovació). Els resultats per tub sí es mostren.</div>';
   dVisibilitat();
@@ -2244,15 +2246,10 @@ function dPintaCheck(){
   Q('#d-viol').innerHTML = violHtml(c.verificat, c.motiu, c.violations);
   Q('#d-nota').innerHTML = (c.notes || []).map(n => `<div class="panel">${escD(n)}</div>`).join('');
 }
-// Vista lateral del candidat: tall y = 0 (XZ) o x = 0 (YZ), amb un selector (VISTA-UI). Els dos dibuixos els fa el servidor.
-function dPintaLateral(){
-  const v = DS.vista, yz = DS.lat === 'yz';
-  Q('#d-xz').innerHTML = `<div class="bar"><select id="d-lat" title="pla del tall lateral"><option value="xz" ${yz ? '' : 'selected'}>lateral (x, z): tall a y = 0</option><option value="yz" ${yz ? 'selected' : ''}>lateral (y, z): tall a x = 0</option></select></div>` + (yz && v.yz_svg ? v.yz_svg : v.xz_svg);
-  Q('#d-lat').onchange = e => { DS.lat = e.target.value; dPintaLateral(); };
-}
 function dPintaVista(v){
   Q('#d-xy').innerHTML = v.xy_svg;
-  DS.vista = v; dPintaLateral();
+  Q('#d-xz').innerHTML = v.xz_svg;
+  Q('#d-yz').innerHTML = v.yz_svg;
   Q('#d-taula').innerHTML = tableHtml(v.cols, v.rows);
   const avisos = [...v.notes, ...v.caption, ...(v.caption_yz || [])];
   Q('#d-avisos').innerHTML = `<details><summary>Notes del visor (${avisos.length})</summary>` +
