@@ -8,6 +8,7 @@ disseny»: fonts, editor d'anells, comparació). Els enllaços antics (`#campany
 
 ```bash
 python scripts/ui/serve.py              # http://127.0.0.1:8765  (--host, --port)
+# Agents: proveu sempre amb http://127.0.0.1:8765 (permès sense preguntar a .claude/settings.json); l'IP de la xarxa (192.168.…) és només per a Albert.
 ```
 
 ## D'on surt
