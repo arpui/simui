@@ -132,3 +132,28 @@ def test_http_de_punta_a_punta(ui):
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+def test_serve_accepta_diverses_adreces_separades_per_comes():
+    """`--host a,b,c` escolta a cada adreça (una per interfície); per defecte, només 127.0.0.1."""
+    import subprocess
+    import sys
+    import urllib.request
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "scripts" / "ui" / "serve.py"
+    assert 'default="127.0.0.1"' in script.read_text(encoding="utf-8")        # sense --host: només aquesta màquina
+    p = subprocess.Popen([sys.executable, str(script), "--host", "127.0.0.1,127.0.0.2", "--port", "18765"],
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        import time
+        for _ in range(50):
+            try:
+                urllib.request.urlopen("http://127.0.0.1:18765/api/llm", timeout=1)
+                break
+            except Exception:
+                time.sleep(0.2)
+        for h in ("127.0.0.1", "127.0.0.2"):
+            assert urllib.request.urlopen(f"http://{h}:18765/api/llm", timeout=3).status == 200
+    finally:
+        p.terminate()
+        p.wait(timeout=5)
