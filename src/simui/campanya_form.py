@@ -524,17 +524,21 @@ def _schema_verificacio() -> Dict[str, Any]:
     _linia(VERIFICA_G4_PY, 398, '"--aleatoris"', _SCRIPTS)
     _linia(VERIFICA_G4_PY, 400, '"--n"', _SCRIPTS)
     _linia(FITXA_PY, 70, '"n_per_energia"')
-    _linia(FITXA_PY, 72, 'get("porta")')
+    _linia(FITXA_PY, 105, '"n_per_energia"')
+    _linia(FITXA_PY, 108, '"hits"')
     return {"quants": {"llegit": False, "fitxer": VERIFICA_G4_PY, "linia": 398,
                        "descripcio": "neudet no llegeix aquest camp. La selecció de verifica_g4.py són les "
                                      "triades d'ε-restricció i la frontera robusta, més K candidats aleatoris "
                                      "(--aleatoris, per defecte 30; línies 11-12 i 398)"},
             "n_per_energia": {"llegit": False, "fitxer": VERIFICA_G4_PY, "linia": 400,
                               "descripcio": "neudet no el llegeix: la simulació de Geant4 usa --n (per defecte "
-                                            "100000). La fitxa només exigeix que hi sigui (fitxa.py:70)"},
-            "porta": {"llegit": False, "fitxer": FITXA_PY, "linia": 72,
-                      "descripcio": "text lliure: neudet només comprova que no sigui buit (fitxa.py:72). "
-                                    "La porta G1/G2 que neudet documenta és la de disseny/README.md §6"}}
+                                            "100000). La fitxa només exigeix que hi sigui (fitxa.py)"},
+            "hits": {"llegit": True, "fitxer": FITXA_PY, "linia": 108,
+                     "descripcio": "mode del bolcat de Geant4, obligatori (G4-COMPACT): «all» (tots els passos) o "
+                                   "«detect» (només les files He3(n,p), ~60 vegades menys disc)"},
+            "porta": {"llegit": False, "fitxer": FITXA_PY, "linia": 105,
+                      "descripcio": "text lliure que neudet ja no exigeix (SIMPLIFICA, 2026-11-05); la porta que "
+                                    "compta és la del PLA.md de la campanya"}}
 
 
 def _schema_plantilles() -> Dict[str, Any]:
