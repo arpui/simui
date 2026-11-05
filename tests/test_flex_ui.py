@@ -426,9 +426,19 @@ def test_schema_porta_les_mides_dels_tubs_llegides_del_cataleg_de_neudet():
 
 
 def test_la_pagina_porta_la_vista_lateral_i_les_dimensions_al_selector():
-    for tros in ("function cBlocLateral", "data-vista", "lateral (x, z)", "lateral (y, z)", "const cMidesTxt",
-                 "llargada_activa_cm", "function dPintaLateral", 'id="d-lat"', "yz_svg"):
+    for tros in ("function cBlocLateral", "const cMidesTxt", "llargada_activa_cm"):
         assert tros in INDEX, tros
+
+
+def test_les_tres_vistes_es_veuen_alhora_sense_desplegable():
+    """VISTA-3: de dalt, lateral XZ i lateral YZ, una al costat de l'altra, al formulari i al full del candidat."""
+    form = INDEX.split("function cBlocSvg")[1].split("function cBlocLateral")[0]
+    assert "cBlocXY(id)" in form and "cBlocLateral(id + '-xz', 'xz')" in form and "cBlocLateral(id + '-yz', 'yz')" in form
+    for ja_no in ("data-vista", 'id="d-lat"', "dPintaLateral", "CP.vista", "DS.lat"):
+        assert ja_no not in INDEX, ja_no
+    assert 'id="d-xy"' in INDEX and 'id="d-xz"' in INDEX and 'id="d-yz"' in INDEX
+    assert "Q('#d-yz').innerHTML = v.yz_svg" in INDEX
+    assert "grid-template-columns:1fr 1fr 1fr" in INDEX and ".tres{display:flex;flex-wrap:wrap" in INDEX     # alhora; estreta: una sota l'altra
 
 
 def test_el_visor_de_candidats_dona_tambe_el_tall_yz():
