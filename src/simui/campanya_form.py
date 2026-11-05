@@ -667,9 +667,9 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
             if fora:
                 e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV fora del domini permès "
                          f"{g['min']:g}–{g['max']:g} MeV (validacions.json; contracte §8: «prohibit»)")
-    tt = dom.get("tipus_tub")
-    if not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
-        e.append("domini.tipus_tub: una llista de noms de tub (del catàleg)")
+    tt = dom.get("tipus_tub")                  # SIMPLIFICA: neudet el deriva dels tipus de les tongades; el formulari ja no l'escriu
+    if tt is not None and not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
+        e.append("domini.tipus_tub: una llista de noms de tub (del catàleg), o res (neudet el deriva de les tongades)")
     r = dom.get("restriccions") if isinstance(dom.get("restriccions"), dict) else {}
     nt = r.get("n_tubs")
     if not (isinstance(nt, int) and not isinstance(nt, bool) and nt >= 1):
@@ -874,6 +874,50 @@ def _errors_font(pos: Any, ruta: str) -> List[str]:
     return e
 
 
+def _errors_inventari(t: Dict[str, Any], rt: str) -> List[str]:
+    """INV-T (contracte UI §10b): `inventari: {tipus: quantitat}` en lloc de `tipus`; el total és el nombre de tubs.
+    Les xifres que depenen del repartiment (combinacions, simetria) les diu neudet; aquí només la forma i les incoherències
+    que neudet també refusa (tipus amb inventari, punts o k que no sumen el total, `tipus_permesos` fora de l'inventari)."""
+    e: List[str] = []
+    pos = t.get("posicions") if isinstance(t.get("posicions"), dict) else {}
+    font = pos.get("font")
+    inv = t.get("inventari")
+    items = pos.get("punts") if font == "punts" else pos.get("anells") if font == "anells" else []
+    items = [q for q in (items or []) if isinstance(q, dict)]
+    if inv is None:
+        for i, q in enumerate(items):
+            if "tipus_permesos" in q:
+                e.append(f"{rt}.posicions.{'punts' if font == 'punts' else 'anells'}.{i}.tipus_permesos: només amb `inventari` a la tongada")
+        return e
+    if not (isinstance(inv, dict) and inv and all(isinstance(k, str) and k and _enter(v) for k, v in inv.items())):
+        return [f"{rt}.inventari: {{tipus: quantitat (enter ≥ 1)}}, amb almenys un tipus"]
+    total = sum(inv.values())
+    if font == "dat":
+        e.append(f"{rt}: una tongada «dat» no admet inventari")
+    if "tipus" in t:
+        e.append(f"{rt}.tipus: amb inventari el tipus el dona l'inventari (treu `tipus`)")
+    for i, q in enumerate(items):
+        rq = f"{rt}.posicions.{'punts' if font == 'punts' else 'anells'}.{i}"
+        if "tipus" in q:
+            e.append(f"{rq}.tipus: amb inventari el tipus el dona l'inventari (treu `tipus`)")
+        tp = q.get("tipus_permesos")
+        if tp is not None:
+            if not (isinstance(tp, list) and tp and all(isinstance(x, str) for x in tp)):
+                e.append(f"{rq}.tipus_permesos: una llista de tipus de l'inventari")
+            else:
+                fora = [x for x in tp if x not in inv]
+                if fora:
+                    e.append(f"{rq}.tipus_permesos: {', '.join(fora)} no és a l'inventari ({', '.join(inv)})")
+    if font == "punts" and len(items) != total:
+        e.append(f"{rt}.posicions.punts: {len(items)} punts i l'inventari té {total} tubs (n'hi ha d'haver tants com tubs)")
+    if font == "malla" and pos.get("k", 1) != total:
+        e.append(f"{rt}.posicions.k: ha de ser el total de l'inventari ({total}); la UI el posa sola")
+    nt = pos.get("n_total")
+    if font == "anells" and nt is not None and nt != total:
+        e.append(f"{rt}.posicions.n_total: {nt} no és el total de l'inventari ({total}); l'inventari fa de n_total")
+    return e
+
+
 def _errors_tongades(ts: Any, ruta: str) -> List[str]:
     if not isinstance(ts, list) or not ts:
         return [f"{ruta}: una llista no buida de tongades"]
@@ -896,6 +940,7 @@ def _errors_tongades(ts: Any, ruta: str) -> List[str]:
         if isinstance(pos, dict) and pos.get("font") == "dat" and any(k in t for k in ("tipus", "cd", "eix")):
             e.append(f"{rt}: una tongada «dat» és un candidat fix: no porta tipus, cd ni eix")
         e += _errors_atributs(t, rt)
+        e += _errors_inventari(t, rt)
         sel = t.get("seleccio", "exhaustiu")
         if sel != "exhaustiu":
             if not isinstance(sel, dict) or not _enter(sel.get("mostres", 0)):
@@ -1072,6 +1117,21 @@ def _sense_pas_buit(x: Any) -> Any:
     return x
 
 
+def _tipus_explicits(form: Dict[str, Any]) -> bool:
+    """Cada tongada de cada etapa diu els seus tipus (a la tongada, a tots els seus punts/anells, o amb `inventari`; `dat` no en
+    porta). Només llavors `domini.tipus_tub` sobra: neudet el deriva dels tipus de les tongades (SIMPLIFICA). Si alguna tongada
+    deixa el tipus al domini (un yaml antic traduït), la clau es manté: treure-la canviaria el tipus per defecte i els hashes."""
+    for e in (form.get("etapes") or {}).values():
+        for t in (e.get("tongades") or []) if isinstance(e, dict) else []:
+            pos = t.get("posicions") or {}
+            if pos.get("font") == "dat" or "tipus" in t or "inventari" in t:
+                continue
+            its = pos.get("punts") if pos.get("font") == "punts" else pos.get("anells") if pos.get("font") == "anells" else None
+            if not its or not all(isinstance(q, dict) and "tipus" in q for q in its):
+                return False
+    return True
+
+
 def to_yaml(form: Dict[str, Any]) -> str:
     """El `campanya.yaml` d'esborrany (text). Llança `FormError` amb tots els motius si la forma no
     és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`."""
@@ -1079,5 +1139,7 @@ def to_yaml(form: Dict[str, Any]) -> str:
     errs = _errors(form)
     if errs:
         raise FormError("formulari no vàlid:\n- " + "\n- ".join(errs))
+    if isinstance(form.get("domini"), dict) and _tipus_explicits(form):
+        form["domini"].pop("tipus_tub", None)      # derivat per neudet dels tipus (o inventaris) de les tongades (SIMPLIFICA)
     return CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
                                  allow_unicode=True, default_flow_style=None, width=110)

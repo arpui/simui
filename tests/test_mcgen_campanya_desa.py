@@ -213,7 +213,7 @@ def test_desa_sobreescriu_la_proposta_propia(neudet_tmp, cert_ok):
     r = CD.desa_proposta(_form_c04("c05_prova"))
     assert r["sobreescrita"] is True
     y = yaml.safe_load((neudet_tmp / "disseny" / "campanyes" / "c05_prova" / "campanya.yaml").read_text())
-    assert y["estat"] == "proposta" and y["domini"]["tipus_tub"] == ["lnd_252285"]
+    assert y["estat"] == "proposta" and "tipus_tub" not in y["domini"]   # SIMPLIFICA: neudet el deriva dels tipus de les tongades
 
 
 @pytest.mark.parametrize("bo", ["../c05", "c05/../../x", "C05_prova", "c", "x y", "."])

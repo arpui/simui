@@ -244,6 +244,36 @@ def comprova(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             raise ValueError(_motiu_de(exc)) from None
 
 
+def _amb_simetria(C, etapa: str, e: Dict[str, Any], ts: List[Dict[str, Any]]) -> None:
+    """INV-T: a les tongades amb `inventari`, neudet treu els candidats equivalents per gir o reflexió. El recompte d'abans és
+    el de `recompte_etapa`; el d'després només el sap l'expansió de neudet (`Campanya.candidats`), que es fa aquí només si
+    hi ha inventari i cap tongada passa de `max_candidats`. `simetria` és el de neudet tal com és (`abans`, `despres`,
+    `aplicada`, `motiu`, `en_paraules`); si no s'expandeix, `simetria_motiu` diu per què. No inventa res."""
+    amb = {t.get("nom") for t in (e.get("tongades") or []) if isinstance(t, dict) and t.get("inventari") is not None}
+    if not amb:
+        return
+    if any(t.get("avis") for t in ts):
+        for t in ts:
+            if t["nom"] in amb:
+                t["simetria_motiu"] = "no s'expandeix: el recompte passa de max_candidats (cal triar mostres)"
+        return
+    import contextlib
+    import io
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            C.candidats(etapa)
+    except (SystemExit, Exception) as exc:                  # noqa: BLE001 — el motiu de neudet, verbatim
+        for t in ts:
+            if t["nom"] in amb:
+                t["simetria_motiu"] = "no s'ha pogut expandir: " + _motiu_de(exc)
+        return
+    info = {t["nom"]: t for t in C.tongades_info["tongades"]}
+    for t in ts:
+        sim = (info.get(t["nom"]) or {}).get("simetria")
+        if sim:
+            t["simetria"] = sim
+
+
 def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
     """Quants candidats donen les tongades de l'etapa, ABANS de treure repetits i de les restriccions: és
     `generadors.recompte_etapa` de neudet (la UI no expandeix ni compta). `tongades` és [{nom, recompte}]; `n` és la suma.
@@ -267,6 +297,7 @@ def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             e = C.etapa(etapa)
             ctx = dict(tipus=C.tipus, n_tubs=e.get("n_tubs", C.restr.get("n_tubs")), restriccions=C.restr, arrel=C.dir)
             ts = recompte_etapa(e, C.bloc, ctx, etapa)
+            _amb_simetria(C, etapa, e, ts)
             return {"etapa": etapa, "n": sum(t["recompte"] for t in ts), "tongades": ts}
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None

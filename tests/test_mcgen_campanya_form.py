@@ -79,7 +79,9 @@ def test_to_yaml_round_trip_amb_c04():
     """defaults() → to_yaml → safe_load = el c04 de neudet, per a totes les claus."""
     _neudet_o_skip()
     torna = yaml.safe_load(CF.to_yaml(CF.defaults()))
-    assert torna == CF._a_tongades(_c04_dict())
+    esperat = CF._a_tongades(_c04_dict())
+    esperat["domini"].pop("tipus_tub")           # tots els tipus són explícits a les tongades: neudet el deriva (SIMPLIFICA)
+    assert torna == esperat
     assert isinstance(torna["creada"], dt.date)              # neudet la llegirà com a data
 
 

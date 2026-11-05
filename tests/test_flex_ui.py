@@ -283,8 +283,8 @@ def test_un_ventall_dins_d_un_anell_no_demana_lligam_i_neudet_el_genera():
 def test_la_pagina_porta_els_atributs_dins_de_cada_anell_i_punt():
     anells = INDEX.split("function cAnellsHtml")[1].split("function cTongadaHtml")[0]
     punts = INDEX.split("function cPuntsHtml")[1].split("function cMallaHtml")[0]
-    assert "cAtrsHtml(ap, a, true)" in anells and "Filtres sobre els anells" in anells
-    assert "cAtrsHtml(qp, q, true)" in punts
+    assert "cAtrsHtml(ap, a, true, !!inv)" in anells and "Filtres sobre els anells" in anells
+    assert "cAtrsHtml(qp, q, true, !!inv)" in punts
     assert anells.index("anell+") < anells.index("n_total")             # els filtres, sota tots els anells
 
 
@@ -342,3 +342,72 @@ def test_pagina_te_pregunta_i_boto_modifica():
     html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
     assert "Què vull saber" in html and "etapes.${E}.pregunta" in html
     assert "Modifica la proposta" in html and "Desa la proposta" in html
+
+
+# ── INV-UI: inventari de tubs (contracte UI §10b) ───────────────────────────
+
+def _form_inv(inv=None, **pos):
+    root = _neudet_o_skip()
+    f = CF.de_fitxer(root / "disseny" / "campanyes" / "c04_draft" / "campanya.yaml")
+    e = next(iter(f["etapes"]))
+    base = {"font": "anells", "anells": [{"r": {"de": 4, "a": 4, "pas": 1}, "n": {"de": 0, "a": 4}, "phi": 0},
+                                         {"r": {"de": 9, "a": 9, "pas": 1}, "n": {"de": 0, "a": 4}, "phi": "mig_pas"}]}
+    base.update(pos)
+    f["etapes"][e]["tongades"] = [{"nom": "inv", "inventari": inv or {"lnd_252285": 2, "lnd_sk03410": 2},
+                                   "posicions": base, "cd": {"fraction": 0}, "eix": "z", "seleccio": "exhaustiu"}]
+    return f, e
+
+
+def test_inventari_passa_pel_formulari_i_neudet_compta_amb_simetria_i_no_escriu_tipus_tub():
+    from simphy.mcgen import campanya_check as CC
+    f, e = _form_inv()
+    txt = CF.to_yaml(f)
+    assert "inventari:" in txt and "tipus_tub" not in txt              # SIMPLIFICA: neudet el deriva dels tipus de les tongades
+    r = CC.compta(txt, e)["tongades"][0]
+    assert r["recompte"] == 30 and r["simetria"]["abans"] == 30 and r["simetria"]["despres"] == 15
+    assert "en_paraules" in r["simetria"]
+
+
+@pytest.mark.parametrize("canvi,motiu", [
+    (lambda f, e: f["etapes"][e]["tongades"][0].update(tipus=["lnd_252285"]), "el tipus el dona l'inventari"),
+    (lambda f, e: f["etapes"][e]["tongades"][0]["posicions"]["anells"][0].update(tipus_permesos=["altre"]), "no és a l'inventari"),
+    (lambda f, e: f["etapes"][e]["tongades"][0]["posicions"].update(n_total=7), "inventari fa de n_total"),
+    (lambda f, e: f["etapes"][e]["tongades"][0].update(inventari={"lnd_252285": 0}), "inventari"),
+])
+def test_inventari_incoherent_es_refusa_amb_el_motiu(canvi, motiu):
+    f, e = _form_inv()
+    canvi(f, e)
+    with pytest.raises(CF.FormError, match=motiu):
+        CF.to_yaml(f)
+
+
+def test_inventari_punts_i_malla_han_de_sumar_el_total():
+    f, e = _form_inv(font="punts", punts=[{"x": 0, "y": 5, "z": 0}])
+    with pytest.raises(CF.FormError, match="1 punts i l'inventari té 4"):
+        CF.to_yaml(f)
+    f, e = _form_inv(font="malla", forma="quadrada", k=3, z=0, x=[0, 5], y=[0, 5])
+    with pytest.raises(CF.FormError, match="ha de ser el total"):
+        CF.to_yaml(f)
+
+
+def test_tipus_permesos_sense_inventari_es_refusa():
+    f, e = _form_inv()
+    t = f["etapes"][e]["tongades"][0]
+    del t["inventari"]
+    t["posicions"]["anells"][0]["tipus_permesos"] = ["lnd_252285"]
+    with pytest.raises(CF.FormError, match="només amb `inventari`"):
+        CF.to_yaml(f)
+
+
+def test_tipus_tub_es_manté_si_alguna_tongada_el_deixa_al_domini():
+    """Un yaml antic traduït sense tipus a la tongada: treure `domini.tipus_tub` canviaria el tipus per defecte (i els hashes)."""
+    root = _neudet_o_skip()
+    f = CF.de_fitxer(root / "disseny" / "campanyes" / "c01_8tubs_30x30x80" / "campanya.yaml")
+    assert "tipus_tub" in yaml.safe_load(CF.to_yaml(f))["domini"]
+
+
+def test_la_pagina_porta_l_inventari_i_ja_no_el_selector_del_domini():
+    for tros in ("function cInventariHtml", "Tubs disponibles", "tipus permesos", "assignats: ", "data-invmode",
+                 "function cInvMode", "function cSyncInv", "abans de la simetria", "t.avis"):
+        assert tros in INDEX, tros
+    assert "cSelTub('domini.tipus_tub.0'" not in INDEX and "tipus_tub[0]" not in INDEX

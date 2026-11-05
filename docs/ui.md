@@ -120,3 +120,12 @@ A la pàgina d'una campanya que no és proposta, cada etapa mostra: el `pla` del
 `candidats.csv`, `resultats_tub.json` i `meta.json`. Si l'etapa no té resposta, ho diu. «Veu el formulari (congelat)» obre
 el `campanya.yaml` amb el mateix formulari de definició, sense editar ni desar (només es pot triar l'etapa), i la certificació
 de neudet al costat. La UI no en calcula res. El resum de la petició (§11b) hi surt quan neudet l'afegeixi al `comprova.json`.
+
+## Inventari de tubs (INV-UI, contracte v1.6 §10b)
+Cada tongada de punts, malla o anells tria «Quins tubs hi ha»: **cada anell o punt diu el seu tipus** (com fins ara) o **un inventari de
+tubs disponibles** (`inventari: {tipus: quantitat}`; tots s'hi fan servir, el total és el nombre de tubs). Amb inventari, a cada anell
+o punt hi ha «tipus permesos» (tots marcats = sense restricció), la malla té `k` = total i els anells no porten `n_total`. El comptador
+«assignats / total» avisa quan no quadra. El recompte surt de neudet; a les tongades amb inventari porta també la simetria
+(abans → després, en paraules) i l'`avis` de `max_candidats` si cal triar `mostres`. El formulari ja no escriu `domini.tipus_tub`
+(neudet el deriva dels tipus de les tongades), excepte en un yaml antic on alguna tongada deixa el tipus al domini: treure'l canviaria
+els hashes.
