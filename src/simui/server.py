@@ -20,7 +20,8 @@ from . import api
 from .api import ask, llm_status, meta, render_all
 from ..mcgen import campanya_vista as CV
 
-PAGE = (Path(__file__).resolve().parent / "static" / "index.html").read_text()
+PAGE_PATH = Path(__file__).resolve().parent / "static" / "index.html"   # es llegeix a cada petició: un canvi es veu recarregant, sense reiniciar
+PAGE = PAGE_PATH.read_text()   # només per compatibilitat (scripts/ui/serve.py l'importa); el servidor no el fa servir
 
 #: Errors que són culpa de l'entrada (un disseny que no es pot llegir, un hash que no hi és…).
 #: Tot el que no és d'aquesta llista és un forat de simphy i es retorna com a 500.
@@ -62,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         path = url.path
         if path in ("/", "/index.html"):
-            self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+            self._send(200, PAGE_PATH.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/meta":
             self._json(meta())
         elif path == "/api/llm":
