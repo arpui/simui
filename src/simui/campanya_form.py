@@ -198,7 +198,193 @@ def de_fitxer(f: Path) -> Dict[str, Any]:
     data = yaml.safe_load(f.read_text())
     if not isinstance(data, dict):
         raise DES.DesignError(f"{f}: el campanya.yaml no és un diccionari")
-    return _jsonable(_a_tongades(data))
+    return a_inventari(_jsonable(_a_tongades(data)))
+
+
+# ── INV (contracte UI §10c): el formulari és «primer els tubs disponibles, després on van» ──
+#: clau del formulari (no del yaml) amb la nota de conversió d'una campanya antiga: {convertida: [...], nomes_lectura: motiu|None}
+CONVERSIO = "_conversio"
+
+
+def _lletra(i: int) -> str:
+    s, i = "", i + 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def _un(v: Any) -> Tuple[bool, Any]:
+    """(és un sol valor, el valor) d'un atribut: valor, llista d'un element o {valors: [un]}."""
+    if isinstance(v, dict) and "valors" in v:
+        v = v["valors"]
+    if isinstance(v, list):
+        return (len(v) == 1, v[0] if len(v) == 1 else v)
+    return (True, v)
+
+
+def _cd_simple(cd: Any) -> Tuple[bool, Dict[str, Any]]:
+    """(és un sol valor, el Cd normalitzat {fraction[, arc, centre]}). Fracció 0 = sense Cd (arc i centre no compten)."""
+    cd = cd if isinstance(cd, dict) else {"fraction": 0}
+    vals = {}
+    for k in ("fraction", "arc", "centre"):
+        if k in cd:
+            ok, v = _un(cd[k]) if not isinstance(cd[k], dict) else (False, cd[k])
+            if not ok:
+                return False, cd
+            vals[k] = v
+    if not vals.get("fraction"):
+        return True, {"fraction": 0}
+    return True, {k: vals[k] for k in ("fraction", "arc", "centre") if k in vals}
+
+
+def _cd_trivial(cd: Any) -> bool:
+    ok, c = _cd_simple(cd)
+    return ok and not c.get("fraction")
+
+
+def _n_fix(n: Any) -> Optional[int]:
+    """L'n d'un anell si és un sol enter (valor, llista d'un, rang de == a); si no, None."""
+    if isinstance(n, dict) and {"de", "a"} <= set(n):
+        return int(n["de"]) if n["de"] == n["a"] else None
+    ok, v = _un(n)
+    return int(v) if ok and isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _converteix_tongada(t: Dict[str, Any], tub0: Optional[str]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Una tongada d'abans (`tipus` per tongada, anell o punt) → la mateixa amb `inventari` de recursos (els mateixos tubs a cada
+    candidat). (tongada nova, None) o (None, per què no es pot)."""
+    t = copy.deepcopy(t)
+    pos = t.get("posicions") or {}
+    font = pos.get("font")
+    sel = t.get("seleccio", "exhaustiu")
+    if sel not in (None, "exhaustiu"):
+        return None, "fa servir «mostres»: amb un inventari el sorteig seria un altre"
+    ok_t, tp_t = _un(t.get("tipus", tub0))
+    cd_t = t.get("cd")
+    llig_t = (cd_t or {}).get("lligam", "global") if isinstance(cd_t, dict) else "global"
+    ok_cdt, cdn_t = _cd_simple(cd_t)
+    for k in ("tipus", "cd"):
+        t.pop(k, None)
+    if font == "malla":
+        if not ok_t or not tp_t:
+            return None, "la malla prova un ventall de tipus (cada tub, un dels tipus): no és un inventari fix"
+        k = pos.get("k", 1)
+        if not isinstance(k, int) or k < 1:
+            return None, "la malla no diu quants tubs (k)"
+        if not ok_cdt and llig_t not in ("global", "tub"):
+            return None, "el Cd en ventall té lligam «%s»" % llig_t
+        cd = cdn_t if ok_cdt else dict(cd_t)
+        t["inventari"] = [{"nom": "A", "tipus": tp_t, "quantitat": k, "cd": cd}]
+        return t, None
+    if font not in ("anells", "punts"):
+        return None, "font %r" % font
+    its = pos.get("anells") if font == "anells" else pos.get("punts")
+    claus, ns = [], []
+    for i, q in enumerate(its or []):
+        ok, tp = _un(q.get("tipus", tp_t))
+        if not ok or not tp:
+            return None, "%s %d prova un ventall de tipus" % ("l'anell" if font == "anells" else "el punt", i + 1)
+        cdq = q.get("cd", cd_t)
+        okc, cdn = _cd_simple(cdq)
+        if not okc:
+            if q.get("cd") is not None:
+                return None, "%s %d té un ventall de Cd propi" % ("l'anell" if font == "anells" else "el punt", i + 1)
+            cdn = None                                   # el ventall de la tongada: només amb un sol recurs (es mira a sota)
+        claus.append((tp, json.dumps(cdn, sort_keys=True)))
+        ns.append(1 if font == "punts" else _n_fix(q.get("n")))
+    unics = list(dict.fromkeys(claus))
+    if not ok_cdt and (len(unics) > 1 or llig_t not in ("global", "tub")):
+        return None, "el Cd de la tongada és un ventall i hi ha més d'un tipus de tub (o lligam «%s»)" % llig_t
+    noms = {k: _lletra(i) for i, k in enumerate(unics)}
+    if font == "anells":
+        nt = pos.get("n_total")
+        if len(unics) == 1:
+            tot = nt if isinstance(nt, int) else (sum(ns) if all(n is not None for n in ns) else None)
+            if tot is None:
+                return None, "els anells tenen n variable i cap n_total: no hi ha un nombre de tubs fix"
+            quant = {unics[0]: tot}
+        else:
+            if any(n is None for n in ns):
+                return None, ("hi ha anells de tipus diferents amb n variable (p. ex. c02 S3): un inventari fix no ho pot dir en "
+                              "una sola tongada")
+            if isinstance(nt, int) and nt != sum(ns):
+                return None, "n_total %d no és la suma dels anells (%d): cap candidat" % (nt, sum(ns))
+            quant = {}
+            for k, n in zip(claus, ns):
+                quant[k] = quant.get(k, 0) + n
+        if not sum(quant.values()):
+            return None, "cap tub"
+        for q, k, n in zip(its, claus, ns):
+            q.pop("tipus", None); q.pop("cd", None)
+            if len(unics) > 1:
+                q["n"] = n
+                if n:
+                    q["fixats"] = {noms[k]: n}
+        pos.pop("n_total", None)
+    else:
+        quant = {}
+        for k in claus:
+            quant[k] = quant.get(k, 0) + 1
+        for q, k in zip(its, claus):
+            q.pop("tipus", None); q.pop("cd", None)
+            if len(unics) > 1:
+                q["tipus_permesos"] = [noms[k]]
+    inv = []
+    for k in unics:
+        if not quant.get(k):
+            continue
+        cd = json.loads(k[1]) if k[1] != "null" else dict(cd_t)
+        inv.append({"nom": noms[k], "tipus": k[0], "quantitat": quant[k], "cd": cd})
+    t["inventari"] = inv
+    return t, None
+
+
+def a_inventari(form: Dict[str, Any]) -> Dict[str, Any]:
+    """INV: cada tongada del formulari en la forma nova (inventari de recursos `[{nom, tipus, quantitat, cd}]`, sense `tipus` ni
+    `cd` per anell, punt o tongada). Una tongada d'abans es converteix (els mateixos tubs a cada candidat; ho comprova el test
+    contra neudet) i ho diu a `_conversio.convertida`; si no es pot, la campanya s'obre en **només lectura** i
+    `_conversio.nomes_lectura` diu per què. `{tipus: n}` (INV-T) passa a llista amb nom = tipus."""
+    form = copy.deepcopy(form)
+    et = form.get("etapes") if isinstance(form, dict) else None
+    if not isinstance(et, dict):
+        return form
+    dom = form.get("domini") or {}
+    tub0 = (dom.get("tipus_tub") or [None])[0]
+    conv, ro = [], []
+    for nom, e in et.items():
+        ts = (e or {}).get("tongades") if isinstance(e, dict) else None
+        if not isinstance(ts, list):
+            continue
+        for i, t in enumerate(ts):
+            if not isinstance(t, dict):
+                continue
+            font = (t.get("posicions") or {}).get("font")
+            on = "etapa %s, tongada «%s»" % (nom, t.get("nom", i))
+            if font == "dat":
+                continue
+            inv = t.get("inventari")
+            if isinstance(inv, list):
+                continue
+            if isinstance(inv, dict):                       # INV-T: {tipus: n} → recursos amb nom = tipus
+                its = (t.get("posicions") or {}).get("anells") or (t.get("posicions") or {}).get("punts") or []
+                if not all(_cd_trivial(x.get("cd")) for x in [t] + list(its)):
+                    ro.append("%s: inventari amb Cd per tongada o per anell (el Cd ara és del recurs)" % on)
+                    continue
+                t["inventari"] = [{"nom": k, "tipus": k, "quantitat": q, "cd": {"fraction": 0}} for k, q in inv.items()]
+                for x in [t] + list(its):
+                    x.pop("cd", None)
+                conv.append("%s: inventari {tipus: n} → recursos (nom = tipus)" % on)
+                continue
+            nou, motiu = _converteix_tongada(t, tub0)
+            if nou is None:
+                ro.append("%s: %s" % (on, motiu))
+                continue
+            ts[i] = nou
+            conv.append("%s: %s" % (on, ", ".join("%s = %d × %s" % (r["nom"], r["quantitat"], r["tipus"]) for r in nou["inventari"])))
+    if conv or ro:
+        form[CONVERSIO] = {"convertida": conv, "nomes_lectura": "; ".join(ro) or None}
+    return form
 
 
 def _neteja_traduccio(x: Any) -> Any:
@@ -814,7 +1000,7 @@ def _errors_atributs(a: Any, ruta: str, eixos_ok: bool = True) -> List[str]:
     return e
 
 
-def _errors_font(pos: Any, ruta: str) -> List[str]:
+def _errors_font(pos: Any, ruta: str, inventari: bool = False, total: Optional[int] = None) -> List[str]:
     if not isinstance(pos, dict):
         return [f"{ruta}: cal un diccionari amb `font`"]
     f = pos.get("font")
@@ -868,12 +1054,16 @@ def _errors_font(pos: Any, ruta: str) -> List[str]:
             return [f"{ruta}.anells: una llista no buida d'anells {{r, n, phi}}"]
         nt = pos.get("n_total")
         nt = nt if isinstance(nt, int) and not isinstance(nt, bool) else None
+        if inventari and total:                        # INV: el total dels recursos fa de n_total
+            nt = total
         for i, a in enumerate(an):
             ra = f"{ruta}.anells.{i}"
             if not isinstance(a, dict):
                 e.append(f"{ra}: cal un diccionari amb r i n")
                 continue
             for k in ("r", "n"):
+                if k == "n" and inventari:                 # INV: amb inventari, sense `n` = lliure
+                    continue
                 if k not in a:
                     e.append(f"{ra}.{k}: falta «{k}» (anell {i + 1})")
             if "r" in a:
@@ -892,39 +1082,79 @@ def _errors_font(pos: Any, ruta: str) -> List[str]:
 
 
 def _errors_inventari(t: Dict[str, Any], rt: str) -> List[str]:
-    """INV-T (contracte UI §10b): `inventari: {tipus: quantitat}` en lloc de `tipus`; el total és el nombre de tubs.
-    Les xifres que depenen del repartiment (combinacions, simetria) les diu neudet; aquí només la forma i les incoherències
-    que neudet també refusa (tipus amb inventari, punts o k que no sumen el total, `tipus_permesos` fora de l'inventari)."""
+    """INV-T / INV (contracte UI §10b–c): `inventari` (recursos `[{nom, tipus, quantitat, cd}]` o `{tipus: quantitat}`) en lloc de
+    `tipus`; el total és el nombre de tubs. Les xifres (combinacions, simetria) i els impossibles de fixats les diu neudet, en
+    paraules; aquí només la forma i el que neudet també refusa."""
     e: List[str] = []
     pos = t.get("posicions") if isinstance(t.get("posicions"), dict) else {}
     font = pos.get("font")
     inv = t.get("inventari")
+    nomf = "punts" if font == "punts" else "anells"
     items = pos.get("punts") if font == "punts" else pos.get("anells") if font == "anells" else []
     items = [q for q in (items or []) if isinstance(q, dict)]
     if inv is None:
         for i, q in enumerate(items):
-            if "tipus_permesos" in q:
-                e.append(f"{rt}.posicions.{'punts' if font == 'punts' else 'anells'}.{i}.tipus_permesos: només amb `inventari` a la tongada")
+            for k in ("tipus_permesos", "fixats"):
+                if k in q:
+                    e.append(f"{rt}.posicions.{nomf}.{i}.{k}: només amb `inventari` a la tongada")
         return e
-    if not (isinstance(inv, dict) and inv and all(isinstance(k, str) and k and _enter(v) for k, v in inv.items())):
-        return [f"{rt}.inventari: {{tipus: quantitat (enter ≥ 1)}}, amb almenys un tipus"]
-    total = sum(inv.values())
+    if isinstance(inv, dict):
+        if not (inv and all(isinstance(k, str) and k and _enter(v) for k, v in inv.items())):
+            return [f"{rt}.inventari: {{tipus: quantitat (enter ≥ 1)}}, amb almenys un tipus"]
+        disp = dict(inv)
+    elif isinstance(inv, list):
+        if not inv:
+            return [f"{rt}.inventari: cal almenys un recurs (tipus i quantitat): els tubs que tens"]
+        disp = {}
+        for j, r in enumerate(inv):
+            rr = f"{rt}.inventari.{j}"
+            if not isinstance(r, dict):
+                e.append(f"{rr}: cal {{tipus, quantitat, cd}}")
+                continue
+            nom = str(r.get("nom") or _lletra(j))
+            if nom in disp:
+                e.append(f"{rr}.nom: «{nom}» ja és el d'un altre recurs")
+            if not isinstance(r.get("tipus"), str) or not r.get("tipus"):
+                e.append(f"{rr}.tipus: quin tub és")
+            if not _enter(r.get("quantitat")):
+                e.append(f"{rr}.quantitat: un enter ≥ 1")
+            if r.get("cd") is not None:
+                e += _errors_cd(r["cd"], f"{rr}.cd")
+                ll = r["cd"].get("lligam") if isinstance(r["cd"], dict) else None
+                if ll not in (None, "global", "tub"):
+                    e.append(f"{rr}.cd.lligam: global (tots els tubs del recurs igual) o tub (cada tub el seu)")
+            disp[nom] = r.get("quantitat") if _enter(r.get("quantitat")) else 0
+        if e:
+            return e
+    else:
+        return [f"{rt}.inventari: una llista de recursos [{{tipus, quantitat, cd}}]"]
+    total = sum(disp.values())
     if font == "dat":
         e.append(f"{rt}: una tongada «dat» no admet inventari")
     if "tipus" in t:
         e.append(f"{rt}.tipus: amb inventari el tipus el dona l'inventari (treu `tipus`)")
     for i, q in enumerate(items):
-        rq = f"{rt}.posicions.{'punts' if font == 'punts' else 'anells'}.{i}"
+        rq = f"{rt}.posicions.{nomf}.{i}"
         if "tipus" in q:
             e.append(f"{rq}.tipus: amb inventari el tipus el dona l'inventari (treu `tipus`)")
         tp = q.get("tipus_permesos")
         if tp is not None:
             if not (isinstance(tp, list) and tp and all(isinstance(x, str) for x in tp)):
-                e.append(f"{rq}.tipus_permesos: una llista de tipus de l'inventari")
+                e.append(f"{rq}.tipus_permesos: una llista de recursos de l'inventari")
             else:
-                fora = [x for x in tp if x not in inv]
+                fora = [x for x in tp if x not in disp]
                 if fora:
-                    e.append(f"{rq}.tipus_permesos: {', '.join(fora)} no és a l'inventari ({', '.join(inv)})")
+                    e.append(f"{rq}.tipus_permesos: {', '.join(fora)} no és a l'inventari ({', '.join(disp)})")
+        fx = q.get("fixats")
+        if fx is not None:
+            if font != "anells":
+                e.append(f"{rq}.fixats: només als anells (en un punt, `tipus_permesos`)")
+            elif not (isinstance(fx, dict) and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in fx.values())):
+                e.append(f"{rq}.fixats: {{recurs: quantitat}}")
+            else:
+                fora = [x for x in fx if x not in disp]
+                if fora:
+                    e.append(f"{rq}.fixats: {', '.join(fora)} no és a l'inventari ({', '.join(disp)})")
     if font == "punts" and len(items) != total:
         e.append(f"{rt}.posicions.punts: {len(items)} punts i l'inventari té {total} tubs (n'hi ha d'haver tants com tubs)")
     if font == "malla" and pos.get("k", 1) != total:
@@ -953,7 +1183,10 @@ def _errors_tongades(ts: Any, ruta: str) -> List[str]:
         else:
             noms.append(nom)
         pos = t.get("posicions")
-        e += _errors_font(pos, f"{rt}.posicions")
+        inv_t = t.get("inventari")
+        tot_inv = (sum(r.get("quantitat") or 0 for r in inv_t if isinstance(r, dict) and _enter(r.get("quantitat")))
+                   if isinstance(inv_t, list) else sum(v for v in inv_t.values() if _enter(v)) if isinstance(inv_t, dict) else None)
+        e += _errors_font(pos, f"{rt}.posicions", inventari=inv_t is not None, total=tot_inv or None)
         if isinstance(pos, dict) and pos.get("font") == "dat" and any(k in t for k in ("tipus", "cd", "eix")):
             e.append(f"{rt}: una tongada «dat» és un candidat fix: no porta tipus, cd ni eix")
         e += _errors_atributs(t, rt)
@@ -1153,6 +1386,8 @@ def to_yaml(form: Dict[str, Any]) -> str:
     """El `campanya.yaml` d'esborrany (text). Llança `FormError` amb tots els motius si la forma no
     és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`."""
     form = _sense_pas_buit(copy.deepcopy(form))
+    if isinstance(form, dict):
+        form.pop(CONVERSIO, None)                  # INV: la nota de conversió és del formulari, no del yaml
     errs = _errors(form)
     if errs:
         raise FormError("formulari no vàlid:\n- " + "\n- ".join(errs))

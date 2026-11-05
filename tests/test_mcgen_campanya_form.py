@@ -70,8 +70,13 @@ def test_defaults_es_el_c04_de_neudet():
     d = CF.defaults()
     assert d["id"] == "c04_draft"
     assert d["creada"] == "2026-10-26"                       # data → text ISO
-    # ni una clau de més ni de menys: el c04 de neudet, amb el `generador` antic traduït a `tongades` (GEN-U)
-    assert d == _sense_dates(CF._a_tongades(_c04_dict()))
+    # ni una clau de més ni de menys: el c04 de neudet, amb el `generador` antic traduït a `tongades` (GEN-U) i convertit a
+    # recursos (INV: primer els tubs disponibles, després on van), amb la nota de conversió
+    assert d == _sense_dates(CF.a_inventari(CF._a_tongades(_c04_dict())))
+    t = d["etapes"]["S1"]["tongades"][0]
+    assert t["inventari"] == [{"nom": "A", "tipus": "lnd_252285", "quantitat": 8, "cd": {"fraction": 0}}]
+    assert all("tipus" not in a and "cd" not in a for a in t["posicions"]["anells"]) and "n_total" not in t["posicions"]
+    assert d[CF.CONVERSIO]["nomes_lectura"] is None and d[CF.CONVERSIO]["convertida"]
     assert "generador" not in d["etapes"]["S1"] and d["etapes"]["S1"]["tongades"]
 
 
@@ -79,7 +84,8 @@ def test_to_yaml_round_trip_amb_c04():
     """defaults() → to_yaml → safe_load = el c04 de neudet, per a totes les claus."""
     _neudet_o_skip()
     torna = yaml.safe_load(CF.to_yaml(CF.defaults()))
-    esperat = CF._a_tongades(_c04_dict())
+    esperat = CF.a_inventari(CF._a_tongades(_c04_dict()))
+    esperat.pop(CF.CONVERSIO)                    # la nota de conversió és del formulari, no del yaml
     esperat["domini"].pop("tipus_tub")           # tots els tipus són explícits a les tongades: neudet el deriva (SIMPLIFICA)
     assert torna == esperat
     assert isinstance(torna["creada"], dt.date)              # neudet la llegirà com a data
@@ -441,7 +447,9 @@ def test_compta_es_el_recompte_de_neudet_per_tongada():
         ctx = dict(tipus=c.tipus, n_tubs=e.get("n_tubs", c.restr.get("n_tubs")), restriccions=c.restr, arrel=c.dir)
         directe = recompte_etapa(e, c.bloc, ctx, "S1")
     r = CC.compta(txt, "S1")
-    assert r["tongades"] == directe and r["n"] == sum(t["recompte"] for t in directe) and r["etapa"] == "S1"
+    # INV: el c04 s'obre convertit a recursos; amb inventari, la UI hi afegeix la simetria de neudet (`_amb_simetria`)
+    assert all(t.get("simetria") for t in r["tongades"])
+    assert [{k: v for k, v in t.items() if k != "simetria"} for t in r["tongades"]] == directe and r["n"] == sum(t["recompte"] for t in directe) and r["etapa"] == "S1"
     ok = CC.comprova(txt, "S1")
     assert ok["n_valids"] + ok["n_invalids"] <= r["n"]
 

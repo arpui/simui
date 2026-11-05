@@ -231,6 +231,8 @@ def tanteig_de_candidat(de: str, hash_: str, etapa: Optional[str] = None) -> Dic
     nova["tongades"] = [{"nom": cand.nom, "posicions": {"font": "punts", "punts": [_tub_yaml(t) for t in cand.tubs]},
                          "seleccio": "exhaustiu"}]
     f["etapes"] = {f"llista_{nom_etapa}": nova}
+    f = CF.a_inventari(f)                     # INV: el candidat com a recursos (tipus i Cd de cada tub) i punts amb el seu recurs
+    f.pop(CF.CONVERSIO, None)                 # és un candidat nou, no una conversió d'una campanya antiga
     _ha_de_passar_el_formulari(f, de)
     return {"de": de, "id": nou, "form": f, "etapa": f"llista_{nom_etapa}",
             "candidat": {"nom": cand.nom, "hash": hash_, "etapa": nom_etapa, "tubs_n": len(cand.tubs)}}

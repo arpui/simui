@@ -283,8 +283,9 @@ def test_un_ventall_dins_d_un_anell_no_demana_lligam_i_neudet_el_genera():
 def test_la_pagina_porta_els_atributs_dins_de_cada_anell_i_punt():
     anells = INDEX.split("function cAnellsHtml")[1].split("function cTongadaHtml")[0]
     punts = INDEX.split("function cPuntsHtml")[1].split("function cMallaHtml")[0]
-    assert "cAtrsHtml(ap, a, true, !!inv)" in anells and "Filtres sobre els anells" in anells
-    assert "cAtrsHtml(qp, q, true, !!inv)" in punts
+    # INV: amb recursos, cada anell i punt només porta la geometria (eix); el format antic (només lectura), els seus atributs
+    assert "cEixHtml(ap, a)" in anells and "cAtrsHtml(ap, a, true, false)" in anells and "Filtres sobre els anells" in anells
+    assert "cEixHtml(qp, q)" in punts and "cAtrsHtml(qp, q, true, false)" in punts
     assert anells.index("anell+") < anells.index("n_total")             # els filtres, sota tots els anells
 
 
@@ -407,9 +408,12 @@ def test_tipus_tub_es_manté_si_alguna_tongada_el_deixa_al_domini():
 
 
 def test_la_pagina_porta_l_inventari_i_ja_no_el_selector_del_domini():
-    for tros in ("function cInventariHtml", "Tubs disponibles", "tipus permesos", "assignats: ", "data-invmode",
-                 "function cInvMode", "function cSyncInv", "abans de la simetria", "t.avis"):
+    # INV: els quatre passos (recursos → estructura → assignació → recompte) i fora el selector de mode
+    for tros in ("function cRecursosHtml", "1 · Recursos i les seves variacions: tubs disponibles", "2 · Tipus d'estudi",
+                 "3 · Assignació dels recursos", "4 · Recompte", "tipus permesos", "tubs fixats", "fixats i fixos: ",
+                 "data-nmode", "data-reccd", "function cSyncInv", "abans de la simetria", "t.avis", "Convertida des del format antic"):
         assert tros in INDEX, tros
+    assert "data-invmode" not in INDEX and "function cInvMode" not in INDEX
     assert "cSelTub('domini.tipus_tub.0'" not in INDEX and "tipus_tub[0]" not in INDEX
 
 
