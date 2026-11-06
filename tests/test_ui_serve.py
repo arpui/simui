@@ -157,3 +157,52 @@ def test_serve_accepta_diverses_adreces_separades_per_comes():
     finally:
         p.terminate()
         p.wait(timeout=5)
+
+
+def test_serve_restart_substitueix_el_servidor_que_ja_corre():
+    """`--restart`: atura el serve.py anterior d'aquest port i en deixa un de nou escoltant."""
+    import subprocess
+    import sys
+    import time
+    import urllib.request
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "scripts" / "ui" / "serve.py"
+    cmd = [sys.executable, str(script), "--host", "127.0.0.1", "--port", "18766"]
+
+    def espera():
+        for _ in range(50):
+            try:
+                return urllib.request.urlopen("http://127.0.0.1:18766/api/llm", timeout=1).status
+            except Exception:
+                time.sleep(0.2)
+    a = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    b = None
+    try:
+        assert espera() == 200
+        b = subprocess.Popen(cmd + ["--restart"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        a.wait(timeout=15)                                   # l'anterior s'ha aturat
+        assert espera() == 200 and b.poll() is None          # i el nou escolta
+    finally:
+        for p in (a, b):
+            if p and p.poll() is None:
+                p.terminate()
+                p.wait(timeout=5)
+
+
+def test_connexio_tancada_pel_navegador_no_imprimeix_traca(capsys):
+    """Un BrokenPipe (el navegador recarrega a mitges) no és un error de simphy; una altra excepció sí que es veu."""
+    from simphy.ui import server as S
+    srv = S.make_server("127.0.0.1", 0)
+    try:
+        try:
+            raise BrokenPipeError()
+        except BrokenPipeError:
+            srv.handle_error(None, ("127.0.0.1", 1))
+        assert capsys.readouterr().err == ""
+        try:
+            raise ValueError("de debò")
+        except ValueError:
+            srv.handle_error(None, ("127.0.0.1", 1))
+        assert "ValueError" in capsys.readouterr().err
+    finally:
+        srv.server_close()

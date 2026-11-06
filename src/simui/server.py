@@ -160,5 +160,15 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write(f"[ui] {self.address_string()} {fmt % args}\n")
 
 
+class _Servidor(ThreadingHTTPServer):
+    """Si el navegador tanca la connexió a mitges (recarregar, anar a una altra pestanya), no és cap error nostre:
+    no s'imprimeix la traça. Tota la resta d'excepcions es continuen veient."""
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def make_server(host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), Handler)
+    return _Servidor((host, port), Handler)
