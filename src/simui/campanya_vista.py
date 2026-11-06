@@ -427,6 +427,7 @@ def _certificacio(d: Path, rel: Optional[str]) -> Dict[str, Any]:
             "draft": doc.get("draft"), "elements": doc.get("elements") or [],
             "resum_text": doc.get("resum_text"), "confirmacio": doc.get("confirmacio"),   # CONF-P: text i estat de neudet, tal qual
             "avisos_en_paraules": doc.get("avisos_en_paraules"),
+            "opcions_cost": doc.get("opcions_cost"),             # AFINA-N: si el cost passa del límit, neudet porta les opcions
             "camps_falten": doc.get("camps_falten"), "etapes": doc.get("etapes") or {}}
 
 

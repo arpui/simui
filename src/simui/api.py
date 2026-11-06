@@ -382,7 +382,8 @@ def campanya_carrega(id_: str) -> Dict[str, Any]:
     d = CV.dir_de(id_)
     cert = CV._certificacio(d, "comprova.json" if (d / "comprova.json").is_file() else None)
     return {"id": id_, "form": CF.de_fitxer(d / "campanya.yaml"),
-            "resum_text": cert.get("resum_text"), "confirmacio": cert.get("confirmacio")}     # CONF-P: el que neudet entén que farà
+            "resum_text": cert.get("resum_text"), "confirmacio": cert.get("confirmacio"),     # CONF-P: el que neudet entén que farà
+            "opcions_cost": cert.get("opcions_cost")}
 
 
 def campanya_candidat(id_: str, hash_: str, etapa: Optional[str] = None) -> Dict[str, Any]:

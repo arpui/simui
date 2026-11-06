@@ -1017,9 +1017,9 @@ def _errors_font(pos: Any, ruta: str, inventari: bool = False, total: Optional[i
                 e.append(f"{rp}: cal un diccionari amb x i y")
                 continue
             for k in ("x", "y", "z"):
-                if k in q and not _num(q[k]):
-                    e.append(f"{rp}.{k}: un número (cm)")
-                elif k != "z" and k not in q:
+                if k in q:                                    # PUNTS-V: un valor, una llista o un rang {de, a, pas}
+                    e += _errors_rang(q[k], f"{rp}.{k}", f"{k} del punt {i + 1}")
+                elif k != "z":
                     e.append(f"{rp}.{k}: falta «{k}» (punt {i + 1})")
             e += _errors_atributs(q, rp)
     elif f == "malla":

@@ -213,7 +213,7 @@ def test_pagina_campanya_nota_i_recompte_i_candidat_nomes_a_llista(url):
     code, raw = _req(url, "/")
     html = raw.decode()
     assert code == 200
-    assert "nota (no afecta res)" in html and "què fa l'etapa" not in html
+    assert "nota teva (opcional; NO és la pregunta)" in html and "què fa l'etapa" not in html
     assert 'id="c-compta"' in html and "/api/campanya/compta" in html
     assert "aquesta etapa genera" in html
     # les tongades: «+ tongada» i els editors de cada font

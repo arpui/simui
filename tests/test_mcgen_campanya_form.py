@@ -588,3 +588,24 @@ def test_l_avis_del_cd_es_nomes_el_limit_de_neudet():
 def test_la_pagina_no_pinta_el_panell_del_cd_si_no_hi_ha_avis():
     html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
     assert "S.cd.avis ?" in html
+
+
+# ── PUNTS-V (neudet 2026-11-06): x, y, z d'un punt = valor, llista o rang {de, a, pas} ─────────────────────
+
+def _form_punts(**q):
+    f = _form_minim()
+    f["etapes"]["S1"]["tongades"][0]["posicions"] = {"font": "punts", "punts": [{"x": 0, "y": 0, "z": 0, "eix": "z"}, {"x": 5, "y": 5, "z": 0, **q}]}
+    return f
+
+
+@pytest.mark.parametrize("q", [{"y": [3, 6]}, {"y": {"de": 0, "a": 6, "pas": 3}}, {"z": [0, 4]}, {"x": 9, "eix": ["x", "z"]}])
+def test_punts_v_acceptats_i_arriben_al_yaml(q):
+    f = _form_punts(**q)
+    assert CF._errors(f) == []
+    yaml.safe_load(CF.to_yaml(f))
+
+
+@pytest.mark.parametrize("q, camp", [({"y": []}, "punts.1.y"), ({"y": {"de": 6, "a": 0, "pas": 1}}, "punts.1.y.a"),
+                                      ({"z": {"de": 0, "a": 4, "pas": 0}}, "punts.1.z.pas"), ({"x": "gran"}, "punts.1.x")])
+def test_punts_v_invalids_diuen_el_camp(q, camp):
+    assert any(camp in e for e in CF._errors(_form_punts(**q)))

@@ -145,3 +145,13 @@ servidor (`design_view._svg_xz(v, "yz")`, girant x↔y). Al costat de cada selec
 - **Confirmar i congelar:** només amb l'estat `interpretada`. `POST /api/campanya/confirma {id, per}` crida `neudet.disseny.confirmacio.confirma`
   (escriu `confirmacio` amb hash del yaml i del PLA i `estat: confirmada`); la UI no calcula cap hash. El motiu d'un refús és el de neudet.
   Si després es toca el yaml o el PLA, neudet exigeix reinterpretar i reconfirmar.
+
+## Afinar el formulari (UI-AFINA)
+
+- **Un sol dibuix, sempre visible.** Les tres vistes (XY · XZ · YZ) són a dalt del formulari i s'hi queden mentre es baixa (`position: sticky`); ja no n'hi ha un segon dins de l'etapa. Amb recursos, dibuixa una **configuració d'exemple a l'atzar** (llavor `CP.llavor`): primer els tubs **fixats** de cada anell, després els anells de n fix, i els que queden van a anells lliures respectant els **tipus permesos**; a «punts» un tub per punt, a la malla k llocs triats. El color és del **tipus** de tub (el mateix a les tres vistes i a la llegenda), hi ha el text «exemple, no és cap candidat» i el botó **una altra**. Es refà a cada canvi del formulari. Un lloc sense tub (els possibles d'una malla) es dibuixa tènue.
+- **La font no es mou per accident:** només s'arrossega amb el botó **mou la font** (queda marcat en vermell mentre és actiu); la posició es veu sempre en números.
+- **Després de desar:** el botó passa a «Modifica la proposta» a l'acte, surt l'avís **⏳ Esperant resposta de neudet…** i la llista es refresca sola cada 30 s; quan la campanya deixa de ser `proposta`, apareix «Veu la interpretació i confirma». També passa en obrir una proposta que encara no ha estat interpretada.
+- **`verificacio.hits`** és editable (`all` / `detect`): és l'únic camp de verificació que neudet llegeix. `quants` i `n_per_energia` segueixen de lectura (veure AFINA-N de neudet).
+- **`que:`** és una nota de l'usuari, no la pregunta: una proposta nova no hereta el `que:` de la plantilla (`cSenseQue`), i el camp es diu «nota teva (opcional; NO és la pregunta)».
+- **Punts amb posició variable (PUNTS-V de neudet):** a cada punt, x, y i z són **un valor, una llista o un rang** (de–a amb pas); l'eix és per punt. El dibuix en tria una combinació; només s'arrossega un punt amb x, y, z fixos. El formulari valida amb `_errors_rang`, com els anells.
+- **Cost gran (AFINA-N):** si `comprova.json` porta `opcions_cost`, es mostra en vermell «massa gran per a un tanteig» amb les opcions tal com les dona neudet. **Encara no n'hi ha cap a neudet** (el format no està escrit al contracte): la UI mostra el que arribi, sense inventar-ne les claus.

@@ -437,7 +437,7 @@ def test_la_pagina_porta_la_vista_lateral_i_les_dimensions_al_selector():
 def test_les_tres_vistes_es_veuen_alhora_sense_desplegable():
     """VISTA-3: de dalt, lateral XZ i lateral YZ, una al costat de l'altra, al formulari i al full del candidat."""
     form = INDEX.split("function cBlocSvg")[1].split("function cBlocLateral")[0]
-    assert "cBlocXY(id)" in form and "cBlocLateral(id + '-xz', 'xz')" in form and "cBlocLateral(id + '-yz', 'yz')" in form
+    assert "cBlocXY(id, V)" in form and "cBlocLateral(id + '-xz', 'xz', V)" in form and "cBlocLateral(id + '-yz', 'yz', V)" in form
     for ja_no in ("data-vista", 'id="d-lat"', "dPintaLateral", "CP.vista", "DS.lat"):
         assert ja_no not in INDEX, ja_no
     assert 'id="d-xy"' in INDEX and 'id="d-xz"' in INDEX and 'id="d-yz"' in INDEX
@@ -477,3 +477,52 @@ def test_la_pagina_porta_el_resum_la_interpretacio_i_el_boto_de_confirmar_nomes_
         assert tros in INDEX, tros
     assert "v.estat_yaml !== 'interpretada'" in INDEX          # el botó només surt amb la campanya interpretada
     assert "interpretada" in INDEX.split('id="c-flux"')[1].split("</details>")[0]     # el flux explica el pas nou
+
+
+# ── UI-AFINA ──
+def test_afina_un_sol_dibuix_enganxat_amb_exemple_llegenda_i_boto():
+    """Un sol dibuix (fora c-bloc2), a dalt del formulari i sempre visible; exemple a l'atzar, color per TIPUS, llegenda i «una altra»."""
+    assert "c-bloc2" not in INDEX and "c-bloc-wrap2" not in INDEX
+    assert INDEX.count('id="c-bloc-wrap"') == 1 and 'class="sticky-bloc"' in INDEX and ".sticky-bloc{position:sticky" in INDEX
+    assert "function cAssigAnells" in INDEX and "function cRng" in INDEX and "const cColor = (V, tipus)" in INDEX
+    assert 'data-act="altra"' in INDEX and "una altra" in INDEX and "no és cap candidat" in INDEX and 'class="legend"' in INDEX
+    assert "PAL[(p.tong" not in INDEX                               # el color ja no és el de la tongada
+
+
+def test_afina_la_font_nomes_es_mou_amb_el_boto_i_la_posicio_es_veu_en_numeros():
+    clic = INDEX.split("function cClicBloc")[1].split("function cArr")[0]
+    assert "!CP.movFont" in clic
+    assert 'data-act="movfont"' in INDEX and "mou la font" in INDEX and "font a (" in INDEX
+
+
+def test_afina_modifica_a_l_acte_espera_de_neudet_i_refresc():
+    assert "CP.desat = r.id; Q('#c-desa').textContent = 'Modifica la proposta'" in INDEX
+    assert "Esperant resposta de neudet" in INDEX and "setInterval(mira, 30000)" in INDEX
+    assert "Veu la interpretació i confirma" in INDEX and 'id="c-espera"' in INDEX
+
+
+def test_afina_hits_editable_i_la_nota_no_hereta_el_que_de_la_plantilla():
+    ver = INDEX.split("function cVerifHtml")[1].split("function cCercaHtml")[0]
+    assert "cSel('verificacio.hits', [{valor: 'all'}, {valor: 'detect'}]" in ver
+    assert "function cSenseQue" in INDEX and INDEX.count("cSenseQue(d);") == 2
+    assert "nota teva (opcional; NO és la pregunta)" in INDEX
+
+
+def test_afina_punts_variables_i_cost_gran():
+    f = INDEX.split("function cTubsVista")[1].split("const cRedibuixa")[0]
+    assert "PUNTS-V" in f and "pv(q.x)" in f and "drag: fixa" in f             # x, y, z: valor, llista o rang; només s'arrossega un punt fix
+    assert "function cCostHtml" in INDEX and "Massa gran per a un tanteig" in INDEX and "opcions_cost" in INDEX
+
+
+def test_afina_opcions_cost_arriba_de_comprova_json(tmp_path):
+    import json
+    from simphy.mcgen import campanya_vista as CV
+    d = tmp_path / "c"; d.mkdir()
+    (d / "comprova.json").write_text(json.dumps({"atura": False, "opcions_cost": [{"opcio": "mostres: 200", "cost_h": 9}]}))
+    c = CV._certificacio(d, "comprova.json")
+    assert c["opcions_cost"] == [{"opcio": "mostres: 200", "cost_h": 9}]
+
+
+def test_afina_punts_v_el_formulari_ofereix_valor_llista_o_rang():
+    assert "function cCoordHtml" in INDEX and "data-coord=" in INDEX and "cCoordHtml(`${qp}.x`, q.x, 'x (cm)')" in INDEX
+    assert "el.dataset.coord !== undefined" in INDEX and "{de: v0, a: v0, pas: 1}" in INDEX
