@@ -474,3 +474,14 @@ def test_desa_modifica_una_campanya_interpretada_i_la_torna_a_proposta(neudet_tm
     _camp(neudet_tmp, "c06_prova", "id: c06_prova\nestat: interpretada\n")
     r = CD.desa_proposta(_form_c04("c06_prova"))
     assert r["estat"] == "proposta" and r["sobreescrita"]
+
+
+def test_desa_modifica_una_campanya_confirmada_i_treu_la_confirmacio(neudet_tmp, cert_ok):
+    """Sempre es pot tornar enrere mentre no ha corregut res: confirmada → proposta, sense confirmació."""
+    _real_c04()
+    d = _camp(neudet_tmp, "c07b_prova", "id: c07b_prova\nestat: confirmada\nconfirmacio: {data: '2026-11-06'}\n")
+    r = CD.desa_proposta(_form_c04("c07b_prova"))
+    assert r["estat"] == "proposta"
+    import yaml as _y
+    y = _y.safe_load((neudet_tmp / "disseny" / "campanyes" / "c07b_prova" / "campanya.yaml").read_text())
+    assert y["estat"] == "proposta" and "confirmacio" not in y

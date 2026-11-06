@@ -1845,6 +1845,7 @@ function kResumInterp(v){
 }
 // «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
 function kConfirmaHtml(v){
+  if(v.estat_yaml === 'confirmada') return `<div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">Encara no ha corregut res: modificar-la treu la confirmació i torna a «proposta».</span></div>`;
   if(v.estat_yaml !== 'interpretada') return '';
   const mod = `<div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">Obre el formulari per canviar-la; en desar torna a «proposta» i el planificador la reinterpreta.</span></div>`;
   // 0 candidats vàlids en alguna etapa: no es pot confirmar (no hi ha res a córrer); es diu per què i es deixa modificar
@@ -1873,7 +1874,7 @@ async function kModifica(){
   const id = KC.id;
   await cInit();
   const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
-  cCarrega(r.form, `Modificant <code>${escD(id)}</code> (estava interpretada). En desar torna a «proposta» i el planificador l'ha de reinterpretar.`);
+  cCarrega(r.form, `Modificant <code>${escD(id)}</code> (estava ${escD(KC.v && KC.v.estat_yaml || '')}). En desar torna a «proposta» (sense confirmació) i el planificador l'ha de reinterpretar.`);
   NZ.sel = {k: 'form', id};
   nzVeu();
 }

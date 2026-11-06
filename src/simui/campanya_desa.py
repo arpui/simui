@@ -96,10 +96,10 @@ def _pot_sobreescriure(d: Path, id_: str) -> None:
     except (yaml.YAMLError, OSError) as exc:
         raise DesaError(f"el campanya.yaml de `{id_}` no es llegeix ({exc}): no es toca") from None
     estat = y.get("estat") if isinstance(y, dict) else None
-    # contracte UI §13: «Modifica la proposta» val mentre no està confirmada (proposta o interpretada); torna a `proposta`
-    # i el planificador la reinterpreta. Confirmada o més enllà, no es toca mai: tanteig amb un id nou.
-    if estat not in (ESTAT, "interpretada"):
-        raise DesaError(f"la campanya `{id_}` ja existeix (estat: {estat!r}): passat de `interpretada`, "
+    # Sempre es pot tornar enrere mentre no ha corregut res (Albert, 2026-11-06): proposta, interpretada o confirmada → en
+    # desar torna a `proposta` (la confirmació desapareix) i el planificador la reinterpreta. en_curs o després: tanteig amb un id nou.
+    if estat not in (ESTAT, "interpretada", "confirmada"):
+        raise DesaError(f"la campanya `{id_}` ja existeix (estat: {estat!r}): ja ha corregut o s'està corrent, "
                         "no es modifica mai una campanya existent: fes un tanteig amb un id nou")
 
 
