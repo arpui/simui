@@ -69,32 +69,45 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 29, "cv": 30, "rang": 31, "eps_min": 33, "cd_cm2": 34,            # METRIQUES
-    "q_rang": 42, "q_monoton": 43, "res_E": 44,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 71, "sE_N": 72, "n_ef": 73,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 112, "err_grups": 113,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 33, "cv": 34, "rang": 35, "eps_min": 37, "cd_cm2": 38,            # METRIQUES
+    "q_rang": 46, "q_monoton": 47, "res_E": 48,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 75, "sE_N": 76, "n_ef": 77,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 116, "err_grups": 117,                                              # METRIQUES_GRUP3 (MET3)
 }
-#: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:228-230)
-AUTO_LINIA = 228
-#: sentit (objectius.py:350: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
+#: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:240-242)
+AUTO_LINIA = 240
+#: sentit (objectius.py:386: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 350
+SENTITS_LINIA = 386
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
-#: les mètriques per defecte de l'objectiu (objectius.py:216): totes les que no són geomètriques
+#: les mètriques per defecte de l'objectiu (objectius.py:228): totes les que no són geomètriques
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 208, "letargia": 210}
-PESOS_DEFECTE_LINIA = 206
-#: energies: «totes» (objectius.py:200); subconjunt dins de la graella (objectius.py:205)
-ENERGIES_LINIA = 200
-GRAELLA_LINIA = 205
-K_SIGMA_LINIA = 231
-ERR_GRUPS_CAL_LINIA = 155        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
-#: ε-restricció per defecte (objectius.py:226)
-RESTRICCIO_LINIA = 226
+PESOS_LINIA: Dict[str, int] = {"uniforme": 217, "letargia": 219}
+PESOS_DEFECTE_LINIA = 215
+#: energies: «totes» (objectius.py:209); subconjunt dins de la graella (objectius.py:214)
+ENERGIES_LINIA = 209
+GRAELLA_LINIA = 214
+K_SIGMA_LINIA = 243
+ERR_GRUPS_CAL_LINIA = 159        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+#: ε-restricció per defecte (objectius.py:238)
+RESTRICCIO_LINIA = 238
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
-DEFECTE_NOMS_LINIA = 216
+DEFECTE_NOMS_LINIA = 228
+#: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
+#: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
+FINALITATS_LINIA = 459                       # FINALITATS = {"comptador": …, "espectrometre": …}
+TAULA_LINIA = 785                            # def taula_objectius()
+FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
+    "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2"),
+    "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2"),
+}
+ALIES_OBJ = {"res_E_k": "res_E"}
+OPERADORS = (">=", "<=", ">", "<")
+PESOS_NOUS = ("letargia", "uniforme")         # i {espectre: <fitxer>}
+CLAUS_NOVES = ("finalitat", "objectius", "informatives", "preferencia", "restriccions")
+CLAUS_VELLES = ("metriques", "pareto", "restriccio", "c_cv")
 #: cerca (cerca.py): el registre `@registra("…")` i el camp que llegeix
 CERQUES_LINIA: Dict[str, int] = {"exhaustiva": 37, "aleatoria": 42, "halving": 49}
 CERCA_DEFECTE_LINIA = 31                       # tipus = spec.get("tipus", "exhaustiva")
@@ -595,7 +608,14 @@ def _schema_objectius(obj) -> Dict[str, Any]:
     _linia(OBJECTIUS_PY, RESTRICCIO_LINIA, 'cfg.get("restriccio")')
     _linia(OBJECTIUS_PY, DEFECTE_NOMS_LINIA, 'cfg.get("metriques"')
     _linia(CAMPANYA_PY, NOTA_LINIA, '"**Què:**')
-    _linia(FITXA_PY, 26, '"objectius.pesos"')
+    _linia(FITXA_PY, 35, '"objectius.pesos"')
+    _linia(OBJECTIUS_PY, FINALITATS_LINIA, "FINALITATS: Dict[str, dict] = {")
+    _linia(OBJECTIUS_PY, TAULA_LINIA, "def taula_objectius()")
+    taula = obj.taula_objectius()                          # OBJ: la font única (contracte §14)
+    nous = {k: tuple(v["metriques"]) for k, v in taula["finalitats"].items()}
+    if nous != FINALITAT_METRIQUES or taula["alies"] != ALIES_OBJ or tuple(taula["operadors"]) != OPERADORS:
+        raise DES.DesignError(f"neudet ha canviat la taula d'objectius ({OBJECTIUS_PY}, taula_objectius): té {nous}, "
+                              f"{taula['alies']}, {taula['operadors']}; cal revisar FINALITAT_METRIQUES a campanya_form.py")
     d = obj.Objectiu({}, [1.0])                             # els defaults, llegits de neudet (no copiats)
     metriques = []
     for nom, linia in METRIQUES_LINIA.items():
@@ -618,7 +638,7 @@ def _schema_objectius(obj) -> Dict[str, Any]:
              "linia": PESOS_LINIA["letargia"]},
         ],
         "pesos_defecte": {"valor": "uniforme", "fitxer": OBJECTIUS_PY, "linia": PESOS_DEFECTE_LINIA,
-                          "fitxa": {"fitxer": FITXA_PY, "linia": 26}},
+                          "fitxa": {"fitxer": FITXA_PY, "linia": 35}},
         "pareto": {"n": 2, "defecte": [list(x) for x in d.pareto],
                    "motiu": "campanya.py: els gràfics usen ob.pareto[-1] i [0]",
                    "fitxer": CAMPANYA_PY, "linia": 295, "auto": {"fitxer": OBJECTIUS_PY, "linia": AUTO_LINIA}},
@@ -627,20 +647,22 @@ def _schema_objectius(obj) -> Dict[str, Any]:
                            "descripcio": "frontera robusta: només domina qui guanya per més de k·σ. "
                                          "Amb k = 0 és la frontera de Pareto (objectius.py, frontera_robusta)"},
         "altres": [
-            {"clau": "comptes_ref", "defecte": d.comptes_ref, "fitxer": OBJECTIUS_PY, "linia": 220,
+            {"clau": "comptes_ref", "defecte": d.comptes_ref, "fitxer": OBJECTIUS_PY, "linia": 232,
              "descripcio": "comptes de referència de res_E, N_obj i sE_N (sense comentari a neudet)"},
-            {"clau": "N_font", "defecte": d.N_font, "fitxer": OBJECTIUS_PY, "linia": 221,
-             "descripcio": _comentari(OBJECTIUS_PY, 221, token='"N_font"')},
-            {"clau": "sE_obj", "defecte": d.sE_obj, "fitxer": OBJECTIUS_PY, "linia": 222,
-             "descripcio": _comentari(OBJECTIUS_PY, 222, token='"sE_obj"')},
-            {"clau": "delta_q", "defecte": d.delta_q, "fitxer": OBJECTIUS_PY, "linia": 223,
-             "descripcio": _comentari(OBJECTIUS_PY, 223, token='"delta_q"')},
-            {"clau": "grups_MeV", "defecte": [], "fitxer": OBJECTIUS_PY, "linia": 224,
-             "descripcio": _comentari(OBJECTIUS_PY, 224, token='"grups_MeV"') + " (cal per a err_grups)"},
+            {"clau": "N_font", "defecte": d.N_font, "fitxer": OBJECTIUS_PY, "linia": 233,
+             "descripcio": _comentari(OBJECTIUS_PY, 233, token='"N_font"')},
+            {"clau": "sE_obj", "defecte": d.sE_obj, "fitxer": OBJECTIUS_PY, "linia": 234,
+             "descripcio": _comentari(OBJECTIUS_PY, 234, token='"sE_obj"')},
+            {"clau": "delta_q", "defecte": d.delta_q, "fitxer": OBJECTIUS_PY, "linia": 235,
+             "descripcio": _comentari(OBJECTIUS_PY, 235, token='"delta_q"')},
+            {"clau": "grups_MeV", "defecte": [], "fitxer": OBJECTIUS_PY, "linia": 236,
+             "descripcio": _comentari(OBJECTIUS_PY, 236, token='"grups_MeV"') + " (cal per a err_grups)"},
             {"clau": "restriccio", "defecte": {"maxim": d.restriccio["maxim"], "sobre": d.restriccio["sobre"],
                                               "c": []}, "fitxer": OBJECTIUS_PY, "linia": RESTRICCIO_LINIA,
              "descripcio": "ε-restricció: maximitzar «maxim» amb «sobre» ≤ c; sense c, no n'hi ha"},
         ],
+        # OBJ (contracte §14): el bloc del cicle nou, tal com el dona neudet (frases, preguntes, valors per defecte)
+        "cicle_nou": dict(taula, fitxer=OBJECTIUS_PY, linia=TAULA_LINIA),
     }
 
 
@@ -1228,6 +1250,8 @@ def _errors_objectius(f: Dict[str, Any]) -> List[str]:
     noms = set(_metriques_valides())
     dom = f.get("domini") if isinstance(f.get("domini"), dict) else {}
     graella = dom.get("energies_MeV") if isinstance(dom.get("energies_MeV"), list) else []
+    if "finalitat" in ob or any(k in ob for k in CLAUS_NOVES):
+        return _errors_objectius_nou(ob, graella)
     m = ob.get("metriques")
     if m is not None:
         if not isinstance(m, list) or not m:
@@ -1272,6 +1296,99 @@ def _errors_objectius(f: Dict[str, Any]) -> List[str]:
                              f"calcularia (objectius.py:{AUTO_LINIA})")
                 if sentit not in SENTITS:
                     e.append(f"objectius.pareto[{i}]: el sentit ha de ser max o min (objectius.py:{SENTITS_LINIA})")
+    return e
+
+
+def _nom_obj(x: Any) -> Any:
+    return ALIES_OBJ.get(x, x) if isinstance(x, str) else x
+
+
+def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
+    """OBJ (contracte §14): la FORMA del bloc del cicle nou (finalitat → objectius → informatives → preferència →
+    restriccions → pesos), amb les llistes de la taula de neudet (FINALITAT_METRIQUES). Què vol dir i si es pot calcular
+    (un sol canal, grups sense energia…) ho diu neudet (`comprova.json.objectius.avisos`)."""
+    e: List[str] = []
+    fin = ob.get("finalitat")
+    if fin not in FINALITAT_METRIQUES:
+        return [f"objectius.finalitat: cal {' o '.join(FINALITAT_METRIQUES)} (objectius.py:{FINALITATS_LINIA})"]
+    perm = FINALITAT_METRIQUES[fin]
+    vells = [k for k in CLAUS_VELLES if k in ob]
+    if vells:
+        e.append(f"objectius: amb finalitat, {', '.join(vells)} ja no es fan servir (els que decideixen són "
+                 f"`objectius`, les que s'informen `informatives` i la tria `preferencia`)")
+    of = lambda x, on: (None if _nom_obj(x) in perm else
+                        f"objectius.{on}: «{x}» no és de la finalitat {fin} (n'hi ha: {', '.join(perm)})")
+    objs = ob.get("objectius")
+    if objs is not None:
+        if not (isinstance(objs, list) and 1 <= len(objs) <= 3):
+            e.append("objectius.objectius: d'1 a 3 objectius, cadascun [mètrica, max|min]")
+        else:
+            vist = []
+            for i, x in enumerate(objs):
+                if isinstance(x, str):
+                    nom, sentit = x, None
+                elif isinstance(x, list) and len(x) == 2:
+                    nom, sentit = x
+                else:
+                    e.append(f"objectius.objectius.{i}: cal [mètrica, max|min]")
+                    continue
+                if of(nom, f"objectius.{i}"):
+                    e.append(of(nom, f"objectius.{i}"))
+                if sentit is not None and sentit not in SENTITS:
+                    e.append(f"objectius.objectius.{i}: el sentit ha de ser max o min")
+                if _nom_obj(nom) in vist:
+                    e.append(f"objectius.objectius.{i}: «{nom}» hi és dues vegades")
+                vist.append(_nom_obj(nom))
+    inf = ob.get("informatives", "auto")
+    if inf != "auto":
+        if not isinstance(inf, list):
+            e.append("objectius.informatives: «auto» o una llista de mètriques de la finalitat")
+        else:
+            e += [x for x in (of(n, f"informatives.{i}") for i, n in enumerate(inf)) if x]
+    pref = ob.get("preferencia")
+    if pref is not None:
+        if not isinstance(pref, dict) or set(pref) - {"maxim", "sobre", "c"}:
+            e.append("objectius.preferencia: {maxim, sobre, c: [números]}")
+        else:
+            for k in ("maxim", "sobre"):
+                if pref.get(k) is not None and of(pref[k], f"preferencia.{k}"):
+                    e.append(of(pref[k], f"preferencia.{k}"))
+            c = pref.get("c")
+            if c is not None and not (isinstance(c, list) and all(_num(x) for x in c)):
+                e.append("objectius.preferencia.c: una llista de números (p. ex. 0.1, 0.2)")
+    rs = ob.get("restriccions")
+    if rs is not None:
+        if not isinstance(rs, list):
+            e.append("objectius.restriccions: una llista de [mètrica, operador, valor]")
+        else:
+            for i, r in enumerate(rs):
+                if not (isinstance(r, list) and len(r) == 3):
+                    e.append(f"objectius.restriccions.{i}: cal [mètrica, {' | '.join(OPERADORS)}, valor]")
+                    continue
+                if of(r[0], f"restriccions.{i}.0"):
+                    e.append(of(r[0], f"restriccions.{i}.0"))
+                if r[1] not in OPERADORS:
+                    e.append(f"objectius.restriccions.{i}.1: l'operador és {' | '.join(OPERADORS)}")
+                if not _num(r[2]):
+                    e.append(f"objectius.restriccions.{i}.2: el valor ha de ser un número")
+    pw = ob.get("pesos", "letargia")
+    if not (pw in PESOS_NOUS or (isinstance(pw, dict) and set(pw) == {"espectre"})):
+        e.append("objectius.pesos: letargia, uniforme o {espectre: <fitxer>}")
+    elif isinstance(pw, dict) and not (isinstance(pw["espectre"], str) and pw["espectre"].strip()):
+        e.append("objectius.pesos.espectre: el camí del fitxer de l'espectre (relatiu a la campanya)")
+    en = ob.get("energies_MeV", "totes")
+    if en != "totes" and not (isinstance(en, list) and en and all(_num(x) and any(abs(x - g) < 1e-9 for g in graella) for x in en)):
+        e.append(f"objectius.energies_MeV: «totes» o energies de domini.energies_MeV (objectius.py:{GRAELLA_LINIA})")
+    k = ob.get("pareto_k_sigma")
+    if k is not None and not (_num(k) and k >= 0):
+        e.append(f"objectius.pareto_k_sigma: un número ≥ 0 (objectius.py:{K_SIGMA_LINIA})")
+    g = ob.get("grups_MeV")
+    if g is not None and not (isinstance(g, list) and all(isinstance(x, list) and len(x) == 2 and all(_num(y) for y in x)
+                                                            and x[0] < x[1] for x in g)):
+        e.append("objectius.grups_MeV: una llista de [E_min, E_max] (MeV), amb E_min < E_max")
+    for kk in ("comptes_ref", "N_font", "sE_obj", "delta_q"):
+        if ob.get(kk) is not None and not (_num(ob[kk]) and ob[kk] > 0):
+            e.append(f"objectius.{kk}: un número > 0")
     return e
 
 

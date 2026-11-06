@@ -164,3 +164,16 @@ servidor (`design_view._svg_xz(v, "yz")`, girant x↔y). Al costat de cada selec
 - **Full del candidat:** XY, XZ i YZ surten amb els mateixos px per cm (`design_view.escala_comuna`, la mínima de les tres), amb el bloc escrit a cada vista («bloc 30 × 30 × 80 cm · 1 cm = 5,66 px») i les cotes de sempre (eixos amb marques i barra de 10 cm). La pàgina les encongeix TOTES amb un sol factor si no hi caben (`dEscalaComuna`).
 - **Visor 3D isomètric** (formulari i full, el mateix codi `v3dSvg`, SVG pla sense llibreries): bloc, forat, font, eixos x/y/z i cada tub com a cilindre a mida real (clar: el volum que ocupa; fosc: el gas actiu), amb el seu eix. Es gira arrossegant i el doble clic restableix. L'escena és dades: `cEscena` al formulari i `design_view.escena` al servidor (`escena` al `preview`).
 - **El dibuix enganxat a dalt** només s'enganxa en finestres grans (≥ 1000 × 760 px); en una de petita, les vistes apilades taparien el formulari.
+
+## Objectius: finalitat primer (OBJ, contracte neudet §14, v1.8)
+El bloc «Objectius» del formulari és numerat i surt de la taula de neudet (`neudet.disseny.objectius.taula_objectius`, a `schema.objectius.cicle_nou`):
+**1 Finalitat** (comptador · espectròmetre, amb la frase de neudet) · **2 Què decideix** (1–3 objectius de la finalitat; el sentit i la pregunta
+que responen, de la taula) · **3 Què s'informa** (plegat; automàtiques per defecte, o triades) · **4 Com es tria** (valors de c de l'ε-restricció
+i restriccions dures opcionals) · **5 Com es pondera l'energia** (per dècada, uniforme o espectre de l'aplicació; energies de l'objectiu; a
+l'espectròmetre, els paràmetres amb el valor per defecte visible). Fora la llista plana de 14 mètriques.
+- Una proposta nova és del cicle nou (comptador per defecte). Una campanya d'abans (sense `finalitat`) mostra què fa en una frase i es pot passar al
+  cicle nou triant una finalitat; si no, es desa tal com era.
+- En viu, `/api/campanya/objectius` (`campanya_check.objectius`) diu com ho entén neudet i els seus avisos: un error (p. ex. espectròmetre amb un
+  sol canal: «amb un sol canal no es pot dir l'energia…») en vermell, un avís en groc. En desar, els mateixos avisos surten del `comprova.json`.
+- `to_yaml` en valida la forma amb `FINALITAT_METRIQUES` (la taula de neudet, comprovada a `schema()`); el que vol dir, ho diu neudet.
+

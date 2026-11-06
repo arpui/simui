@@ -301,3 +301,39 @@ def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             return {"etapa": etapa, "n": sum(t["recompte"] for t in ts), "tongades": ts}
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None
+
+
+def objectius(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
+    """OBJ (contracte §14): el bloc d'objectius tal com l'entén neudet, sense desar ni simular: `cicle` (nou | llegat),
+    `finalitat`, `en_paraules` i `avisos` [{nivell, codi, etapa, text}] (`neudet.disseny.objectius.avisos`). A l'espectròmetre,
+    neudet compta els canals dels candidats vàlids de l'etapa (`campanya.n_canals`): amb un sol canal, l'avís és seu.
+    Qualsevol error de neudet arriba tal com és (`ValueError`)."""
+    if not isinstance(yaml_text, str) or not yaml_text.strip():
+        raise ValueError("el campanya.yaml és buit")
+    try:
+        DES._neudet()
+    except DES.DesignError as exc:
+        raise ValueError(str(exc)) from None
+    with tempfile.TemporaryDirectory(prefix="simphy_campanya_") as tmp:
+        dir_ = Path(tmp) / "campanya"
+        dir_.mkdir()
+        (dir_ / "campanya.yaml").write_text(yaml_text)
+        try:
+            from neudet.disseny.campanya import Campanya, n_canals     # neudet importat de NEUDET_ROOT/src
+            from neudet.disseny.objectius import avisos, en_paraules
+            C = Campanya(dir_)
+            ob = C.objectiu
+            canals = {}
+            if ob.finalitat == "espectrometre":
+                if etapa is None:
+                    etapa = _primera_etapa_de_xarxa(yaml_text)
+                valids, _ = C.candidats(etapa)
+                canals[etapa] = [n_canals(c) for c, _ in valids]
+            return {"cicle": ob.info["cicle"], "finalitat": ob.finalitat, "etapa": etapa,
+                    "objectius": [list(p) for p in ob.pareto], "metriques": list(ob.noms),
+                    "preferencia": ob.restriccio, "restriccions": [list(r) for r in ob.restriccions],
+                    "canals": {k: dict(min=min(v), max=max(v), un_sol_canal=sum(1 for x in v if x < 2), candidats=len(v))
+                               for k, v in canals.items() if v} or None,
+                    "en_paraules": en_paraules(ob.info), "avisos": avisos(ob.info, C.energies, canals)}
+        except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
+            raise ValueError(_motiu_de(exc)) from None

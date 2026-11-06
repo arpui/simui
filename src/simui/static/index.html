@@ -1293,46 +1293,102 @@ function cBlocXY(id = 'c-bloc', V0, D0){
     <div class="hint">Vista de dalt (x, y), a escala, del bloc de ${m[0]} × ${m[1]} cm: la font en vermell${V.punts.length ? ', els tubs amb el color del seu tipus' : ''}. Orientativa: no valida res (ho fa «Comprova»). ${escD(V.nota)}</div>`;
 }
 
-// Objectius: mètriques (llista tancada, amb la línia de neudet), energies, pesos, Pareto, k·σ i la resta.
+// OBJ (contracte §14): el bloc «Objectius», numerat: 1 Finalitat · 2 Què decideix · 3 Què s'informa · 4 Com es tria ·
+// 5 Com es pondera l'energia. Les frases, les preguntes i els valors per defecte són de neudet (`taula_objectius`, schema.objectius.cicle_nou).
+const cFinNom = k => k === 'espectrometre' ? 'espectròmetre' : k;
+const cObjT = () => CP.schema.objectius.cicle_nou;
+const cObjDecideix = ob => (Array.isArray(ob.objectius) ? ob.objectius : (cObjT().finalitats[ob.finalitat] || {}).objectius || [])
+  .map(x => Array.isArray(x) ? [x[0], x[1] ?? (cObjT().metriques[x[0]] || {}).sentit] : [x, (cObjT().metriques[x] || {}).sentit]);
+// Les informatives automàtiques: totes les de la finalitat que no decideixen (err_grups només amb grups_MeV), com `normalitza` de neudet.
+function cObjInfAuto(ob){
+  const T = cObjT(), F = T.finalitats[ob.finalitat] || {}, dec = cObjDecideix(ob).map(x => x[0]);
+  const grups = Array.isArray(ob.grups_MeV) && ob.grups_MeV.length;
+  return (F.metriques || []).filter(n => !dec.includes(n) && (n !== 'err_grups' || grups));
+}
+// La preferència per defecte que es deriva dels objectius (com neudet): màxim = el primer «max», sobre = el primer «min», c del `sobre`.
+function cObjPrefDef(ob){
+  const dec = cObjDecideix(ob), mx = dec.find(x => x[1] === 'max'), mn = dec.find(x => x[1] === 'min');
+  const sobre = mn ? mn[0] : null;
+  return {maxim: mx ? mx[0] : null, sobre, c: ((cObjT().c_defecte || {})[sobre] || []).slice()};
+}
+// Passar a una finalitat (o canviar-la): els objectius per defecte d'aquella finalitat, ja posats i explícits; energies, pesos i k·σ es mantenen.
+function cObjNou(fin, f = CP.f){
+  const T = cObjT(), ob = f.objectius || {}, F = T.finalitats[fin];
+  const grups = Array.isArray(ob.grups_MeV) && ob.grups_MeV.length;
+  const pw = ob.pesos === 'uniforme' || ob.pesos === 'letargia' || (ob.pesos && typeof ob.pesos === 'object' && 'espectre' in ob.pesos) ? ob.pesos : T.pesos_defecte;
+  const nou = {finalitat: fin, objectius: JSON.parse(JSON.stringify(fin === 'espectrometre' && grups ? F.objectius_amb_grups : F.objectius)),
+               informatives: 'auto', preferencia: null, restriccions: [], pesos: pw,
+               energies_MeV: ob.energies_MeV ?? 'totes', pareto_k_sigma: ob.pareto_k_sigma ?? T.pareto_k_sigma_defecte};
+  nou.preferencia = cObjPrefDef(nou);
+  if(fin === 'espectrometre') for(const k of ['grups_MeV', 'comptes_ref', 'N_font', 'sE_obj', 'delta_q']) if(ob[k] !== undefined) nou[k] = ob[k];
+  f.objectius = nou;
+}
+// Els objectius han canviat: la preferència segueix (si `sobre` canvia, els c per defecte del nou `sobre`).
+function cObjSyncPref(){
+  const ob = CP.f.objectius, d = cObjPrefDef(ob), p = ob.preferencia || {};
+  ob.preferencia = {maxim: d.maxim, sobre: d.sobre, c: p.sobre === d.sobre && Array.isArray(p.c) ? p.c : d.c};
+  if(Array.isArray(ob.informatives)) ob.informatives = ob.informatives.filter(n => !cObjDecideix(ob).some(x => x[0] === n));
+}
+const cObjQ = n => { const m = cObjT().metriques[n]; return m ? `<span class="hint">${escD(m.sentit === 'max' ? 'més' : 'menys')} · ${escD(m.pregunta)}</span>` : ''; };
 function cObjHtml(f){
-  const S = CP.schema.objectius, ob = f.objectius || {};
-  const metr = ob.metriques !== undefined ? ob.metriques : S.metriques_defecte.valors;
-  const mset = new Set(Array.isArray(metr) ? metr : []);
-  const cs = S.metriques.map(m => `<label class="chk mrow"><input type="checkbox" data-p="objectius.metriques" data-t="multi" data-val="${escD(m.nom)}" ${mset.has(m.nom) ? 'checked' : ''}>
-      <span><b>${escD(m.nom)}</b> <span class="src">${escD(m.familia)} · ${escD(m.sentit)} · ${escD(cSrc(m.fitxer, m.linia))}</span><br>
-      <span class="hint">${escD(m.descripcio)}${m.requereix ? ` <b>Necessita ${escD(m.requereix.clau)}</b>, que no és en aquest formulari (${escD(cSrc(m.requereix.fitxer, m.requereix.linia))}).` : ''}</span></span></label>`).join('');
-  const en = ob.energies_MeV ?? 'totes';
-  const sub = Array.isArray(en);
-  const grid = f.domini.energies_MeV || [];
-  const eset = new Set(sub ? en : grid);
+  const T = cObjT(), ob = f.objectius || {};
+  const fins = Object.entries(T.finalitats).map(([k, v]) => `<label class="chk mrow"><input type="radio" name="c-fin" data-fin="${escD(k)}" ${k === ob.finalitat ? 'checked' : ''}>
+      <span><b>${escD(cFinNom(k))}</b><br><span class="hint">${escD(v.frase)}.</span></span></label>`).join('');
+  if(ob.finalitat === undefined){                                    // cicle d'abans (sense finalitat): es mostra què fa i es pot passar al cicle nou
+    const pa = Array.isArray(ob.pareto) ? ob.pareto : [], r = ob.restriccio || {};
+    return `<div class="panel warn" data-obj-llegat><b>Objectius del cicle d'abans</b> (sense finalitat): decideixen ${escD(pa.map(x => x.join(' ')).join(' · ') || '—')};
+      mètriques ${escD((ob.metriques || []).join(', ') || '—')}${r.c && r.c.length ? `; tria ${escD(r.maxim)} màxim amb ${escD(r.sobre)} ≤ ${escD(r.c.join(' · '))}` : ''}; pesos ${escD(ob.pesos ?? 'uniforme')}.
+      neudet ho llegeix com sempre. Per canviar-los, tria una finalitat (els objectius passen als de la finalitat; els candidats no canvien).</div>
+      <h3 class="pas">1 · Finalitat</h3>${fins}`;
+  }
+  const F = T.finalitats[ob.finalitat] || {metriques: []}, dec = cObjDecideix(ob);
+  const opt = cur => F.metriques.map(n => `<option value="${escD(n)}" ${n === cur ? 'selected' : ''}>${escD(n)}</option>`).join('');
+  const decRows = dec.map(([n, sn], i) => `<div class="row"><label>objectiu ${i + 1}<select data-objn="${i}">${opt(n)}</select></label>
+      <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}</div>
+      ${dec.length > 1 ? `<button type="button" class="ghost" data-act="obj-" data-i="${i}">treu l'objectiu ${i + 1}</button>` : ''}`).join('');
+  const auto = ob.informatives === undefined || ob.informatives === 'auto';
+  const infL = auto ? cObjInfAuto(ob) : ob.informatives, infS = new Set(infL);
+  const infChecks = F.metriques.filter(n => !dec.some(x => x[0] === n)).map(n => `<label class="chk mrow"><input type="checkbox" data-inf="${escD(n)}" ${infS.has(n) ? 'checked' : ''} ${auto ? 'disabled' : ''}>
+      <span><b>${escD(n)}</b> ${cObjQ(n)}</span></label>`).join('');
+  const pref = ob.preferencia || cObjPrefDef(ob), cs = Array.isArray(pref.c) ? pref.c : [];
+  const rs = Array.isArray(ob.restriccions) ? ob.restriccions : [];
+  const rsRows = rs.map((r, i) => `<div class="row3"><label>mètrica<select data-p="objectius.restriccions.${i}.0" data-t="str">${opt(r[0])}</select></label>
+      <label>operador${cSel(`objectius.restriccions.${i}.1`, T.operadors.map(o => ({valor: o})), r[1], 'str')}</label>
+      <label>valor${cNumIn(`objectius.restriccions.${i}.2`, r[2])}</label></div><button type="button" class="ghost" data-act="rs-" data-i="${i}">treu la restricció</button>`).join('');
+  const pw = ob.pesos ?? T.pesos_defecte, pk = pw && typeof pw === 'object' ? 'espectre' : pw;
+  const pesos = Object.entries(T.pesos).map(([k, v]) => `<label class="chk mrow"><input type="radio" name="c-pes" data-pes="${escD(k)}" ${k === pk ? 'checked' : ''}>
+      <span><b>${escD(k === 'letargia' ? 'per dècada (letargia)' : k === 'espectre' ? "espectre de l'aplicació" : k)}</b>${k === T.pesos_defecte ? ' <span class="hint">(per defecte)</span>' : ''}<br><span class="hint">${escD(v)}.</span></span></label>`).join('');
+  const en = ob.energies_MeV ?? 'totes', sub = Array.isArray(en), grid = f.domini.energies_MeV || [], eset = new Set(sub ? en : grid);
   const eChecks = sub ? `<div class="row3">${grid.map(e => `<label class="chk"><input type="checkbox" data-p="objectius.energies_MeV" data-t="multinum" data-val="${e}" ${eset.has(e) ? 'checked' : ''}> ${fmtE(e)}</label>`).join('')}</div>` : '';
-  const pw = ob.pesos ?? 'uniforme', pwList = Array.isArray(pw);
-  const pwSel = S.pesos.find(o => o.valor === pw);
-  const pesosOpts = S.pesos.map(o => ({valor: o.valor, text: o.valor + (ob.pesos === undefined && o.valor === S.pesos_defecte.valor ? ' (per defecte de neudet)' : '')}));
-  const pa = Array.isArray(ob.pareto) ? ob.pareto : S.pareto.defecte;
-  const parRows = [0, 1].map(i => `<div class="row">${cLab(`objectiu ${i + 1}`, cSel(`objectius.pareto.${i}.0`, S.metriques.map(m => ({valor: m.nom})), (pa[i] || [])[0] ?? '', 'str'))}
-      ${cLab(`sentit ${i + 1}`, cSel(`objectius.pareto.${i}.1`, S.sentits.map(s => ({valor: s.valor})), (pa[i] || [])[1] ?? '', 'str'))}</div>`).join('');
-  const altres = S.altres.map(a => `<tr><td><code>${escD(a.clau)}</code></td><td>${cRO(ob[a.clau] ?? a.defecte)}</td>
-      <td>${ob[a.clau] === undefined ? 'per defecte' : 'a la campanya'}</td><td>${escD(a.descripcio)}</td><td><span class="src">${escD(cSrc(a.fitxer, a.linia))}</span></td></tr>`).join('');
+  const par = ob.finalitat === 'espectrometre' ? `<details class="fold" open><summary>Paràmetres de l'espectròmetre (valors per defecte de neudet, visibles)</summary>
+      ${T.parametres_espectre.map(p => p.clau === 'grups_MeV'
+        ? `<label>grups_MeV · ${escD(p.descripcio)}<input data-grups="1" value="${escD(Array.isArray(ob.grups_MeV) ? JSON.stringify(ob.grups_MeV) : '')}" placeholder="cap · p. ex. els de c03: ${escD(JSON.stringify(T.grups_proposta))}"></label>`
+        : `<label>${escD(p.clau)} · ${escD(p.descripcio)}${cNumIn('objectius.' + p.clau, ob[p.clau], {min: 0, ph: String(p.valor)})}</label>`).join('')}</details>` : '';
   return `
-  <div class="hint"><b>Mètriques</b>: neudet només en calcula les d'aquesta llista. Les marcades amb (fitxer:línia) es llegeixen d'objectius.py.</div>
-  ${cs}
+  <h3 class="pas">1 · Finalitat</h3>${fins}
+  <h3 class="pas">2 · Què decideix <span class="hint">(objectius: la frontera de Pareto robusta i qui guanya)</span></h3>
+  ${decRows}
+  ${dec.length < 3 ? `<button type="button" class="ghost" data-act="obj+">afegeix un objectiu</button>` : ''}
+  <div class="row">${cLab('pareto_k_sigma (frontera robusta: només domina qui guanya per més de k·σ)', cNumIn('objectius.pareto_k_sigma', ob.pareto_k_sigma, {min: 0, ph: String(T.pareto_k_sigma_defecte)}))}</div>
+  <h3 class="pas">3 · Què s'informa <span class="hint">(informatives: no decideixen, surten a la taula)</span></h3>
+  <details class="fold"><summary>${auto ? 'automàtiques' : 'triades'}: ${escD(infL.join(', ') || 'cap')}</summary>
+    <label class="chk"><input type="checkbox" data-infauto="1" ${auto ? 'checked' : ''}> automàtiques (totes les de la finalitat)</label>
+    ${infChecks}</details>
+  <h3 class="pas">4 · Com es tria <span class="hint">(ε-restricció i restriccions dures)</span></h3>
+  <div class="hint">Per a cada c, guanya el candidat de més <b>${escD(pref.maxim ?? '—')}</b> amb <b>${escD(pref.sobre ?? '—')}</b> ≤ c. Tu tries quant en vols i en veus el preu.</div>
+  <label>valors de c (separats per comes; buit = sense tria)<input data-objc="1" value="${escD(cs.join(', '))}" placeholder="p. ex. ${escD(((T.c_defecte || {})[pref.sobre] || [0.1, 0.2]).join(', '))}"></label>
+  <div class="hint">Restriccions dures (opcionals): el candidat que no les compleix no entra a la frontera ni a la tria.</div>
+  ${rsRows}
+  <button type="button" class="ghost" data-act="rs+">afegeix una restricció</button>
+  <h3 class="pas">5 · Com es pondera l'energia</h3>
+  ${pesos}
+  ${pk === 'espectre' ? `<label>fitxer de l'espectre (relatiu a la campanya; dues columnes: E en MeV i E·dΦ/dE)<input data-p="objectius.pesos.espectre" data-t="str" value="${escD(pw.espectre ?? '')}"></label>` : ''}
   <div class="row">${cLab('energies de l\'objectiu', `<select data-energsel="1" data-s>
       <option value="totes" ${sub ? '' : 'selected'}>totes les del domini</option>
-      <option value="subconjunt" ${sub ? 'selected' : ''}>un subconjunt (triar a sota)</option></select>`)}
-    ${cLab('pesos', `<select data-p="objectius.pesos" data-t="str">${pwList ? '<option value="" selected disabled>llista de pesos (a neudet)</option>' : ''}${pesosOpts.map(o =>
-      `<option value="${escD(o.valor)}" ${!pwList && o.valor === pw ? 'selected' : ''}>${escD(o.text)}</option>`).join('')}</select>`)}</div>
+      <option value="subconjunt" ${sub ? 'selected' : ''}>un subconjunt (triar a sota)</option></select>`)}</div>
   ${eChecks}
-  <div class="hint">${sub ? 'Triar només les energies que compten. Han de ser de la graella del domini (objectius.py:' + S.energies.graella.linia + ').' : 'Totes les energies de la graella: «totes» (objectius.py:' + S.energies.totes.linia + ').'}</div>
-  <div class="hint">${pwSel ? `<b>${escD(pwSel.valor)}</b>: ${escD(pwSel.descripcio)} <span class="src">(${escD(cSrc(pwSel.fitxer, pwSel.linia))})</span>` : ''}
-    ${ob.pesos === undefined ? ` · <b>camp absent</b>: neudet usa «${escD(S.pesos_defecte.valor)}» (objectius.py:${S.pesos_defecte.linia}); amb fitxa: 1 (c04) és obligatori (fitxa.py:${S.pesos_defecte.fitxa.linia}).` : ''}</div>
-  <div class="hint"><b>Frontera de Pareto</b>: dos objectius, cadascun amb el sentit max o min. El primer i l'últim són els eixos dels gràfics (campanya.py:${S.pareto.linia}). Cada mètrica ha de ser a la llista de dalt, o la calcula neudet sola (objectius.py:${S.pareto.auto.linia}).</div>
-  ${parRows}
-  <div class="row">${cLab('pareto_k_sigma (frontera robusta)', cNumIn('objectius.pareto_k_sigma', ob.pareto_k_sigma, {min: 0, ph: String(S.pareto_k_sigma.defecte)}))}</div>
-  <div class="hint">${escD(S.pareto_k_sigma.descripcio)} <span class="src">(${escD(cSrc(S.pareto_k_sigma.fitxer, S.pareto_k_sigma.linia))})</span></div>
-  <details class="fold"><summary>Altres paràmetres d'objectiu (només de lectura: per canviar-los, a neudet)</summary>
-    ${S.altres.map(a => `<div class="kv"><div><code>${escD(a.clau)}</code> ${cRO(ob[a.clau] ?? a.defecte)} <span class="hint">${ob[a.clau] === undefined ? 'per defecte' : 'a la campanya'}</span></div>
-      <div class="hint">${escD(a.descripcio)} <span class="src">(${escD(cSrc(a.fitxer, a.linia))})</span></div></div>`).join('')}</details>`;
+  ${par}
+  <div id="c-objav" class="compta"></div>`;
 }
 
 // Avaluació (xarxa, mode, N, lot, geometria) i la resta, només de lectura.
@@ -1502,7 +1558,7 @@ function cYaml(){
       Q('#c-yaml').textContent = r.yaml; cErr('');
     } catch(e){ if(seq === CP.seq){ cErr(e.message); } }
   }, 150);
-  cCompta();
+  cCompta(); cObjComprova();
 }
 
 // Quants candidats genera la regla de l'etapa, abans de les restriccions: neudet ho diu. Debounce de 400 ms.
@@ -1625,6 +1681,7 @@ function cEdita(el, change){
     if(change){ cSet(CP.f, 'objectius.energies_MeV', el.value === 'totes' ? 'totes' : CP.f.domini.energies_MeV.slice()); cPintaForm(); cYaml(); }
     return;
   }
+  if(cObjEdita(el, change)) return;                                // OBJ: el bloc «Objectius» (finalitat, objectius, informatives, c, pesos)
   const p = el.dataset.p;
   if(!p) return;
   const t = el.dataset.t;
@@ -1650,6 +1707,61 @@ function cEdita(el, change){
   if(p === 'domini.tipus_tub.0'){ const m = Q('#c-tubmarca'); if(m) m.textContent = cTubMarca(v); }
   if(change && el.hasAttribute('data-s')) cPintaForm();
   cYaml();
+}
+// OBJ: els controls propis del bloc «Objectius». Torna true si l'element era seu.
+function cObjEdita(el, change){
+  const ob = CP.f.objectius, T = cObjT(), ds = el.dataset;
+  const fet = () => { cPintaForm(); cYaml(); return true; };
+  if(ds.fin !== undefined){ if(change){ cObjNou(ds.fin); return fet(); } return true; }
+  if(ds.objn !== undefined){
+    if(!change) return true;
+    const d = cObjDecideix(ob), n = el.value;
+    d[+ds.objn] = [n, (T.metriques[n] || {}).sentit];
+    ob.objectius = d; cObjSyncPref(); return fet();
+  }
+  if(ds.infauto !== undefined){ if(change){ ob.informatives = el.checked ? 'auto' : cObjInfAuto(ob); return fet(); } return true; }
+  if(ds.inf !== undefined){
+    if(!change) return true;
+    const l = Array.isArray(ob.informatives) ? ob.informatives : cObjInfAuto(ob), n = ds.inf;
+    ob.informatives = el.checked ? [...new Set(l.concat([n]))] : l.filter(x => x !== n); return fet();
+  }
+  if(ds.objc !== undefined){                                        // els valors de c: números separats per comes (buit = sense tria)
+    const txt = el.value.trim(), vals = txt === '' ? [] : txt.split(/[,;\s]+/).filter(Boolean).map(Number);
+    if(vals.some(x => !Number.isFinite(x))){ el.classList.add('bad'); return true; }
+    el.classList.remove('bad');
+    ob.preferencia = Object.assign(cObjPrefDef(ob), ob.preferencia || {}, {c: vals}); cYaml(); return true;
+  }
+  if(ds.pes !== undefined){ if(change){ ob.pesos = ds.pes === 'espectre' ? {espectre: ''} : ds.pes; return fet(); } return true; }
+  if(ds.grups !== undefined){                                       // grups_MeV: JSON [[E_min, E_max], …]; buit = cap
+    const txt = el.value.trim();
+    if(txt === ''){ delete ob.grups_MeV; el.classList.remove('bad'); if(change) return fet(); cYaml(); return true; }
+    let g; try{ g = JSON.parse(txt); } catch(e){ el.classList.add('bad'); return true; }
+    if(!Array.isArray(g)){ el.classList.add('bad'); return true; }
+    el.classList.remove('bad'); ob.grups_MeV = g;
+    if(change) return fet();
+    cYaml(); return true;
+  }
+  return false;
+}
+// OBJ: el que neudet entén del bloc (en paraules) i els seus avisos; un error (p. ex. un sol canal a l'espectròmetre) surt en vermell.
+function cObjComprova(){
+  clearTimeout(CP.to);
+  CP.to = setTimeout(async () => {
+    const seq = CP.oseq = (CP.oseq || 0) + 1, el = Q('#c-objav');
+    if(!el) return;
+    if(!CP.f.objectius || CP.f.objectius.finalitat === undefined){ el.innerHTML = ''; return; }
+    try{
+      const r = await api('/api/campanya/objectius', {form: CP.f, etapa: CP.etapa});
+      if(seq !== CP.oseq) return;
+      const av = r.avisos || [];
+      el.innerHTML = av.filter(a => a.nivell !== 'info').map(a => `<div class="panel ${a.nivell === 'error' ? 'bad' : 'warn'}" data-objavis="${escD(a.codi)}"><b>${a.nivell === 'error' ? '⛔ neudet' : '⚠ neudet'}:</b> ${escD(a.text)}</div>`).join('')
+        + `<details class="fold" open><summary>Com ho entén neudet</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.en_paraules || '')}</div>
+           ${av.filter(a => a.nivell === 'info').map(a => `<div class="hint">${escD(a.text)}</div>`).join('')}
+           ${r.canals ? `<div class="hint">Canals (grups de tubs equivalents) dels candidats vàlids: ${Object.entries(r.canals).map(([e, c]) => `etapa ${escD(e)}: de ${c.min} a ${c.max} (${c.un_sol_canal} de ${c.candidats} amb un sol canal)`).join('; ')}.</div>` : ''}</details>`;
+    } catch(e){
+      if(seq === CP.oseq) el.innerHTML = `<div class="panel bad"><b>neudet diu:</b><pre class="pre">${escD(e.message)}</pre></div>`;
+    }
+  }, 500);
 }
 function cClicBloc(svg, e){
   const f = CP.f.domini.font;
@@ -1716,6 +1828,14 @@ function cAccio(act, ds){
   if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
   if(act === 'nl-') cArr(ds.p).splice(+ds.i, 1);
   const mt = ds.p && /^(etapes\.[^.]+\.tongades\.\d+)/.exec(ds.p); if(mt) cSyncInv(cGetS(CP.f, mt[1]));
+  if(act === 'obj+' || act === 'obj-'){                              // OBJ: 1–3 objectius de la finalitat
+    const ob = CP.f.objectius, d = cObjDecideix(ob), T = cObjT();
+    if(act === 'obj-') d.splice(+ds.i, 1);
+    else { const n = T.finalitats[ob.finalitat].metriques.find(m => !d.some(x => x[0] === m)); if(n) d.push([n, T.metriques[n].sentit]); }
+    ob.objectius = d; cObjSyncPref();
+  }
+  if(act === 'rs+'){ const ob = CP.f.objectius; (ob.restriccions = ob.restriccions || []).push(ob.finalitat === 'comptador' ? ['eps_min', '>=', 0.2] : ['cv', '<=', 0.3]); }
+  if(act === 'rs-') CP.f.objectius.restriccions.splice(+ds.i, 1);
   cNormLligams();
   cPintaForm(); cYaml();
 }
@@ -1727,6 +1847,7 @@ async function cInit(){
   const [s, d] = await Promise.all([api('/api/campanya/schema'), api('/api/campanya/defaults')]);
   cSenseQue(d);
   CP.schema = s; CP.f = d; CP.etapa = Object.keys(d.etapes)[0];
+  if(!d.objectius || d.objectius.finalitat === undefined) cObjNou('comptador');      // OBJ: una proposta nova és del cicle nou (finalitat primer)
   cPintaForm(); cYaml();
 }
 
@@ -1778,6 +1899,8 @@ function cAvisosDesa(c){
   const out = [];
   if(c.opcions_cost && c.opcions_cost.length) out.push(cCostHtml(c.opcions_cost));
   if(c.camps_falten) out.push(`<b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre>`);
+  const oav = ((c.objectius || {}).avisos || []).filter(a => a.nivell !== 'info');       // OBJ: un sol canal, grups que falten…
+  if(oav.length) out.push('<b>Objectius (neudet):</b><ul class="msgs">' + oav.map(a => `<li>${a.nivell === 'error' ? '⛔' : '⚠'} ${escD(a.text)}</li>`).join('') + '</ul>');
   const mal = (c.elements || []).filter(e => e.estat === 'prohibit' || (c.atura && e.estat === 'no_validat'));
   if(mal.length) out.push('<b>Elements que neudet no accepta:</b><ul class="msgs">' +
     mal.map(e => `<li>${e.estat === 'prohibit' ? '⛔' : '⚠'} ${escD(e.element)} — ${escD(e.estat)}${e.motiu ? ': ' + escD(e.motiu) : ''}</li>`).join('') + '</ul>');
@@ -2306,6 +2429,7 @@ async function nzNova(){
   d.id = ''; d.estat = 'proposta'; d.creada = new Date().toISOString().slice(0, 10);
   cSenseQue(d);
   delete d._conversio;                                   // INV: la plantilla ja ve convertida a recursos; una proposta nova no és cap conversió
+  if(!d.objectius || d.objectius.finalitat === undefined) cObjNou('comptador', d);   // OBJ: una proposta nova és del cicle nou (finalitat primer)
   NZ.sel = {k: 'nova'};
   cCarrega(d, `Proposta nova, amb els valors de <code>${escD(de)}</code> com a plantilla. Posa-li un id (p. ex. <code>c05_draft</code>) abans de desar: és el nom de la carpeta a neudet.`);
   return nzVeu();
