@@ -1846,7 +1846,11 @@ function kResumInterp(v){
 // «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
 function kConfirmaHtml(v){
   if(v.estat_yaml !== 'interpretada') return '';
-  return `<div class="panel warn" id="k-conf"><b>Confirmar i congelar</b>
+  const mod = `<div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">Obre el formulari per canviar-la; en desar torna a «proposta» i el planificador la reinterpreta.</span></div>`;
+  // 0 candidats vàlids en alguna etapa: no es pot confirmar (no hi ha res a córrer); es diu per què i es deixa modificar
+  const zero = Object.entries((v.certificacio && v.certificacio.etapes) || {}).filter(([, x]) => x && x.valids === 0).map(([k]) => k);
+  if(zero.length) return `<div class="panel bad" id="k-conf"><b>No es pot confirmar:</b> l'etapa ${zero.map(escD).join(', ')} no té cap candidat vàlid (els motius, a la certificació). Modifica la proposta.${mod}</div>`;
+  return `<div class="panel warn" id="k-conf">${mod}<b>Confirmar i congelar</b>
     <div>Revisa la definició (formulari congelat), el resum i la interpretació. En confirmar, neudet escriu la confirmació (hash del yaml i del PLA) i la campanya queda <b>congelada</b>:
       si després es toca el yaml o el PLA, caldrà tornar-la a interpretar i confirmar. Cap simulació no corre sense aquesta confirmació.</div>
     <div class="row">${cLab('qui confirma', '<input id="k-per" value="Albert">')}</div>
@@ -1863,6 +1867,15 @@ async function kConfirma(){
     top.insertAdjacentHTML('afterbegin', `<div class="panel ok"><b>Confirmada i congelada: <code>${escD(id)}</code></b> el ${escD(r.confirmacio.data)} per ${escD(r.confirmacio.per)}. ${escD(r.text)}
       <div>Ara ja es pot córrer: avisa el planificador que la campanya és confirmada.</div></div>`);
   } catch(e){ res.innerHTML = `<div class="panel bad"><b>No es confirma:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
+}
+// «Modifica la proposta» des d'`interpretada` (contracte §13): el formulari editable de la mateixa campanya; desar la torna a `proposta`.
+async function kModifica(){
+  const id = KC.id;
+  await cInit();
+  const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
+  cCarrega(r.form, `Modificant <code>${escD(id)}</code> (estava interpretada). En desar torna a «proposta» i el planificador l'ha de reinterpretar.`);
+  NZ.sel = {k: 'form', id};
+  nzVeu();
 }
 // «Tanteja»: una proposta nova amb el contingut d'aquesta campanya (id derivat). L'original no es toca.
 function kAccions(){
@@ -2046,6 +2059,7 @@ document.getElementById('k-out').addEventListener('click', e => {
   const b = e.target.closest('button[data-k="tanteja"]');
   if(b) cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
   if(e.target.closest('#k-conf-si')) kConfirma();
+  if(e.target.closest('#k-mod')) kModifica();
   if(e.target.closest('button[data-k="congela"]')) kCongela().catch(err => kErr(err.message));
 });
 </script>
