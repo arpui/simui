@@ -466,3 +466,11 @@ def test_confirma_sense_nom_o_sense_pla_es_refusa(camp_confirmable):
     (d / "PLA.md").unlink()
     with pytest.raises(CD.DesaError, match="no hi ha PLA.md"):
         CD.confirma_campanya("c07_prova", "Albert")
+
+
+def test_desa_modifica_una_campanya_interpretada_i_la_torna_a_proposta(neudet_tmp, cert_ok):
+    """Contracte UI §13: «Modifica la proposta» val fins a `interpretada` (no confirmada); torna l'estat a `proposta`."""
+    _real_c04()
+    _camp(neudet_tmp, "c06_prova", "id: c06_prova\nestat: interpretada\n")
+    r = CD.desa_proposta(_form_c04("c06_prova"))
+    assert r["estat"] == "proposta" and r["sobreescrita"]
