@@ -323,17 +323,19 @@ def objectius(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             from neudet.disseny.objectius import avisos, en_paraules
             C = Campanya(dir_)
             ob = C.objectiu
-            canals = {}
+            canals, grups_cd = {}, {}
             if ob.finalitat == "espectrometre":
                 if etapa is None:
                     etapa = _primera_etapa_de_xarxa(yaml_text)
                 valids, _ = C.candidats(etapa)
                 canals[etapa] = [n_canals(c) for c, _ in valids]
+                # OBJ·espectre: q_rang, q_monoton i sE_N només amb tubs amb Cd i sense Cd alhora («no aplica», no bloqueja)
+                grups_cd[etapa] = [any(t.te_cd for t in c.tubs) and not all(t.te_cd for t in c.tubs) for c, _ in valids]
             return {"cicle": ob.info["cicle"], "finalitat": ob.finalitat, "etapa": etapa,
                     "objectius": [list(p) for p in ob.pareto], "metriques": list(ob.noms),
                     "preferencia": ob.restriccio, "restriccions": [list(r) for r in ob.restriccions],
                     "canals": {k: dict(min=min(v), max=max(v), un_sol_canal=sum(1 for x in v if x < 2), candidats=len(v))
                                for k, v in canals.items() if v} or None,
-                    "en_paraules": en_paraules(ob.info), "avisos": avisos(ob.info, C.energies, canals)}
+                    "en_paraules": en_paraules(ob.info), "avisos": avisos(ob.info, C.energies, canals, grups_cd)}
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None

@@ -126,3 +126,16 @@ def test_la_pagina_te_el_bloc_numerat_i_no_la_llista_plana():
         assert t in INDEX, t
     assert 'data-p="objectius.metriques"' not in INDEX                 # fora la llista plana de 14
     assert "/api/campanya/objectius" in INDEX and "data-fin=" in INDEX and "cObjNou('comptador'" in INDEX
+
+
+def test_espectrometre_sense_cd_diu_no_aplica_sense_bloquejar():
+    """OBJ·espectre (b): dos anells sense Cd → q_rang, q_monoton i sE_N «no aplica» (info), cap error."""
+    _neudet()
+    from neudet.disseny import objectius
+    if not hasattr(objectius, "NO_APLICA"):
+        pytest.skip("aquest neudet encara no té OBJ·espectre")
+    r = CC.objectius(CF.to_yaml(_form({"finalitat": "espectrometre"})), "S1")
+    na = [a for a in r["avisos"] if a["codi"] == "no_aplica"]
+    assert na and na[0]["nivell"] == "info" and objectius.NO_APLICA_TEXT in na[0]["text"]
+    assert not [a for a in r["avisos"] if a["nivell"] == "error"]
+    assert "data-objavis=\"no_aplica\"" in INDEX

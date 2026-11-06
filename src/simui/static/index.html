@@ -1755,8 +1755,9 @@ function cObjComprova(){
       if(seq !== CP.oseq) return;
       const av = r.avisos || [];
       el.innerHTML = av.filter(a => a.nivell !== 'info').map(a => `<div class="panel ${a.nivell === 'error' ? 'bad' : 'warn'}" data-objavis="${escD(a.codi)}"><b>${a.nivell === 'error' ? '⛔ neudet' : '⚠ neudet'}:</b> ${escD(a.text)}</div>`).join('')
+        + av.filter(a => a.codi === 'no_aplica').map(a => `<div class="panel" data-objavis="no_aplica"><b>ℹ neudet:</b> ${escD(a.text)} <span class="hint">(no bloqueja res)</span></div>`).join('')   // OBJ·espectre
         + `<details class="fold" open><summary>Com ho entén neudet</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.en_paraules || '')}</div>
-           ${av.filter(a => a.nivell === 'info').map(a => `<div class="hint">${escD(a.text)}</div>`).join('')}
+           ${av.filter(a => a.nivell === 'info' && a.codi !== 'no_aplica').map(a => `<div class="hint">${escD(a.text)}</div>`).join('')}
            ${r.canals ? `<div class="hint">Canals (grups de tubs equivalents) dels candidats vàlids: ${Object.entries(r.canals).map(([e, c]) => `etapa ${escD(e)}: de ${c.min} a ${c.max} (${c.un_sol_canal} de ${c.candidats} amb un sol canal)`).join('; ')}.</div>` : ''}</details>`;
     } catch(e){
       if(seq === CP.oseq) el.innerHTML = `<div class="panel bad"><b>neudet diu:</b><pre class="pre">${escD(e.message)}</pre></div>`;

@@ -76,9 +76,9 @@ METRIQUES_LINIA: Dict[str, int] = {
 }
 #: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:240-242)
 AUTO_LINIA = 240
-#: sentit (objectius.py:386: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
+#: sentit (objectius.py:399: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 386
+SENTITS_LINIA = 399
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
 #: les mètriques per defecte de l'objectiu (objectius.py:228): totes les que no són geomètriques
@@ -97,8 +97,8 @@ RESTRICCIO_LINIA = 238
 DEFECTE_NOMS_LINIA = 228
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
 #: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
-FINALITATS_LINIA = 459                       # FINALITATS = {"comptador": …, "espectrometre": …}
-TAULA_LINIA = 785                            # def taula_objectius()
+FINALITATS_LINIA = 472                       # FINALITATS = {"comptador": …, "espectrometre": …}
+TAULA_LINIA = 812                            # def taula_objectius()
 FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
     "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2"),
     "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2"),
