@@ -91,8 +91,8 @@ border-radius:4px;font-size:11.5px;line-height:1.4;overflow:auto;max-height:340p
 .svgbox svg{max-width:100%;height:auto}
 .dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start}
 .tres{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
-.tres>div{flex:1 1 220px;min-width:0}
-.tres svg.bloc,.tres svg.blocl{width:100%;height:auto;max-width:340px}
+.tres>div{flex:0 1 auto;min-width:0}
+.tres svg.bloc,.tres svg.blocl{max-width:100%}
 @media (max-width:1100px){.dgrid,.cmp{grid-template-columns:1fr}}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 .tblwrap{overflow:auto;max-width:100%;margin:8px 0}
@@ -116,8 +116,20 @@ pre.yamlbox{max-height:560px;white-space:pre}
 svg.blocl{width:240px;height:240px;background:#fff;border:1px solid var(--line);margin:6px 0}
 svg.bloc{width:240px;height:240px;touch-action:none;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:default}
 svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
-.sticky-bloc{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:4px 0 6px;margin-bottom:8px}
-.sticky-bloc .tres svg.bloc,.sticky-bloc .tres svg.blocl{max-width:230px;margin:2px 0}
+/* Formulari de campanya: els camps no s'estiren a tot l'ample de la pàgina (un número no necessita 900 px) */
+#c-form input[type=number]{max-width:9em}
+#c-form select{max-width:26em}
+#c-form input:not([type]),#c-form input[type=text],#c-form input[type=date]{max-width:34em}
+#c-form .row{grid-template-columns:repeat(2,minmax(0,24em))}
+#c-form .row3{grid-template-columns:repeat(3,minmax(0,15em))}
+#c-form .anell-h input{max-width:30em}
+@media (max-width:760px){#c-form .row,#c-form .row3{grid-template-columns:1fr}#c-form input,#c-form select{max-width:100%}}
+.sticky-bloc{background:var(--bg);border-bottom:1px solid var(--line);padding:4px 0 6px;margin-bottom:8px}
+/* enganxat a dalt només si la finestra és prou gran: en una de petita, les vistes apilades taparien el formulari */
+@media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky;top:0;z-index:5}}
+.sticky-bloc .tres svg.bloc,.sticky-bloc .tres svg.blocl{margin:2px 0}
+.v3d-svg{width:300px;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:grab;touch-action:none;user-select:none}
+.v3d-svg:active{cursor:grabbing}
 .blocbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}
 .legend .leg i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
@@ -346,6 +358,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
         <div class="svgbox" id="d-xz"></div>
         <div class="svgbox" id="d-yz"></div>
       </div>
+      <div class="svgbox" id="d-3d" style="margin-top:14px"></div>
       <div id="d-avisos"></div>
       <h3>Tubs</h3>
       <div class="tblwrap" id="d-taula"></div>
@@ -600,7 +613,11 @@ function cSel(p, opts, valor, t = 'str', extra = ''){
 }
 // Dimensions aproximades d'un tub del catàleg (neudet les llegeix de tubs.json i tubGeneric.cc; aquí només es mostren).
 const cMidesTub = nom => { const t = (CP.schema.tipus_tub || []).find(x => x.nom === nom || x.alies === nom); return t && t.mides ? t.mides : null; };
-const cMidesTxt = m => m ? ` · Ø ${m.diametre_cm} cm × ${m.llargada_activa_cm} actius / ${m.llargada_total_cm} totals${m.pressio_atm ? ' · ' + m.pressio_atm + ' atm' : ''}${m.paret ? ' · ' + m.paret : ''}` : ' · sense mides al catàleg';
+const cMidesTxt = m => m ? ` · TUB SENCER Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm (el que ha de cabre) · gas actiu ${m.llargada_activa_cm} cm${m.llargada_paret_cm ? ' · paret ' + m.llargada_paret_cm + ' cm' : ''}${m.pressio_atm ? ' · ' + m.pressio_atm + ' atm' : ''}${m.paret ? ' · ' + m.paret : ''}` : ' · sense mides al catàleg';
+// Les mides amb què es dibuixa un tub: el tub sencer (el que neudet fa servir per col·locar-lo), centrat en z=0 del tub, i el gas actiu desplaçat z_activa.
+const cDimTub = tipus => { const q = cMidesTub(tipus);
+  return q ? {R: q.diametre_cm / 2, zlo: q.z_min_cm ?? -q.llargada_total_cm / 2, zhi: q.z_max_cm ?? q.llargada_total_cm / 2, Lt: q.llargada_total_cm, La: q.llargada_activa_cm, za: q.z_activa_cm || 0, real: true}
+    : {R: R_TUB_VISTA, zlo: -L_TUB_VISTA / 2, zhi: L_TUB_VISTA / 2, Lt: L_TUB_VISTA, La: 0, za: 0, real: false}; };
 function cTubOpts(valor){
   const tubs = CP.schema.tipus_tub, trobat = tubs.some(t => t.nom === valor);
   const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}${escD(cMidesTxt(t.mides))}</option>`);
@@ -1125,63 +1142,155 @@ const cRedibuixa = () => { const w = Q('#c-bloc-wrap'); if(w) w.innerHTML = cBlo
 // Les tres vistes alhora, una al costat de l'altra (VISTA-3): de dalt (x, y), lateral (x, z) i lateral (y, z). En pantalla estreta, una sota l'altra.
 // Un sol dibuix per a tot el formulari (UI-AFINA), sempre visible: amb l'exemple a l'atzar, la llegenda de colors per tipus i la posició de la font.
 function cBlocSvg(id = 'c-bloc'){
-  const d = CP.f.domini, V = cTubsVista(), pos = d.font.pos_cm || [0, 0, 0], iso = d.font.tipus === 'iso';
+  const d = CP.f.domini, V = cTubsVista(), D = cVistaDims(V), pos = d.font.pos_cm || [0, 0, 0], iso = d.font.tipus === 'iso';
   const aps = V.ordre.filter(t => V.punts.some(p => p.tipus === t));
   const nomsDe = t => [...new Set(V.punts.filter(p => p.tipus === t && p.nom).map(p => p.nom))];
-  const leg = aps.map(t => `<span class="leg"><i style="background:${cColor(V, t)}"></i>${escD(t)}${nomsDe(t).length ? ` <span class="hint">(${nomsDe(t).map(escD).join(', ')})</span>` : ''}</span>`).join('');
-  return `<div class="tres"><div>${cBlocXY(id, V)}</div><div>${cBlocLateral(id + '-xz', 'xz', V)}</div><div>${cBlocLateral(id + '-yz', 'yz', V)}</div></div>
+  const leg = aps.map(t => `<span class="leg"><i style="background:${cColor(V, t)}"></i>${escD(t)}${nomsDe(t).length ? ` <span class="hint">(${nomsDe(t).map(escD).join(', ')})</span>` : ''} <span class="hint">${(m => m ? `Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm · gas ${m.llargada_activa_cm} cm` : 'sense mides')(cMidesTub(t))}</span></span>`).join('');
+  return `<div class="tres"><div>${cBlocXY(id, V, D)}</div><div>${cBlocLateral(id + '-xz', 'xz', V, D)}</div><div>${cBlocLateral(id + '-yz', 'yz', V, D)}</div><div>${v3dHtml(id + '-3d', cEscena(V))}</div></div>
     <div class="bar blocbar">${V.exemple ? `<span class="hint"><b>Exemple a l'atzar</b> dels recursos pels llocs (respecta els fixats): no és cap candidat.</span> <button type="button" class="ghost" data-act="altra">una altra</button>` : ''}
+      <span class="hint">Les tres vistes, a la mateixa escala (1 cm = ${cG(D.k)} px).</span>
       <span class="hint">${iso ? `font a (${[0, 1, 2].map(i => Number(pos[i]) || 0).join(', ')}) cm` : 'font de feix'}</span>
       ${iso && !CP.congelat ? `<button type="button" class="ghost${CP.movFont ? ' on' : ''}" data-act="movfont">${CP.movFont ? 'deixa de moure la font' : 'mou la font'}</button>` : ''}</div>
     ${leg ? `<div class="legend">${leg}</div>` : ''}`;
 }
+// ── Visor 3D isomètric (VISTA-3D): una escena {bloc, forat, font, tubs[]} en cm (centre del bloc a l'origen), sense llibreries ──
+// Cada tub és un cilindre a mida real (el volum que ocupa) amb el gas actiu a dins. Es gira arrossegant; el doble clic restableix.
+// La mateixa escena serveix al formulari (`cEscena`) i al full del candidat (`escena` de design_view.py).
+const V3D = {}, V3D_INI = {az: 0.6, el: 0.45};
+function v3dProj(p, st){
+  const ca = Math.cos(st.az), sa = Math.sin(st.az), ce = Math.cos(st.el), se = Math.sin(st.el), xr = p[0] * ca - p[1] * sa, yr = p[0] * sa + p[1] * ca;
+  return [xr, p[2] * ce + yr * se, yr * ce - p[2] * se];            // [dreta, amunt, fondària: més gran = més lluny]
+}
+function v3dCil(c, eix, lo, hi, R, n = 14){
+  const anell = a => Array.from({length: n}, (_, k) => { const t = 2 * Math.PI * k / n, u = R * Math.cos(t), w = R * Math.sin(t);
+    return eix === 'z' ? [c[0] + u, c[1] + w, c[2] + a] : eix === 'x' ? [c[0] + a, c[1] + u, c[2] + w] : [c[0] + u, c[1] + a, c[2] + w]; });
+  return [anell(lo), anell(hi)];
+}
+function v3dSvg(esc, st){
+  const [bx, by, bz] = esc.bloc, faces = [], K = (() => {
+    let r = Math.hypot(bx, by, bz) / 2;
+    esc.tubs.forEach(t => { r = Math.max(r, Math.hypot(t.x, t.y, t.z) + Math.max(-t.zlo, t.zhi)); });
+    return 138 / r; })();
+  const P = p => { const q = v3dProj(p, st); return [q[0] * K, -q[1] * K, q[2]]; };
+  const poli = (pts, fill, op, stroke, sw) => { const q = pts.map(P); faces.push({q, d: q.reduce((s, a) => s + a[2], 0) / q.length, fill, op, stroke, sw}); };
+  const cilindre = (c, eix, lo, hi, R, fill, op, stroke, sw) => {
+    const [A, B] = v3dCil(c, eix, lo, hi, R), n = A.length;
+    for(let k = 0; k < n; k++) poli([A[k], A[(k + 1) % n], B[(k + 1) % n], B[k]], fill, op, stroke, sw);
+    poli(A, fill, op, stroke, sw); poli(B, fill, op, stroke, sw);
+  };
+  esc.tubs.forEach(t => {
+    const c = [t.x, t.y, t.z], op = t.tenue ? 0.1 : 0.28;
+    cilindre(c, t.eix || 'z', t.zlo, t.zhi, t.R, t.color, op, t.color, 0.4);
+    if(t.real !== false && t.La > 0 && t.Rg > 0) cilindre(c, t.eix || 'z', t.za - t.La / 2, t.za + t.La / 2, t.Rg, t.color, t.tenue ? 0.2 : 0.7, t.color, 0.2);
+  });
+  faces.sort((a, b) => b.d - a.d);
+  const sv = (x, y, z) => P([x, y, z]), lin = (a, b, st2) => `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" ${st2}/>`;
+  const cantonades = []; for(const x of [-1, 1]) for(const y of [-1, 1]) for(const z of [-1, 1]) cantonades.push(sv(x * bx / 2, y * by / 2, z * bz / 2));
+  const idx = (x, y, z) => ((x > 0) << 2) | ((y > 0) << 1) | (z > 0), arestes = [];
+  for(let i = 0; i < 8; i++) for(const b of [1, 2, 4]) if(!(i & b)) arestes.push([i, i | b]);
+  const caixa = arestes.map(([i, j]) => lin(cantonades[i], cantonades[j], 'stroke="#4d4d4d" stroke-width="1"')).join('');
+  const forat = esc.forat > 0 ? [-1, 1].map(s => `<polyline fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3 3" points="${v3dCil([0, 0, 0], 'z', s * bz / 2, s * bz / 2, esc.forat, 40)[0].map(p => P(p).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`).join('') : '';
+  const font = esc.font ? (q => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4" fill="#c00000"/><text x="${(q[0] + 6).toFixed(1)}" y="${(q[1] - 5).toFixed(1)}" font-size="10" fill="#c00000">F</text>`)(sv(...esc.font)) : '';
+  const eixos = [['x', [1, 0, 0], '#b5541c'], ['y', [0, 1, 0], '#2e7d32'], ['z', [0, 0, 1], '#1f5f99']].map(([n, d, col]) => {
+    const q = v3dProj(d, st), x = -128 + q[0] * 24, y = 128 - q[1] * 24;
+    return `${lin([-128, 128], [x, y], `stroke="${col}" stroke-width="1.5"`)}<text x="${(x + (q[0] >= 0 ? 3 : -9)).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="10" fill="${col}">${n}</text>`; }).join('');
+  const peces = faces.map(f => `<polygon points="${f.q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`).join('');
+  return `${caixa}${forat}${peces}${font}${eixos}`;
+}
+function v3dHtml(id, esc){
+  const st = V3D[id] = Object.assign(V3D[id] || {...V3D_INI}, {esc});
+  return `<div class="v3d"><svg id="${id}" class="v3d-svg" viewBox="-160 -160 320 320" aria-label="vista 3D">${v3dSvg(esc, st)}</svg>
+    <div class="hint">3D, cada tub a mida real (cilindre clar: el que ocupa; fosc: el gas actiu). Arrossega per girar; doble clic per restablir.</div></div>`;
+}
+document.addEventListener('pointerdown', e => {
+  const s = e.target.closest && e.target.closest('svg.v3d-svg'), st = s && V3D[s.id];
+  if(!st) return;
+  const x0 = e.clientX, y0 = e.clientY, a0 = st.az, e0 = st.el;
+  const mou = ev => { st.az = a0 + (ev.clientX - x0) * 0.01; st.el = Math.max(-1.5, Math.min(1.5, e0 + (ev.clientY - y0) * 0.01)); s.innerHTML = v3dSvg(st.esc, st); };
+  const fi = () => { document.removeEventListener('pointermove', mou); document.removeEventListener('pointerup', fi); };
+  document.addEventListener('pointermove', mou); document.addEventListener('pointerup', fi);
+  e.preventDefault();
+});
+document.addEventListener('dblclick', e => {
+  const s = e.target.closest && e.target.closest('svg.v3d-svg'), st = s && V3D[s.id];
+  if(st){ Object.assign(st, V3D_INI); s.innerHTML = v3dSvg(st.esc, st); }
+});
+// L'escena del formulari: els mateixos tubs que dibuixen les vistes planes (V), amb les mides del catàleg de neudet.
+function cEscena(V){
+  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], pos = d.font.pos_cm || [0, 0, 0];
+  return {bloc: m.map(Number), forat: Number(d.bloc.forat_cm) || 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
+    tubs: V.punts.map(p => { const q = cDimTub(p.tipus), mm = cMidesTub(p.tipus);
+      return {index: p.n, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColor(V, p.tipus), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
+}
+
+// Les tres vistes a la MATEIXA escala (px per cm), per poder-les comparar: les extensions (cm, centrades a 0) de cada una es calculen
+// aquí i la mida de cada dibuix en píxels és extensió × k. `mc` és el marge per a les cotes (text de 11 px, en cm).
+function cVistaDims(V){
+  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2, hz = m[2] / 2;
+  const cap = 3 * Math.max(hx, hy, hz);
+  let xy = Math.max(hx, hy), wxz = hx, wyz = hy, h = hz;
+  V.punts.forEach(p => {
+    const q = cDimTub(p.tipus), e = Math.max(-q.zlo, q.zhi);
+    const ex = Math.abs(p.x) + (p.eix === 'x' ? e : q.R), ey = Math.abs(p.y) + (p.eix === 'y' ? e : q.R), ez = Math.abs(p.z || 0) + (p.eix === 'z' ? e : q.R);
+    xy = Math.max(xy, Math.min(ex, cap), Math.min(ey, cap)); wxz = Math.max(wxz, Math.min(ex, cap)); wyz = Math.max(wyz, Math.min(ey, cap)); h = Math.max(h, Math.min(ez, cap));
+  });
+  const gran = Math.max(xy, wxz, wyz, h) * 1.15, k = Math.min(6, 300 / (2 * gran)), mc = 34 / k;      // el més gran fa ~300 px
+  return {xy: xy + mc, wxz: wxz + mc, wyz: wyz + mc, h: h + mc, k, mc, fs: 11 / k, m};
+}
+// Cota: una línia amb dues marques i el text, a `pos` (horitzontal sota el bloc, o vertical a la dreta).
+function cCota(x1, y1, x2, y2, txt, D, vertical){
+  const t = D.fs * 0.35, mx = (x1 + x2) / 2, my = (y1 + y2) / 2, sw = 0.8 / D.k;
+  const marques = vertical ? `<line x1="${x1 - t}" y1="${y1}" x2="${x1 + t}" y2="${y1}"/><line x1="${x2 - t}" y1="${y2}" x2="${x2 + t}" y2="${y2}"/>`
+    : `<line x1="${x1}" y1="${y1 - t}" x2="${x1}" y2="${y1 + t}"/><line x1="${x2}" y1="${y2 - t}" x2="${x2}" y2="${y2 + t}"/>`;
+  const text = vertical ? `<text transform="translate(${mx + D.fs * 1.05} ${my}) rotate(90)" text-anchor="middle">${txt}</text>` : `<text x="${mx}" y="${my + D.fs * 1.05}" text-anchor="middle">${txt}</text>`;
+  return `<g stroke="#555" stroke-width="${sw}" fill="#444" font-size="${D.fs}" pointer-events="none"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>${marques}<g stroke="none">${text}</g></g>`;
+}
+const cG = x => +(+x).toFixed(2);
 // Vista lateral (VISTA-UI): el bloc, el forat, la font i cada tub amb la seva llargada total i la zona activa (mides del catàleg de
 // neudet; sense mides, un tub orientatiu). Un tub vertical és un rectangle; un d'horitzontal, un rectangle si és al pla i un cercle si no.
-function cBlocLateral(id, pla, V0){
-  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hz = m[2] / 2, hh = (pla === 'xz' ? m[0] : m[1]) / 2;
-  const pos = d.font.pos_cm || [0, 0, 0], V = V0 || cTubsVista(), h = pla === 'xz' ? 'x' : 'y';
-  const dim = p => { const q = cMidesTub(p.tipus); return q ? {R: q.diametre_cm / 2, Lt: q.llargada_total_cm, La: q.llargada_activa_cm, real: true} : {R: R_TUB_VISTA, Lt: L_TUB_VISTA, La: 0, real: false}; };
-  let W = hh, H = hz;
-  V.punts.forEach(p => { const q = dim(p), c = p[h]; W = Math.max(W, Math.abs(c) + (p.eix === h ? q.Lt / 2 : q.R) + 1); H = Math.max(H, Math.abs(p.z || 0) + (p.eix === 'z' ? q.Lt / 2 : q.R) + 1); });
-  W += 2; H += 2;
+function cBlocLateral(id, pla, V0, D0){
+  const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hz = m[2] / 2, hh = (pla === 'xz' ? m[0] : m[1]) / 2;
+  const pos = d.font.pos_cm || [0, 0, 0], h = pla === 'xz' ? 'x' : 'y', W = pla === 'xz' ? D.wxz : D.wyz, H = D.h, sw = 1.2 / D.k;
+  const dim = p => cDimTub(p.tipus);
   const tubs = V.punts.map(p => {
-    const q = dim(p), c = p[h], z = p.z || 0, col = cColor(V, p.tipus), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="0.2"`;
+    const q = dim(p), c = p[h], z = p.z || 0, col = cColor(V, p.tipus), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${sw}"`;
     if(p.eix === 'z'){
-      const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g><rect x="${c - q.R}" y="${-z - q.Lt / 2}" width="${2 * q.R}" height="${q.Lt}" ${f}/>${act}</g>`;
+      const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.za - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+      return `<g><rect x="${c - q.R}" y="${-z - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" ${f}/>${act}</g>`;
     }
     if(p.eix === h){
-      const act = q.La ? `<rect x="${c - q.La / 2}" y="${-z - q.R}" width="${q.La}" height="${2 * q.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g><rect x="${c - q.Lt / 2}" y="${-z - q.R}" width="${q.Lt}" height="${2 * q.R}" ${f}/>${act}</g>`;
+      const act = q.La ? `<rect x="${c + q.za - q.La / 2}" y="${-z - q.R}" width="${q.La}" height="${2 * q.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+      return `<g><rect x="${c + q.zlo}" y="${-z - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" ${f}/>${act}</g>`;
     }
     return `<circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/>`;
   }).join('');
-  const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="0.2" stroke-dasharray="0.6 0.6"/>` : '';
-  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="0.9" fill="#c00000"/>` : '';
+  const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
+  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
+  const cotes = cCota(-hh, hz + D.mc * 0.45, hh, hz + D.mc * 0.45, `${cG(2 * hh)} cm`, D, false) + cCota(hh + D.mc * 0.45, -hz, hh + D.mc * 0.45, hz, `${cG(2 * hz)} cm`, D, true);
   const sense = V.punts.some(p => !dim(p).real) ? ' Un tub sense mides al catàleg es dibuixa orientatiu.' : '';
-  return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" aria-label="vista lateral ${pla}">
-    <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="0.25"/>${forat}${tubs}${font}</svg>
-    <div class="hint">Lateral (${h}, z): cada tub amb la llargada total (clar) i la zona activa (fosc); font en vermell.${sense}</div>`;
+  return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" style="width:${Math.round(2 * W * D.k)}px;max-width:100%;height:auto" aria-label="vista lateral ${pla}">
+    <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${tubs}${font}${cotes}</svg>
+    <div class="hint">Lateral (${h}, z), a escala: cada tub sencer (clar: el que ha de cabre) i amb el gas actiu (fosc); font en vermell.${sense}</div>`;
 }
-function cBlocXY(id = 'c-bloc', V0){
-  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2;
-  const pos = d.font.pos_cm || [0, 0, 0], V = V0 || cTubsVista();
-  const ext = V.punts.reduce((a, p) => Math.max(a, Math.abs(p.x), Math.abs(p.y)), 0);
-  const L = Math.max(hx, hy, Math.min(ext + 3, 4 * Math.max(hx, hy))) + 2;
-  const forat = d.bloc.forat_cm > 0 ? `<circle r="${d.bloc.forat_cm}" fill="none" stroke="#999" stroke-width="0.2" stroke-dasharray="0.6 0.6"/>` : '';
-  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="0.9" fill="#c00000"/>` : '';
-  const cercles = V.cercles.map(r => `<circle r="${r}" fill="none" stroke="#7a8da8" stroke-width="0.15" stroke-dasharray="0.8 0.8"/>`).join('');
+function cBlocXY(id = 'c-bloc', V0, D0){
+  const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hx = m[0] / 2, hy = m[1] / 2, L = D.xy, sw = 1.2 / D.k;
+  const pos = d.font.pos_cm || [0, 0, 0];
+  const forat = d.bloc.forat_cm > 0 ? `<circle r="${d.bloc.forat_cm}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
+  const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
+  const cercles = V.cercles.map(r => `<circle r="${r}" fill="none" stroke="#7a8da8" stroke-width="${sw * 0.7}" stroke-dasharray="${5 / D.k} ${5 / D.k}"/>`).join('');
   const tubs = V.punts.map(p => {
     const base = cColor(V, p.tipus), c = p.tenue ? base + '66' : base, dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
-    const forma = p.eix === 'x' ? `<rect x="${p.x - L_TUB_VISTA / 2}" y="${-p.y - R_TUB_VISTA}" width="${L_TUB_VISTA}" height="${2 * R_TUB_VISTA}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="0.2"/>`
-      : p.eix === 'y' ? `<rect x="${p.x - R_TUB_VISTA}" y="${-p.y - L_TUB_VISTA / 2}" width="${2 * R_TUB_VISTA}" height="${L_TUB_VISTA}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="0.2"/>`
-      : `<circle cx="${p.x}" cy="${-p.y}" r="${p.tenue ? 0.5 : R_TUB_VISTA}" fill="${c}" fill-opacity="${p.tenue ? 0.6 : 0.6}" stroke="${c}" stroke-width="0.2"/>`;
-    const num = p.n ? `<text x="${p.x}" y="${-p.y + 0.5}" font-size="1.6" text-anchor="middle" fill="#fff" pointer-events="none">${p.n}</text>` : '';
+    const q = cDimTub(p.tipus);
+    const forma = p.eix === 'x' ? `<rect x="${p.x + q.zlo}" y="${-p.y - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="${sw}"/>`
+      : p.eix === 'y' ? `<rect x="${p.x - q.R}" y="${-p.y - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="${sw}"/>`
+      : `<circle cx="${p.x}" cy="${-p.y}" r="${q.R}" fill="${c}" fill-opacity="${p.tenue ? 0.35 : 0.6}" stroke="${c}" stroke-width="${sw}"/>`;
+    const num = p.n ? `<text x="${p.x}" y="${-p.y + D.fs * 0.35}" font-size="${D.fs}" text-anchor="middle" fill="#fff" pointer-events="none">${p.n}</text>` : '';
     return `<g${dr}>${forma}${num}</g>`;
   }).join('');
-  return `<svg id="${id}" viewBox="${-L} ${-L} ${2 * L} ${2 * L}" class="bloc${CP.movFont ? ' mou' : ''}" aria-label="bloc, font i tubs">
-    <rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="0.25"/>${forat}${cercles}${tubs}${font}</svg>
-    <div class="hint">Vista de dalt (x, y) del bloc de ${m[0]} × ${m[1]} cm: la font en vermell${V.punts.length ? ', els tubs amb el color del seu tipus' : ''}. Orientativa: no valida res (ho fa «Comprova»). ${escD(V.nota)}</div>`;
+  const cotes = cCota(-hx, hy + D.mc * 0.45, hx, hy + D.mc * 0.45, `${cG(m[0])} cm`, D, false) + cCota(hx + D.mc * 0.45, -hy, hx + D.mc * 0.45, hy, `${cG(m[1])} cm`, D, true);
+  return `<svg id="${id}" viewBox="${-L} ${-L} ${2 * L} ${2 * L}" class="bloc${CP.movFont ? ' mou' : ''}" style="width:${Math.round(2 * L * D.k)}px;max-width:100%;height:auto" aria-label="bloc, font i tubs">
+    <rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${cercles}${tubs}${font}${cotes}</svg>
+    <div class="hint">Vista de dalt (x, y), a escala, del bloc de ${m[0]} × ${m[1]} cm: la font en vermell${V.punts.length ? ', els tubs amb el color del seu tipus' : ''}. Orientativa: no valida res (ho fa «Comprova»). ${escD(V.nota)}</div>`;
 }
 
 // Objectius: mètriques (llista tancada, amb la línia de neudet), energies, pesos, Pareto, k·σ i la resta.
@@ -2396,10 +2505,21 @@ function dPintaCheck(){
   Q('#d-viol').innerHTML = violHtml(c.verificat, c.motiu, c.violations);
   Q('#d-nota').innerHTML = (c.notes || []).map(n => `<div class="panel">${escD(n)}</div>`).join('');
 }
+// Les tres vistes del full surten a la mateixa escala (el servidor les dibuixa amb els mateixos px per cm): la pàgina les encongeix TOTES igual
+// (un sol factor) si no hi caben, en lloc de deixar que cada una s'ajusti a la seva columna.
+function dEscalaComuna(){
+  const svgs = ['#d-xy', '#d-xz', '#d-yz'].map(s => Q(s + ' svg')).filter(Boolean);
+  if(!svgs.length) return;
+  const f = Math.min(1, ...svgs.map(s => { const w = parseFloat(s.getAttribute('width')), av = s.parentNode.clientWidth - 14; return av > 0 && w > 0 ? av / w : 1; }));
+  svgs.forEach(s => { const w = parseFloat(s.getAttribute('width')); s.style.maxWidth = 'none'; s.style.width = (w * f).toFixed(0) + 'px'; s.style.height = 'auto'; });
+}
+window.addEventListener('resize', () => { try{ dEscalaComuna(); }catch(e){} });
 function dPintaVista(v){
   Q('#d-xy').innerHTML = v.xy_svg;
   Q('#d-xz').innerHTML = v.xz_svg;
   Q('#d-yz').innerHTML = v.yz_svg;
+  Q('#d-3d').innerHTML = v.escena ? v3dHtml('d-3d-svg', v.escena) : '';
+  dEscalaComuna();
   Q('#d-taula').innerHTML = tableHtml(v.cols, v.rows);
   const avisos = [...v.notes, ...v.caption, ...(v.caption_yz || [])];
   Q('#d-avisos').innerHTML = `<details><summary>Notes del visor (${avisos.length})</summary>` +

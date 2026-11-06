@@ -425,8 +425,29 @@ def test_schema_porta_les_mides_dels_tubs_llegides_del_cataleg_de_neudet():
     m = tubs["lnd_252285"]["mides"]
     assert m["diametre_cm"] == 2.54 and m["llargada_activa_cm"] == 60.0 and m["pressio_atm"] == 8.0 and m["paret"] == "SST"
     assert m["llargada_total_cm"] > m["llargada_activa_cm"]
-    assert all(t["mides"] is None or set(t["mides"]) == {"diametre_cm", "llargada_activa_cm", "llargada_total_cm", "pressio_atm", "paret"}
+    assert all(t["mides"] is None or set(t["mides"]) == {"diametre_cm", "llargada_activa_cm", "llargada_total_cm", "z_min_cm", "z_max_cm",
+                                                         "z_activa_cm", "radi_gas_cm", "llargada_paret_cm", "pressio_atm", "paret"}
                for t in tubs.values())
+
+
+def test_la_llargada_total_del_tub_es_la_que_neudet_fa_servir_per_col_locar_lo():
+    """Bessó de la confusió de la proposta: el tub que ha de CABRE és el de `candidat.DIMS` (68 cm el LND-252285), no el de la paret
+    d'acer (63,72) ni el del gas (60); el selector i el dibuix han de dir el mateix que neudet."""
+    _neudet_o_skip()
+    from neudet.disseny import candidat as CAND
+    tubs = {t["nom"]: t for t in CF.schema()["tipus_tub"]}
+    for nom, t in tubs.items():
+        d, m = CAND.DIMS.get(nom), t["mides"]
+        if d and m:
+            assert m["diametre_cm"] == round(2 * d["r_ext"], 3)
+            assert m["llargada_total_cm"] == round(d.get("z_max", d["mitja_llargada"]) - d.get("z_min", -d["mitja_llargada"]), 3)
+    m = tubs["lnd_252285"]["mides"]
+    assert m["llargada_total_cm"] == 68.0 and m["llargada_paret_cm"] == 63.72 and m["llargada_activa_cm"] == 60.0
+
+
+def test_pagina_dibuixa_i_llista_el_tub_a_mida_real():
+    assert "const cDimTub" in INDEX and "TUB SENCER" in INDEX and "llargada_paret_cm" in INDEX
+    assert "L_TUB_VISTA / 2}\" y=" not in INDEX                    # la vista de dalt ja no usa la llargada orientativa quan el tub té mides
 
 
 def test_la_pagina_porta_la_vista_lateral_i_les_dimensions_al_selector():
@@ -437,7 +458,7 @@ def test_la_pagina_porta_la_vista_lateral_i_les_dimensions_al_selector():
 def test_les_tres_vistes_es_veuen_alhora_sense_desplegable():
     """VISTA-3: de dalt, lateral XZ i lateral YZ, una al costat de l'altra, al formulari i al full del candidat."""
     form = INDEX.split("function cBlocSvg")[1].split("function cBlocLateral")[0]
-    assert "cBlocXY(id, V)" in form and "cBlocLateral(id + '-xz', 'xz', V)" in form and "cBlocLateral(id + '-yz', 'yz', V)" in form
+    assert "cBlocXY(id, V, D)" in form and "cBlocLateral(id + '-xz', 'xz', V, D)" in form and "cBlocLateral(id + '-yz', 'yz', V, D)" in form
     for ja_no in ("data-vista", 'id="d-lat"', "dPintaLateral", "CP.vista", "DS.lat"):
         assert ja_no not in INDEX, ja_no
     assert 'id="d-xy"' in INDEX and 'id="d-xz"' in INDEX and 'id="d-yz"' in INDEX
@@ -483,7 +504,7 @@ def test_la_pagina_porta_el_resum_la_interpretacio_i_el_boto_de_confirmar_nomes_
 def test_afina_un_sol_dibuix_enganxat_amb_exemple_llegenda_i_boto():
     """Un sol dibuix (fora c-bloc2), a dalt del formulari i sempre visible; exemple a l'atzar, color per TIPUS, llegenda i «una altra»."""
     assert "c-bloc2" not in INDEX and "c-bloc-wrap2" not in INDEX
-    assert INDEX.count('id="c-bloc-wrap"') == 1 and 'class="sticky-bloc"' in INDEX and ".sticky-bloc{position:sticky" in INDEX
+    assert INDEX.count('id="c-bloc-wrap"') == 1 and 'class="sticky-bloc"' in INDEX and "@media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky" in INDEX
     assert "function cAssigAnells" in INDEX and "function cRng" in INDEX and "const cColor = (V, tipus)" in INDEX
     assert 'data-act="altra"' in INDEX and "una altra" in INDEX and "no és cap candidat" in INDEX and 'class="legend"' in INDEX
     assert "PAL[(p.tong" not in INDEX                               # el color ja no és el de la tongada
@@ -526,3 +547,23 @@ def test_afina_opcions_cost_arriba_de_comprova_json(tmp_path):
 def test_afina_punts_v_el_formulari_ofereix_valor_llista_o_rang():
     assert "function cCoordHtml" in INDEX and "data-coord=" in INDEX and "cCoordHtml(`${qp}.x`, q.x, 'x (cm)')" in INDEX
     assert "el.dataset.coord !== undefined" in INDEX and "{de: v0, a: v0, pas: 1}" in INDEX
+
+
+def test_els_camps_del_formulari_de_campanya_no_ocupen_tot_l_ample():
+    assert "#c-form input[type=number]{max-width:9em}" in INDEX and "#c-form .row3{grid-template-columns:repeat(3,minmax(0,15em))}" in INDEX
+
+
+def test_les_tres_vistes_tenen_la_mateixa_escala_i_cotes():
+    """Una sola escala (px per cm, `D.k`) per a XY, XZ i YZ, i les cotes del bloc (a, b i c en cm) a cada vista."""
+    assert "function cVistaDims" in INDEX and "function cCota" in INDEX
+    assert INDEX.count("width:${Math.round(2 * ") == 2                      # XY i les laterals (una funció dues vegades): sempre extensió × k
+    assert "Math.round(2 * L * D.k)" in INDEX and "Math.round(2 * W * D.k)" in INDEX
+    assert "a la mateixa escala (1 cm =" in INDEX and "${cG(m[0])} cm" in INDEX and "${cG(2 * hz)} cm" in INDEX
+
+
+def test_visor_3d_isometric_al_formulari_i_al_full_del_candidat():
+    """VISTA-3D: la mateixa escena (cilindres a mida real, gas actiu, font, eixos) al formulari i al full; es gira arrossegant."""
+    for tros in ("function v3dSvg", "function v3dHtml", "function cEscena", "const V3D", "doble clic per restablir"):
+        assert tros in INDEX, tros
+    assert "v3dHtml(id + '-3d', cEscena(V))" in INDEX and "v3dHtml('d-3d-svg', v.escena)" in INDEX and 'id="d-3d"' in INDEX
+    assert "dEscalaComuna" in INDEX                                                      # el full encongeix les tres vistes amb un sol factor

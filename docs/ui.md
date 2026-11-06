@@ -155,3 +155,12 @@ servidor (`design_view._svg_xz(v, "yz")`, girant x↔y). Al costat de cada selec
 - **`que:`** és una nota de l'usuari, no la pregunta: una proposta nova no hereta el `que:` de la plantilla (`cSenseQue`), i el camp es diu «nota teva (opcional; NO és la pregunta)».
 - **Punts amb posició variable (PUNTS-V de neudet):** a cada punt, x, y i z són **un valor, una llista o un rang** (de–a amb pas); l'eix és per punt. El dibuix en tria una combinació; només s'arrossega un punt amb x, y, z fixos. El formulari valida amb `_errors_rang`, com els anells.
 - **Cost gran (AFINA-N):** si `comprova.json` porta `opcions_cost`, es mostra en vermell «massa gran per a un tanteig» amb les opcions tal com les dona neudet. **Encara no n'hi ha cap a neudet** (el format no està escrit al contracte): la UI mostra el que arribi, sense inventar-ne les claus.
+
+### Dibuix a escala i mides reals dels tubs
+- **Mides reals:** la llargada total d'un tub és la que neudet fa servir per col·locar-lo (`candidat.DIMS`: radi exterior i extensió en z de TOT el tub; 68 cm el LND-252285), no la de la paret d'acer (63,72) ni la del gas actiu (60). El selector diu «TUB SENCER Ø × L cm (el que ha de cabre) · gas actiu · paret · pressió» i la llegenda del dibuix porta les mateixes mides.
+- **Una escala:** XY, XZ i YZ es dibuixen amb els mateixos px per cm (`cVistaDims`: `D.k`), i cada una porta les cotes del bloc. El text sota els dibuixos diu «1 cm = X px». El full del candidat (dibuix del servidor, `design_view.py`) encara té l'escala de cada vista pel seu compte.
+
+### Escala comuna al full del candidat i visor 3D (VISTA-3D)
+- **Full del candidat:** XY, XZ i YZ surten amb els mateixos px per cm (`design_view.escala_comuna`, la mínima de les tres), amb el bloc escrit a cada vista («bloc 30 × 30 × 80 cm · 1 cm = 5,66 px») i les cotes de sempre (eixos amb marques i barra de 10 cm). La pàgina les encongeix TOTES amb un sol factor si no hi caben (`dEscalaComuna`).
+- **Visor 3D isomètric** (formulari i full, el mateix codi `v3dSvg`, SVG pla sense llibreries): bloc, forat, font, eixos x/y/z i cada tub com a cilindre a mida real (clar: el volum que ocupa; fosc: el gas actiu), amb el seu eix. Es gira arrossegant i el doble clic restableix. L'escena és dades: `cEscena` al formulari i `design_view.escena` al servidor (`escena` al `preview`).
+- **El dibuix enganxat a dalt** només s'enganxa en finestres grans (≥ 1000 × 760 px); en una de petita, les vistes apilades taparien el formulari.

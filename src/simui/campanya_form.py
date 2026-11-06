@@ -741,8 +741,12 @@ def _schema_plantilles() -> Dict[str, Any]:
 
 
 def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Les dimensions aproximades d'un tub del catàleg (VISTA-UI), llegides com les llegeix Geant4/neudet
-    (`DC.TUBE_TYPES`, que ve de `tubs.json` i `tubGeneric.cc`): res no es copia. `None` si el tipus no es pot resoldre."""
+    """Les dimensions d'un tub del catàleg, llegides d'on les llegeixen Geant4 i neudet (res no es copia).
+    Les que importen per saber si el tub CAP són les de `neudet.disseny.candidat.DIMS` (les que neudet fa servir per col·locar-lo:
+    radi exterior i extensió en z de tot el tub, que no és la de la paret d'acer ni la del gas); el gas actiu, la paret i la pressió
+    surten de `DC.TUBE_TYPES` (`tubs.json` i `tubGeneric.cc`). `None` si el tipus no es pot resoldre."""
+    DES._neudet()
+    from neudet.disseny import candidat as CAND
     for nom in (e.get("nom"), e.get("alies")):
         if not nom:
             continue
@@ -750,8 +754,15 @@ def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             tt = DC.TUBE_TYPES[nom]
         except Exception:                                   # noqa: BLE001 — sense mides, el selector no les mostra
             continue
-        return {"diametre_cm": round(2 * tt.wall_radius_cm, 3), "llargada_activa_cm": round(tt.gas_length_cm, 3),
-                "llargada_total_cm": round(tt.wall_length_cm, 3),
+        d = CAND.DIMS.get(nom)
+        if d:
+            r_ext, zlo, zhi = d["r_ext"], d.get("z_min", -d["mitja_llargada"]), d.get("z_max", d["mitja_llargada"])
+        else:                                               # el forat del tub: el que ocupa dins del bloc
+            r_ext, zlo, zhi = tt.hole_radius_cm, -tt.hole_length_cm / 2, tt.hole_length_cm / 2
+        return {"diametre_cm": round(2 * r_ext, 3), "llargada_total_cm": round(zhi - zlo, 3),
+                "z_min_cm": round(zlo, 3), "z_max_cm": round(zhi, 3),
+                "llargada_activa_cm": round(tt.gas_length_cm, 3), "z_activa_cm": round(tt.gas_dz_cm, 3), "radi_gas_cm": round(tt.gas_radius_cm, 3),
+                "llargada_paret_cm": round(tt.wall_length_cm, 3),
                 "pressio_atm": (round(tt.gas_pressure_atm, 3) if tt.gas_pressure_atm else None),
                 "paret": e.get("material_paret") or None}
     return None
