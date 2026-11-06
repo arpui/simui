@@ -712,13 +712,12 @@ def _schema_verificacio() -> Dict[str, Any]:
     _linia(FITXA_PY, 70, '"n_per_energia"')
     _linia(FITXA_PY, 105, '"n_per_energia"')
     _linia(FITXA_PY, 108, '"hits"')
-    return {"quants": {"llegit": False, "fitxer": VERIFICA_G4_PY, "linia": 398,
-                       "descripcio": "neudet no llegeix aquest camp. La selecció de verifica_g4.py són les "
-                                     "triades d'ε-restricció i la frontera robusta, més K candidats aleatoris "
-                                     "(--aleatoris, per defecte 30; línies 11-12 i 398)"},
-            "n_per_energia": {"llegit": False, "fitxer": VERIFICA_G4_PY, "linia": 400,
-                              "descripcio": "neudet no el llegeix: la simulació de Geant4 usa --n (per defecte "
-                                            "100000). La fitxa només exigeix que hi sigui (fitxa.py)"},
+    return {"quants": {"llegit": True, "fitxer": VERIFICA_G4_PY, "linia": 398,
+                       "descripcio": "quants candidats van a Geant4 (verifica_g4.py el llegeix del yaml; --quants el "
+                                     "sobreescriu i el meta ho diu, AFINA-N)"},
+            "n_per_energia": {"llegit": True, "fitxer": VERIFICA_G4_PY, "linia": 400,
+                              "descripcio": "primaris per energia a Geant4 (verifica_g4.py el llegeix del yaml; --n el "
+                                            "sobreescriu i el meta ho diu, AFINA-N)"},
             "hits": {"llegit": True, "fitxer": FITXA_PY, "linia": 108,
                      "descripcio": "mode del bolcat de Geant4, obligatori (G4-COMPACT): «all» (tots els passos) o "
                                    "«detect» (només les files He3(n,p), ~60 vegades menys disc)"},
