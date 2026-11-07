@@ -364,6 +364,13 @@ def campanya_compta(body: Dict[str, Any]) -> Dict[str, Any]:
     return CC.compta(text, body.get("etapa") or None)
 
 
+def campanya_reselecciona(body: Dict[str, Any]) -> Dict[str, Any]:
+    """REAVALUA-UI: els candidats d'una etapa (`id`, `etapa`) tornats a presentar amb altres `criteris` (opcionals: el que falta és el de
+    la campanya). Només lectura: no simula ni escriu res; la selecció és de neudet (`campanya_reselecciona`)."""
+    from ..mcgen import campanya_reselecciona as RES
+    return RES.reselecciona(str(body.get("id") or ""), str(body.get("etapa") or ""), body.get("criteris") or None)
+
+
 def campanya_exemple(body: Dict[str, Any]) -> Dict[str, Any]:
     """UI-DIB2: els tubs del dibuix d'exemple (`tubs`) davant les restriccions de la campanya (`form`), amb `violacions` de neudet."""
     text = CF.to_yaml(body.get("form"))

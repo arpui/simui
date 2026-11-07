@@ -136,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_comprova, body)
         elif path == "/api/campanya/compta":
             self._tracta(api.campanya_compta, body)
+        elif path == "/api/campanya/reselecciona":
+            self._tracta(api.campanya_reselecciona, body)
         elif path == "/api/campanya/exemple":
             self._tracta(api.campanya_exemple, body)
         elif path == "/api/campanya/objectius":

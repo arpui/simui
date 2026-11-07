@@ -139,3 +139,17 @@ def test_espectrometre_sense_cd_diu_no_aplica_sense_bloquejar():
     assert na and na[0]["nivell"] == "info" and objectius.NO_APLICA_TEXT in na[0]["text"]
     assert not [a for a in r["avisos"] if a["nivell"] == "error"]
     assert "data-objavis=\"no_aplica\"" in INDEX
+
+
+def test_el_punt_5_diu_que_els_wi_de_les_formules_surten_d_aquella_eleccio():
+    pagina = INDEX
+    assert "Aquesta elecció dona els <b>wᵢ</b> de les fórmules de dalt" in pagina and "wᵢ = 1/N" in pagina
+    assert "const cObjPes" in pagina and "SEMPRE els de letargia" in pagina
+
+
+def test_la_nota_de_quins_wi_usa_cada_metrica_ve_de_la_descripcio_de_neudet():
+    """Bessó: la pàgina llegeix «(amb pesos)» / «pesos de letargia» de la descripció de neudet; si neudet canvia el text, el test avisa."""
+    _neudet()
+    ds = {m["nom"]: m["descripcio"] for m in CF.schema()["objectius"]["metriques"]}
+    assert "(amb pesos)" in ds["eps_mitja"] and "(amb pesos)" in ds["cv"]
+    assert "pesos de letargia" in ds["res_E"] and "pesos de letargia" in ds["sE_N"]

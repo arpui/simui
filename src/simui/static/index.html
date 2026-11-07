@@ -1356,7 +1356,10 @@ function cObjSyncPref(){
   ob.preferencia = {maxim: d.maxim, sobre: d.sobre, c: p.sobre === d.sobre && Array.isArray(p.c) ? p.c : d.c};
   if(Array.isArray(ob.informatives)) ob.informatives = ob.informatives.filter(n => !cObjDecideix(ob).some(x => x[0] === n));
 }
-const cObjQ = n => { const m = cObjT().metriques[n]; return m ? `<span class="hint">${escD(m.sentit === 'max' ? 'més' : 'menys')} · ${escD(m.pregunta)}${m.formula ? ` · <code>${escD(m.formula)}</code>` : ''}</span>` : ''; };
+// Què són els wᵢ de la fórmula d'una mètrica: ho diu la descripció de neudet («amb pesos» = els del punt 5; «pesos de letargia» = sempre els de letargia).
+const cObjPes = n => { const d = ((CP.schema.objectius.metriques || []).find(m => m.nom === n) || {}).descripcio || '';
+  return /pesos de letargia/.test(d) ? 'els wᵢ són SEMPRE els de letargia (no canvien amb el punt 5)' : /\(amb pesos\)/.test(d) ? 'els wᵢ són els que triïs al punt 5' : ''; };
+const cObjQ = n => { const m = cObjT().metriques[n]; return m ? `<span class="hint">${escD(m.sentit === 'max' ? 'més' : 'menys')} · ${escD(m.pregunta)}${m.formula ? ` · <code>${escD(m.formula)}</code>` : ''}${cObjPes(n) ? ` · <b>${escD(cObjPes(n))}</b>` : ''}</span>` : ''; };
 function cObjHtml(f){
   const T = cObjT(), ob = f.objectius || {};
   const fins = Object.entries(T.finalitats).map(([k, v]) => `<label class="chk mrow"><input type="radio" name="c-fin" data-fin="${escD(k)}" ${k === ob.finalitat ? 'checked' : ''}>
@@ -1371,7 +1374,7 @@ function cObjHtml(f){
   const F = T.finalitats[ob.finalitat] || {metriques: []}, dec = cObjDecideix(ob);
   const opt = cur => F.metriques.map(n => `<option value="${escD(n)}" ${n === cur ? 'selected' : ''}>${escD(n)}</option>`).join('');
   const decRows = dec.map(([n, sn], i) => `<div class="row"><label>objectiu ${i + 1}<select data-objn="${i}">${opt(n)}</select></label>
-      <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}${(T.metriques[n] || {}).formula ? `<br><code>${escD(T.metriques[n].formula)}</code>` : ''}</div>
+      <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}${(T.metriques[n] || {}).formula ? `<br><code>${escD(T.metriques[n].formula)}</code>${cObjPes(n) ? ` · <b>${escD(cObjPes(n))}</b>` : ''}` : ''}</div>
       ${dec.length > 1 ? `<button type="button" class="ghost" data-act="obj-" data-i="${i}">treu l'objectiu ${i + 1}</button>` : ''}`).join('');
   const auto = ob.informatives === undefined || ob.informatives === 'auto';
   const infL = auto ? cObjInfAuto(ob) : ob.informatives, infS = new Set(infL);
@@ -1408,6 +1411,8 @@ function cObjHtml(f){
   ${rsRows}
   <button type="button" class="ghost" data-act="rs+">afegeix una restricció</button>
   <h3 class="pas">5 · Com es pondera l'energia</h3>
+  <div class="hint">Aquesta elecció dona els <b>wᵢ</b> de les fórmules de dalt: el pes de l'energia Eᵢ, normalitzat (Σᵢ wᵢ = 1). <b>uniforme</b>: wᵢ = 1/N. <b>letargia</b>: wᵢ ∝ (ln Eᵢ₊₁ − ln Eᵢ₋₁)/2, mitja cel·la als extrems (<code>pesos_letargia</code>). <b>espectre</b>: wᵢ ∝ φ(Eᵢ)·Δuᵢ, amb φ = E·dΦ/dE interpolat en ln E i Δu els pesos de letargia (<code>pesos_espectre</code>).
+    Només les mètriques que diuen «amb pesos» (ε̄, cv…) segueixen aquesta elecció; les que diuen «pesos de letargia» (res_E, sE_N…) fan servir sempre els de letargia.</div>
   ${pesos}
   ${pk === 'espectre' ? `<label>fitxer de l'espectre (relatiu a la campanya; dues columnes: E en MeV i E·dΦ/dE)<input data-p="objectius.pesos.espectre" data-t="str" value="${escD(pw.espectre ?? '')}"></label>` : ''}
   <div class="row">${cLab('energies de l\'objectiu', `<select data-energsel="1" data-s>
@@ -2172,11 +2177,106 @@ function kEtapa(e){
     ${kPla(e)}
     ${kResposta(e)}
     <div class="tblw">${kTaula(e)}</div>
+    ${kReavHtml(e)}
     ${eix ? kPareto(e, eix) : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`}
     ${e.figures.length ? kGaleria(e.figures) : ''}
   </article>`;
 }
 // El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
+// ── REAVALUA-UI: torna a presentar els candidats d'una etapa amb altres criteris. Només lectura: els números ja són al candidats.csv i la
+// selecció (Pareto, frontera robusta, ε-restricció, restriccions dures) la fa neudet (`/api/campanya/reselecciona`); aquí només es mostra. ──
+KC.reav = {};
+const kRvSt = nom => KC.reav[KC.id + '/' + nom] || (KC.reav[KC.id + '/' + nom] = {obert: false, crit: null, ctxt: '', orig: null, res: null, err: '', seq: 0, t: null});
+const kRvEl = (nom, part) => document.querySelector(`[data-rvp="${part}"][data-rvn="${CSS.escape(nom)}"]`);
+const kRvOps = ['<=', '>=', '<', '>', '=='];
+function kReavHtml(e){
+  const st = kRvSt(e.nom), n = escD(e.nom);
+  return `<details class="fold" data-rv-det="${n}" ${st.obert ? 'open' : ''}><summary><b>Criteris</b>: torna a presentar els candidats <span class="hint">(només lectura: no simula ni escriu res)</span></summary>
+    <div data-rvp="f" data-rvn="${n}">${st.crit ? kReavForm(e, st) : ''}</div><div data-rvp="r" data-rvn="${n}">${st.res || st.err ? kReavRes(e, st) : (st.obert ? '<div class="hint">neudet reordena els candidats…</div>' : '')}</div></details>`;
+}
+function kReavForm(e, st){
+  const c = st.crit, n = escD(e.nom), mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m));
+  const sel = (k, v, opts) => `<select data-rv="${n}" data-k="${k}">${[...new Set([...opts, v])].map(o => `<option value="${escD(o)}" ${o === v ? 'selected' : ''}>${escD(o)}</option>`).join('')}</select>`;
+  const objs = c.objectius.map((o, i) => `<div class="row">${cLab(`objectiu ${i + 1}`, sel(`obj.${i}.m`, o[0], mets))}${cLab('sentit', sel(`obj.${i}.s`, o[1], ['max', 'min']))}</div>`).join('');
+  const rs = c.restriccions.map((r, i) => `<div class="row3">${cLab('mètrica', sel(`rs.${i}.m`, r[0], mets))}${cLab('operador', sel(`rs.${i}.op`, r[1], kRvOps))}
+      <label>valor<input type="number" step="any" data-rv="${n}" data-k="rs.${i}.v" value="${escD(r[2])}"></label></div>
+    <button type="button" class="ghost" data-rv-act="rs-" data-rvn="${n}" data-i="${i}">treu la restricció</button>`).join('');
+  return `<div class="hint">Els números són els que l'etapa ja va calcular; aquí només es reordenen. Canvia els criteris tantes vegades com calgui.</div>
+    <h4>Què decideix la frontera</h4>${objs}
+    <div class="row">${cLab('k·σ (frontera robusta)', `<input type="number" step="any" min="0" data-rv="${n}" data-k="k_sigma" value="${escD(c.k_sigma)}">`)}</div>
+    <h4>Qui guanya (ε-restricció)</h4>
+    <div class="row">${cLab('guanya el de més…', sel('maxim', c.maxim, mets))}${cLab('…amb aquesta mètrica ≤ c', sel('sobre', c.sobre, mets))}</div>
+    <label>valors de c, separats per comes<input data-rv="${n}" data-k="c" value="${escD(st.ctxt)}"></label>
+    <h4>Restriccions dures <span class="hint">(el que no les compleix no entra ni a la frontera ni a la tria)</span></h4>
+    ${rs}<button type="button" class="ghost" data-rv-act="rs+" data-rvn="${n}">afegeix una restricció</button>
+    <div class="bar"><button type="button" class="ghost" data-rv-act="reset" data-rvn="${n}">torna als criteris de la campanya</button></div>`;
+}
+const kRvNum = x => x == null ? '—' : (+x).toPrecision(4).replace(/\.?0+$/, '');
+function kReavDescr(c){
+  return `frontera ${c.objectius.map(o => `${o[0]} ${o[1]}`).join(' · ')} (k·σ ${c.k_sigma}); guanya el de més ${c.maxim} amb ${c.sobre} ≤ c` +
+    (c.restriccions.length ? `; restriccions ${c.restriccions.map(r => `${r[0]} ${r[1]} ${r[2]}`).join(' i ')}` : '');
+}
+function kReavRes(e, st){
+  if(st.err) return `<div class="panel bad"><b>neudet diu:</b> ${escD(st.err)}</div>`;
+  const r = st.res, o = st.orig, mod = JSON.stringify(r.criteris) !== JSON.stringify(o.criteris);
+  const mets = [...new Set([...r.criteris.objectius.map(x => x[0]), r.criteris.maxim, r.criteris.sobre].filter(Boolean))];
+  const prev = {}; (o.guanyadors || []).forEach(g => { prev[g.c] = g.cap ? null : g.nom; });
+  const gan = r.guanyadors.map(g => {
+    const canvi = g.c in prev && prev[g.c] !== (g.cap ? null : g.nom);
+    return g.cap ? `<tr><td>${kRvNum(g.c)}</td><td colspan="3"><i>cap candidat compleix ${escD(r.criteris.sobre)} ≤ ${kRvNum(g.c)}</i>${canvi ? ' <span class="tag t-wa">canvia</span>' : ''}</td></tr>`
+      : `<tr class="kc" data-h="${escD(g.hash)}" data-n="${escD(g.nom)}" style="cursor:pointer"><td>${kRvNum(g.c)}</td><td>${escD(g.nom)}${canvi ? ' <span class="tag t-wa">canvia</span>' : ''}</td><td>${kRvNum(g.maxim)}</td><td>${kRvNum(g.sobre)}</td></tr>`;
+  }).join('');
+  const fr = r.frontera.map(f => `<tr class="kc" data-h="${escD(f.hash)}" data-n="${escD(f.nom)}" style="cursor:pointer"><td>${escD(f.nom)}</td>${mets.map(m => `<td>${kRvNum(f[m])}</td>`).join('')}<td>${f.robusta ? '✓' : ''}</td></tr>`).join('');
+  return `<div class="panel ${mod ? 'warn' : ''}"><b>Criteris aplicats${mod ? ' (modificats respecte als de la campanya)' : ' (els de la campanya)'}:</b> ${escD(kReavDescr(r.criteris))}.</div>
+    <div class="cres"><b>${r.n_valids}</b> candidats vàlids de ${r.n_finals} finals${r.n_fora_restriccions ? ` · ${r.n_fora_restriccions} fora per les restriccions` : ''} · frontera de <b>${r.frontera.length}</b>${r.te_sig ? ` (${r.frontera.filter(f => f.robusta).length} robustos)` : ''}</div>
+    ${r.avisos.map(a => `<div class="panel warn">${escD(a)}</div>`).join('')}
+    ${r.guanyadors.length ? `<h4>Guanyadors</h4><div class="tblw"><table class="tbl"><thead><tr><th>c</th><th>candidat</th><th>${escD(r.criteris.maxim)}</th><th>${escD(r.criteris.sobre)}</th></tr></thead><tbody>${gan}</tbody></table></div>` : '<div class="hint">Sense valors de c no hi ha guanyadors: posa\'n alguns a dalt.</div>'}
+    <h4>Frontera</h4><div class="tblw"><table class="tbl"><thead><tr><th>candidat</th>${mets.map(m => `<th>${escD(m)}</th>`).join('')}<th>robusta</th></tr></thead><tbody>${fr}</tbody></table></div>`;
+}
+function kReavCrit(e, st){
+  const cs = st.ctxt.split(/[\s,;]+/).filter(Boolean).map(Number).filter(Number.isFinite);
+  return {objectius: st.crit.objectius, k_sigma: Number(st.crit.k_sigma), maxim: st.crit.maxim, sobre: st.crit.sobre, c: cs,
+    restriccions: st.crit.restriccions.filter(r => Number.isFinite(Number(r[2])) && r[2] !== '').map(r => [r[0], r[1], Number(r[2])])};
+}
+async function kReavCalcula(nom, inicial){
+  const e = kReavEtapa(nom), st = kRvSt(nom), seq = ++st.seq;
+  try{
+    const r = await api('/api/campanya/reselecciona', {id: KC.id, etapa: nom, criteris: inicial ? null : kReavCrit(e, st)});
+    if(seq !== st.seq) return;
+    st.res = r; st.err = '';
+    if(inicial){ st.orig = r; st.crit = JSON.parse(JSON.stringify(r.criteris)); st.ctxt = r.criteris.c.join(', '); }
+  } catch(er){ if(seq !== st.seq) return; st.err = er.message; }
+  const f = kRvEl(nom, 'f'), q = kRvEl(nom, 'r');
+  if(f && st.crit && inicial) f.innerHTML = kReavForm(e, st);
+  if(q) q.innerHTML = st.res || st.err ? kReavRes(e, st) : '';
+}
+function kReavEtapa(nom){ return (KC.v.etapes || []).find(x => x.nom === nom) || null; }
+// Els esdeveniments del panell (el contenidor és #k-out, que es repinta sencer: l'estat és a KC.reav).
+document.getElementById('k-out').addEventListener('toggle', ev => {
+  const d = ev.target; if(!d.dataset || d.dataset.rvDet === undefined) return;
+  const nom = d.dataset.rvDet, st = kRvSt(nom); st.obert = d.open;
+  if(d.open && !st.orig) kReavCalcula(nom, true);
+}, true);
+function kReavEdita(el, change){
+  const nom = el.dataset.rv, st = kRvSt(nom), e = kReavEtapa(nom), k = el.dataset.k, p = k.split('.');
+  if(k === 'c') st.ctxt = el.value;
+  else if(k === 'k_sigma') st.crit.k_sigma = el.value;
+  else if(k === 'maxim' || k === 'sobre') st.crit[k] = el.value;
+  else if(p[0] === 'obj') st.crit.objectius[+p[1]][p[2] === 'm' ? 0 : 1] = el.value;
+  else if(p[0] === 'rs') st.crit.restriccions[+p[1]][{m: 0, op: 1, v: 2}[p[2]]] = el.value;
+  clearTimeout(st.t); st.t = setTimeout(() => kReavCalcula(nom, false), change ? 50 : 350);
+}
+document.getElementById('k-out').addEventListener('input', ev => { if(ev.target.dataset && ev.target.dataset.rv !== undefined) kReavEdita(ev.target, false); });
+document.getElementById('k-out').addEventListener('change', ev => { if(ev.target.dataset && ev.target.dataset.rv !== undefined) kReavEdita(ev.target, true); });
+document.getElementById('k-out').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-rv-act]'); if(!b) return;
+  const nom = b.dataset.rvn, st = kRvSt(nom), e = kReavEtapa(nom), act = b.dataset.rvAct;
+  if(act === 'rs+') st.crit.restriccions.push([st.crit.maxim, '>=', 0]);
+  if(act === 'rs-') st.crit.restriccions.splice(+b.dataset.i, 1);
+  if(act === 'reset'){ st.crit = JSON.parse(JSON.stringify(st.orig.criteris)); st.ctxt = st.orig.criteris.c.join(', '); }
+  kRvEl(nom, 'f').innerHTML = kReavForm(e, st);
+  kReavCalcula(nom, false);
+});
 function kPla(e){
   return e.pla ? `<details class="fold" ${e.executada === false ? 'open' : ''}><summary>Per què aquesta etapa (del PLA)</summary>${kMd(e.pla)}</details>` : '';
 }
