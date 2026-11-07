@@ -1356,7 +1356,7 @@ function cObjSyncPref(){
   ob.preferencia = {maxim: d.maxim, sobre: d.sobre, c: p.sobre === d.sobre && Array.isArray(p.c) ? p.c : d.c};
   if(Array.isArray(ob.informatives)) ob.informatives = ob.informatives.filter(n => !cObjDecideix(ob).some(x => x[0] === n));
 }
-const cObjQ = n => { const m = cObjT().metriques[n]; return m ? `<span class="hint">${escD(m.sentit === 'max' ? 'més' : 'menys')} · ${escD(m.pregunta)}</span>` : ''; };
+const cObjQ = n => { const m = cObjT().metriques[n]; return m ? `<span class="hint">${escD(m.sentit === 'max' ? 'més' : 'menys')} · ${escD(m.pregunta)}${m.formula ? ` · <code>${escD(m.formula)}</code>` : ''}</span>` : ''; };
 function cObjHtml(f){
   const T = cObjT(), ob = f.objectius || {};
   const fins = Object.entries(T.finalitats).map(([k, v]) => `<label class="chk mrow"><input type="radio" name="c-fin" data-fin="${escD(k)}" ${k === ob.finalitat ? 'checked' : ''}>
@@ -1371,7 +1371,7 @@ function cObjHtml(f){
   const F = T.finalitats[ob.finalitat] || {metriques: []}, dec = cObjDecideix(ob);
   const opt = cur => F.metriques.map(n => `<option value="${escD(n)}" ${n === cur ? 'selected' : ''}>${escD(n)}</option>`).join('');
   const decRows = dec.map(([n, sn], i) => `<div class="row"><label>objectiu ${i + 1}<select data-objn="${i}">${opt(n)}</select></label>
-      <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}</div>
+      <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}${(T.metriques[n] || {}).formula ? `<br><code>${escD(T.metriques[n].formula)}</code>` : ''}</div>
       ${dec.length > 1 ? `<button type="button" class="ghost" data-act="obj-" data-i="${i}">treu l'objectiu ${i + 1}</button>` : ''}`).join('');
   const auto = ob.informatives === undefined || ob.informatives === 'auto';
   const infL = auto ? cObjInfAuto(ob) : ob.informatives, infS = new Set(infL);
