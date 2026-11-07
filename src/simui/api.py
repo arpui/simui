@@ -364,6 +364,12 @@ def campanya_compta(body: Dict[str, Any]) -> Dict[str, Any]:
     return CC.compta(text, body.get("etapa") or None)
 
 
+def campanya_exemple(body: Dict[str, Any]) -> Dict[str, Any]:
+    """UI-DIB2: els tubs del dibuix d'exemple (`tubs`) davant les restriccions de la campanya (`form`), amb `violacions` de neudet."""
+    text = CF.to_yaml(body.get("form"))
+    return CC.exemple(text, body.get("tubs") or [])
+
+
 def campanya_objectius(body: Dict[str, Any]) -> Dict[str, Any]:
     """OBJ (contracte §14): el bloc «Objectius» del formulari (`form`, `etapa`) tal com l'entén neudet: en paraules i amb
     els avisos (un sol canal a l'espectròmetre, grups que falten…). La forma la valida `to_yaml` (400 amb el motiu)."""

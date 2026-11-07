@@ -613,7 +613,7 @@ function cSel(p, opts, valor, t = 'str', extra = ''){
 }
 // Dimensions aproximades d'un tub del catàleg (neudet les llegeix de tubs.json i tubGeneric.cc; aquí només es mostren).
 const cMidesTub = nom => { const t = (CP.schema.tipus_tub || []).find(x => x.nom === nom || x.alies === nom); return t && t.mides ? t.mides : null; };
-const cMidesTxt = m => m ? ` · TUB SENCER Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm (el que ha de cabre) · gas actiu ${m.llargada_activa_cm} cm${m.llargada_paret_cm ? ' · paret ' + m.llargada_paret_cm + ' cm' : ''}${m.pressio_atm ? ' · ' + m.pressio_atm + ' atm' : ''}${m.paret ? ' · ' + m.paret : ''}` : ' · sense mides al catàleg';
+const cMidesTxt = m => m ? ` · TUB SENCER (envolupant del catàleg: la que ha de cabre) Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm · gas actiu ${m.llargada_activa_cm} cm${m.llargada_paret_cm ? ' · paret ' + m.llargada_paret_cm + ' cm' : ''}${m.pressio_atm ? ' · ' + m.pressio_atm + ' atm' : ''}${m.paret ? ' · ' + m.paret : ''}` : ' · sense mides al catàleg';
 // Les mides amb què es dibuixa un tub: el tub sencer (el que neudet fa servir per col·locar-lo), centrat en z=0 del tub, i el gas actiu desplaçat z_activa.
 const cDimTub = tipus => { const q = cMidesTub(tipus);
   return q ? {R: q.diametre_cm / 2, zlo: q.z_min_cm ?? -q.llargada_total_cm / 2, zhi: q.z_max_cm ?? q.llargada_total_cm / 2, Lt: q.llargada_total_cm, La: q.llargada_activa_cm, za: q.z_activa_cm || 0, real: true}
@@ -1036,6 +1036,8 @@ function cAssigAnells(t, rng){
 function cAssigPunts(t, rng){ const bassa = cBassa(t); return ((t.posicions || {}).punts || []).map(q => cTreu(bassa, rng, q.tipus_permesos)); }
 const CPAL = ['#1f5f99', '#b5541c', '#2e7d32', '#7b3fa0', '#c2185b', '#00838f', '#8d6e00', '#5d4037'];
 // El color és del TIPUS de tub (no de la tongada): el mateix tipus, el mateix color a les tres vistes i a la llegenda.
+const C_ROIG = '#d00000';
+const cColP = (V, p) => p.rebutjat ? C_ROIG : cColor(V, p.tipus);
 const cColor = (V, tipus) => { const i = (V.ordre || []).indexOf(tipus); return i < 0 ? '#888888' : CPAL[i % CPAL.length]; };
 // → {punts: [{x, y, z, eix, tipus, nom, drag, n, tong, tenue}], cercles: [r], ordre: [tipus], exemple, nota}.
 // Per cada tongada, una combinació: amb recursos, a l'atzar (llavor CP.llavor); sense, la primera de cada ventall.
@@ -1141,8 +1143,33 @@ function cTubsVista(){
 const cRedibuixa = () => { const w = Q('#c-bloc-wrap'); if(w) w.innerHTML = cBlocSvg(); };
 // Les tres vistes alhora, una al costat de l'altra (VISTA-3): de dalt (x, y), lateral (x, z) i lateral (y, z). En pantalla estreta, una sota l'altra.
 // Un sol dibuix per a tot el formulari (UI-AFINA), sempre visible: amb l'exemple a l'atzar, la llegenda de colors per tipus i la posició de la font.
+// UI-DIB2: els tubs de l'exemple passen per `violacions` de neudet (la UI no calcula si caben): els rebutjats, en vermell i amb el motiu.
+function cExempleValida(sig, tubs){
+  if(CP.exPend === sig) return;
+  CP.exPend = sig; clearTimeout(CP.exT);
+  CP.exT = setTimeout(async () => {
+    try{ CP.exRes = {sig, res: await api('/api/campanya/exemple', {form: CP.f, tubs})}; }
+    catch(e){ CP.exRes = {sig, res: null, error: e.message}; }          // el formulari té errors: es diu, i no es repeteix la crida
+    if(CP.exPend === sig) CP.exPend = null;
+    cRedibuixa();
+  }, 400);
+}
+function cExempleHtml(V){
+  const r = CP.exRes && V.exSig === CP.exRes.sig ? CP.exRes : null;
+  if(!V.exSig || !r) return V.exSig ? '<div class="hint">neudet valida l\'exemple…</div>' : '';
+  if(!r.res) return '<div class="hint">neudet no pot validar l\'exemple mentre el formulari tingui errors (surten a dalt).</div>';
+  if(!r.res.violacions.length) return '<div class="hint">neudet: aquest exemple compleix les restriccions.</div>';
+  return `<div class="panel bad" data-exemple-rebutjat><b>neudet rebutja aquest exemple:</b><ul class="msgs">${r.res.violacions.map(v => `<li>${escD(v.motiu)}</li>`).join('')}</ul>
+    <span class="hint">Els tubs rebutjats són en vermell, numerats com al dibuix de dalt. «una altra» en prova un altre.</span></div>`;
+}
 function cBlocSvg(id = 'c-bloc'){
-  const d = CP.f.domini, V = cTubsVista(), D = cVistaDims(V), pos = d.font.pos_cm || [0, 0, 0], iso = d.font.tipus === 'iso';
+  const d = CP.f.domini, V = cTubsVista();
+  const tubs = V.punts.filter(p => !p.tenue);
+  V.exSig = tubs.length ? JSON.stringify([tubs.map(p => [p.x, p.y, p.z || 0, p.eix || 'z', p.tipus].map(v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v)), d.bloc, d.restriccions, d.font]) : '';     // el bloc, les restriccions i la font també compten
+  const res = V.exSig && CP.exRes && CP.exRes.sig === V.exSig ? CP.exRes.res : null;
+  tubs.forEach((p, k) => { p.num = k + 1; p.rebutjat = !!(res && res.rebutjats.includes(k + 1)); });
+  if(V.exSig && !(CP.exRes && CP.exRes.sig === V.exSig)) cExempleValida(V.exSig, tubs.map(p => ({x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', tipus: p.tipus})));
+  const D = cVistaDims(V), pos = d.font.pos_cm || [0, 0, 0], iso = d.font.tipus === 'iso';
   const aps = V.ordre.filter(t => V.punts.some(p => p.tipus === t));
   const nomsDe = t => [...new Set(V.punts.filter(p => p.tipus === t && p.nom).map(p => p.nom))];
   const leg = aps.map(t => `<span class="leg"><i style="background:${cColor(V, t)}"></i>${escD(t)}${nomsDe(t).length ? ` <span class="hint">(${nomsDe(t).map(escD).join(', ')})</span>` : ''} <span class="hint">${(m => m ? `Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm · gas ${m.llargada_activa_cm} cm` : 'sense mides')(cMidesTub(t))}</span></span>`).join('');
@@ -1151,7 +1178,7 @@ function cBlocSvg(id = 'c-bloc'){
       <span class="hint">Les tres vistes, a la mateixa escala (1 cm = ${cG(D.k)} px).</span>
       <span class="hint">${iso ? `font a (${[0, 1, 2].map(i => Number(pos[i]) || 0).join(', ')}) cm` : 'font de feix'}</span>
       ${iso && !CP.congelat ? `<button type="button" class="ghost${CP.movFont ? ' on' : ''}" data-act="movfont">${CP.movFont ? 'deixa de moure la font' : 'mou la font'}</button>` : ''}</div>
-    ${leg ? `<div class="legend">${leg}</div>` : ''}`;
+    ${leg ? `<div class="legend">${leg}</div>` : ''}${cExempleHtml(V)}`;
 }
 // ── Visor 3D isomètric (VISTA-3D): una escena {bloc, forat, font, tubs[]} en cm (centre del bloc a l'origen), sense llibreries ──
 // Cada tub és un cilindre a mida real (el volum que ocupa) amb el gas actiu a dins. Es gira arrossegant; el doble clic restableix.
@@ -1220,7 +1247,7 @@ function cEscena(V){
   const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], pos = d.font.pos_cm || [0, 0, 0];
   return {bloc: m.map(Number), forat: Number(d.bloc.forat_cm) || 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
     tubs: V.punts.map(p => { const q = cDimTub(p.tipus), mm = cMidesTub(p.tipus);
-      return {index: p.n, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColor(V, p.tipus), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
+      return {index: p.num, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColP(V, p), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
 }
 
 // Les tres vistes a la MATEIXA escala (px per cm), per poder-les comparar: les extensions (cm, centrades a 0) de cada una es calculen
@@ -1253,7 +1280,7 @@ function cBlocLateral(id, pla, V0, D0){
   const pos = d.font.pos_cm || [0, 0, 0], h = pla === 'xz' ? 'x' : 'y', W = pla === 'xz' ? D.wxz : D.wyz, H = D.h, sw = 1.2 / D.k;
   const dim = p => cDimTub(p.tipus);
   const tubs = V.punts.map(p => {
-    const q = dim(p), c = p[h], z = p.z || 0, col = cColor(V, p.tipus), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${sw}"`;
+    const q = dim(p), c = p[h], z = p.z || 0, col = cColP(V, p), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${p.rebutjat ? sw * 2 : sw}"`;
     if(p.eix === 'z'){
       const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.za - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
       return `<g><rect x="${c - q.R}" y="${-z - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" ${f}/>${act}</g>`;
@@ -1279,12 +1306,12 @@ function cBlocXY(id = 'c-bloc', V0, D0){
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
   const cercles = V.cercles.map(r => `<circle r="${r}" fill="none" stroke="#7a8da8" stroke-width="${sw * 0.7}" stroke-dasharray="${5 / D.k} ${5 / D.k}"/>`).join('');
   const tubs = V.punts.map(p => {
-    const base = cColor(V, p.tipus), c = p.tenue ? base + '66' : base, dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
+    const base = cColP(V, p), c = p.tenue ? base + '66' : base, dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
     const q = cDimTub(p.tipus);
     const forma = p.eix === 'x' ? `<rect x="${p.x + q.zlo}" y="${-p.y - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="${sw}"/>`
       : p.eix === 'y' ? `<rect x="${p.x - q.R}" y="${-p.y - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" fill="${c}" fill-opacity="0.55" stroke="${c}" stroke-width="${sw}"/>`
       : `<circle cx="${p.x}" cy="${-p.y}" r="${q.R}" fill="${c}" fill-opacity="${p.tenue ? 0.35 : 0.6}" stroke="${c}" stroke-width="${sw}"/>`;
-    const num = p.n ? `<text x="${p.x}" y="${-p.y + D.fs * 0.35}" font-size="${D.fs}" text-anchor="middle" fill="#fff" pointer-events="none">${p.n}</text>` : '';
+    const num = p.num ? `<text x="${p.x + q.R + D.fs * 0.25}" y="${-p.y - q.R}" font-size="${D.fs}" fill="${p.rebutjat ? C_ROIG : '#222'}" font-weight="bold" pointer-events="none">${p.num}</text>` : '';
     return `<g${dr}>${forma}${num}</g>`;
   }).join('');
   const cotes = cCota(-hx, hy + D.mc * 0.45, hx, hy + D.mc * 0.45, `${cG(m[0])} cm`, D, false) + cCota(hx + D.mc * 0.45, -hy, hx + D.mc * 0.45, hy, `${cG(m[1])} cm`, D, true);

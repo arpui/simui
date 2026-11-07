@@ -177,3 +177,7 @@ l'espectròmetre, els paràmetres amb el valor per defecte visible). Fora la lli
   sol canal: «amb un sol canal no es pot dir l'energia…») en vermell, un avís en groc. En desar, els mateixos avisos surten del `comprova.json`.
 - `to_yaml` en valida la forma amb `FINALITAT_METRIQUES` (la taula de neudet, comprovada a `schema()`); el que vol dir, ho diu neudet.
 
+
+### El dibuix d'exemple diu si neudet el rebutja (UI-DIB2)
+- **Les tres llargades,** amb el nom: al selector de tubs, «tub sencer (envolupant del catàleg: la que ha de cabre) Ø × L cm · gas actiu · paret» (`candidat.DIMS`, `DC.TUBE_TYPES`); el dibuix usa la primera (la mateixa que fa servir neudet per decidir si cap).
+- **Validació per neudet:** els tubs de l'exemple (`/api/campanya/exemple`, `campanya_check.exemple`) passen per `candidat.violacions` amb el bloc, les restriccions i la font de la campanya; la UI no calcula res. Els tubs rebutjats surten **en vermell** a les tres vistes i al 3D, numerats, i sota el dibuix hi ha el motiu de neudet («tub 2 més llarg que el bloc», «tubs 1 i 2 se solapen»…). Si el formulari té errors, ho diu en lloc de validar. Cas de prova: c0_2t0611 amb el bloc a 30 × 40 × 80 i `lnd_2523` amb eix y.

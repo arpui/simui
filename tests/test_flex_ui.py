@@ -567,3 +567,9 @@ def test_visor_3d_isometric_al_formulari_i_al_full_del_candidat():
         assert tros in INDEX, tros
     assert "v3dHtml(id + '-3d', cEscena(V))" in INDEX and "v3dHtml('d-3d-svg', v.escena)" in INDEX and 'id="d-3d"' in INDEX
     assert "dEscalaComuna" in INDEX                                                      # el full encongeix les tres vistes amb un sol factor
+
+
+def test_dib2_l_exemple_es_valida_amb_neudet_i_els_rebutjats_surten_en_vermell():
+    for tros in ("function cExempleValida", "function cExempleHtml", "/api/campanya/exemple", "const cColP", "neudet rebutja aquest exemple", "p.rebutjat"):
+        assert tros in INDEX, tros
+    assert "envolupant del catàleg: la que ha de cabre" in INDEX

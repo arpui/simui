@@ -303,6 +303,39 @@ def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
             raise ValueError(_motiu_de(exc)) from None
 
 
+def exemple(yaml_text: str, tubs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """UI-DIB2: els tubs d'un dibuix d'exemple (`[{x, y, z, eix, tipus}]`, a l'ordre del dibuix) passats per `candidat.violacions`
+    de neudet, amb el bloc, les restriccions i la font de la campanya: la UI no calcula res d'això. → `violacions` [{tubs, motiu}]
+    (els números de tub, a 1; el motiu és el de neudet), `rebutjats` (els números de tub que en tenen) i `n`.
+    Un error de neudet arriba tal com és (`ValueError`)."""
+    if not isinstance(yaml_text, str) or not yaml_text.strip():
+        raise ValueError("el campanya.yaml és buit")
+    try:
+        DES._neudet()
+    except DES.DesignError as exc:
+        raise ValueError(str(exc)) from None
+    with tempfile.TemporaryDirectory(prefix="simphy_campanya_") as tmp:
+        dir_ = Path(tmp) / "campanya"
+        dir_.mkdir()
+        (dir_ / "campanya.yaml").write_text(yaml_text)
+        try:
+            from neudet.disseny.campanya import Campanya
+            from neudet.disseny.candidat import Candidat, Tub, violacions
+            C = Campanya(dir_)
+            ts = tuple(Tub(float(t["x"]), float(t["y"]), str(t["tipus"]), float(t.get("z") or 0), eix=t.get("eix") or "z") for t in tubs)
+            mots = violacions(Candidat(C.bloc, ts), C.restr, C.tipus, C.font)
+        except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
+            raise ValueError(_motiu_de(exc)) from None
+    out, rebutjats = [], set()
+    for m in mots:
+        idx = sorted({int(n) + 1 for grup in re.findall(r"\btubs? (\d+)(?: i (\d+))?", m) for n in grup if n != ""})
+        txt = re.sub(r"\btubs? (\d+) i (\d+)", lambda g: f"tubs {int(g.group(1)) + 1} i {int(g.group(2)) + 1}", m)
+        txt = re.sub(r"\btub (\d+)", lambda g: f"tub {int(g.group(1)) + 1}", txt)
+        out.append({"tubs": idx, "motiu": txt})
+        rebutjats.update(idx)
+    return {"n": len(ts), "violacions": out, "rebutjats": sorted(rebutjats)}
+
+
 def objectius(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
     """OBJ (contracte §14): el bloc d'objectius tal com l'entén neudet, sense desar ni simular: `cicle` (nou | llegat),
     `finalitat`, `en_paraules` i `avisos` [{nivell, codi, etapa, text}] (`neudet.disseny.objectius.avisos`). A l'espectròmetre,
