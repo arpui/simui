@@ -364,6 +364,11 @@ def campanya_compta(body: Dict[str, Any]) -> Dict[str, Any]:
     return CC.compta(text, body.get("etapa") or None)
 
 
+def campanya_formules(id_: str, etapa: str, hash_: str = "") -> Dict[str, Any]:
+    """FORM-UI: les fórmules d'una etapa i els valors d'un candidat d'aquella tanda, de neudet (només lectura)."""
+    return CV.formules_etapa(CV.dir_de(id_), etapa, hash_ or None)
+
+
 def campanya_reselecciona(body: Dict[str, Any]) -> Dict[str, Any]:
     """REAVALUA-UI: els candidats d'una etapa (`id`, `etapa`) tornats a presentar amb altres `criteris` (opcionals: el que falta és el de
     la campanya). Només lectura: no simula ni escriu res; la selecció és de neudet (`campanya_reselecciona`)."""

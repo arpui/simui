@@ -187,3 +187,11 @@ l'espectròmetre, els paràmetres amb el valor per defecte visible). Fora la lli
 - **La selecció és de neudet** (`rang_pareto`, `frontera_robusta`, `epsilon_restriccio`, `Objectiu.compleix`); simphy només les crida (`campanya_reselecciona.py`, `POST /api/campanya/reselecciona`). Amb els criteris de la campanya surt exactament el que va escriure neudet al `resum.md` (test bessó a totes les etapes comparables).
 - **Sempre visible:** els criteris aplicats i si són els de la campanya, i els avisos: només compten els candidats que la cerca va avaluar fins al final (els de cribratge descartats no hi són), i si falten les columnes `_sig` la frontera és la de Pareto sense soroll.
 - **Pendent:** el gràfic ε̄–cv amb els c movibles (pas 3) i la marca de verificat/nou a Geant4 (quan neudet tingui SEL-PKG).
+
+## Cada número amb la seva fórmula (FORM-UI, contracte §15)
+- **Les fórmules són de neudet, la UI no n'escriu cap.** Les de les mètriques surten d'`objectius.taula_objectius()` (`formules_metriques` a la vista de la campanya); les dels resultats, de `neudet.disseny.formules.formules_etapa` (les mateixes que neudet escriu al camp `formules` del manifest; es criden aquí perquè valen també per a les etapes que encara no el porten, `GET /api/campanya/formules`).
+- **Formulari:** cada mètrica (objectius, informatives, la preferència de l'ε-restricció i les restriccions dures) mostra la seva fórmula al costat.
+- **Resultats, taula de l'etapa:** cada capçalera de mètrica porta la fórmula (en passar-hi per sobre) i hi ha el plegable «Fórmules de les columnes».
+- **Resultats, «Com s'han calculat les xifres»:** per etapa, les fórmules generals (ε = C/N, σ = √(ε(1−ε)/N), per tub…) i, d'un candidat triat, una taula per energia amb els valors d'aquella tanda: «ε = C/N = 1253947 / 2000000 = 0,627». Amb la font a fora o amb convergència, hi surten també f, G, σ/ε i N necessària quan neudet els dona.
+- **Panell Criteris:** les capçaleres de la taula de guanyadors i de la frontera, i el plegable «Fórmules d'aquestes mètriques».
+- **Pendent:** el resum de la petició i `resposta.md` ja porten les fórmules que hi escriu neudet; als dibuixos de la fitxa del candidat no n'hi ha.

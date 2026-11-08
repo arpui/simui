@@ -88,6 +88,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/campanya/candidat":
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.campanya_candidat, q.get("id", ""), q.get("hash", ""), q.get("etapa") or None)
+        elif path == "/api/campanya/formules":
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            self._tracta(api.campanya_formules, q.get("id", ""), q.get("etapa", ""), q.get("hash", ""))
         elif path == "/api/campanya/fitxer":
             self._fitxer_campanya(parse_qs(url.query))
         else:

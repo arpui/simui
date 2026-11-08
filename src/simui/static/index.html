@@ -1384,7 +1384,7 @@ function cObjHtml(f){
   const rs = Array.isArray(ob.restriccions) ? ob.restriccions : [];
   const rsRows = rs.map((r, i) => `<div class="row3"><label>mètrica<select data-p="objectius.restriccions.${i}.0" data-t="str">${opt(r[0])}</select></label>
       <label>operador${cSel(`objectius.restriccions.${i}.1`, T.operadors.map(o => ({valor: o})), r[1], 'str')}</label>
-      <label>valor${cNumIn(`objectius.restriccions.${i}.2`, r[2])}</label></div><button type="button" class="ghost" data-act="rs-" data-i="${i}">treu la restricció</button>`).join('');
+      <label>valor${cNumIn(`objectius.restriccions.${i}.2`, r[2])}</label></div>${(T.metriques[r[0]] || {}).formula ? `<div class="hint"><b>${escD(r[0])}</b>: <code>${escD(T.metriques[r[0]].formula)}</code></div>` : ''}<button type="button" class="ghost" data-act="rs-" data-i="${i}">treu la restricció</button>`).join('');
   const pw = ob.pesos ?? T.pesos_defecte, pk = pw && typeof pw === 'object' ? 'espectre' : pw;
   const pesos = Object.entries(T.pesos).map(([k, v]) => `<label class="chk mrow"><input type="radio" name="c-pes" data-pes="${escD(k)}" ${k === pk ? 'checked' : ''}>
       <span><b>${escD(k === 'letargia' ? 'per dècada (letargia)' : k === 'espectre' ? "espectre de l'aplicació" : k)}</b>${k === T.pesos_defecte ? ' <span class="hint">(per defecte)</span>' : ''}<br><span class="hint">${escD(v)}.</span></span></label>`).join('');
@@ -1406,6 +1406,7 @@ function cObjHtml(f){
     ${infChecks}</details>
   <h3 class="pas">4 · Com es tria <span class="hint">(ε-restricció i restriccions dures)</span></h3>
   <div class="hint">Per a cada c, guanya el candidat de més <b>${escD(pref.maxim ?? '—')}</b> amb <b>${escD(pref.sobre ?? '—')}</b> ≤ c. Tu tries quant en vols i en veus el preu.</div>
+  ${[pref.maxim, pref.sobre].filter(Boolean).map(n => (T.metriques[n] || {}).formula ? `<div class="hint"><b>${escD(n)}</b>: <code>${escD(T.metriques[n].formula)}</code></div>` : '').join('')}
   <label>valors de c (separats per comes; buit = sense tria)<input data-objc="1" value="${escD(cs.join(', '))}" placeholder="p. ex. ${escD(((T.c_defecte || {})[pref.sobre] || [0.1, 0.2]).join(', '))}"></label>
   <div class="hint">Restriccions dures (opcionals): el candidat que no les compleix no entra a la frontera ni a la tria.</div>
   ${rsRows}
@@ -2177,12 +2178,51 @@ function kEtapa(e){
     ${kPla(e)}
     ${kResposta(e)}
     <div class="tblw">${kTaula(e)}</div>
+    ${kFormMetr(e)}${kFormEtapaHtml(e)}
     ${kReavHtml(e)}
     ${eix ? kPareto(e, eix) : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`}
     ${e.figures.length ? kGaleria(e.figures) : ''}
   </article>`;
 }
 // El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
+// ── FORM-UI (contracte §15): cada número amb la seva fórmula. Les fórmules són de neudet (`taula_objectius`, `formules_etapa`); la UI no n'escriu cap. ──
+function kFormMetr(e){
+  const fm = KC.v.formules_metriques || {}, mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m) && fm[m]);
+  if(!mets.length) return '';
+  return `<details class="fold"><summary>Fórmules de les columnes <span class="hint">(de neudet)</span></summary><ul class="msgs">${mets.map(m => `<li><b>${escD(m)}</b>: <code>${escD(fm[m])}</code></li>`).join('')}</ul>
+    <div class="hint">«± x» és la σ de la mètrica, propagada per neudet des de la σ de cada energia (σ = √(ε(1−ε)/N)).</div></details>`;
+}
+KC.fe = {};
+const kFeSt = nom => KC.fe[KC.id + '/' + nom] || (KC.fe[KC.id + '/' + nom] = {obert: false, d: null, err: '', hash: ''});
+function kFormEtapaHtml(e){
+  const st = kFeSt(e.nom), n = escD(e.nom);
+  return `<details class="fold" data-fe-det="${n}" ${st.obert ? 'open' : ''}><summary>Com s'han calculat les xifres <span class="hint">(les fórmules, amb els valors d'aquesta tanda)</span></summary>
+    <div data-fep="${n}">${st.obert ? kFeCos(e, st) : ''}</div></details>`;
+}
+function kFeCos(e, st){
+  if(st.err) return `<div class="panel bad"><b>neudet diu:</b> ${escD(st.err)}</div>`;
+  const d = st.d; if(!d) return '<div class="hint">neudet calcula les fórmules…</div>';
+  if(!d.disponible) return `<div class="hint">${escD(d.motiu)}.</div>`;
+  const g = d.generals || {}, c = d.candidat, n = escD(e.nom);
+  const cols = c ? [...new Set(c.per_energia.flatMap(x => Object.keys(x)).filter(k => !['E_MeV', 'C', 'N'].includes(k)))] : [];
+  const extra = [d.font_fora ? `font a fora: f = ${escD(d.font_fora.f)}` : '', d.convergencia ? `convergència: precisió ${escD(d.convergencia.precisio)}` : ''].filter(Boolean);
+  return `<ul class="msgs">${Object.entries(g).map(([k, v]) => `<li><code>${escD(v)}</code></li>`).join('')}</ul>${extra.length ? `<div class="hint">${extra.join(' · ')}</div>` : ''}
+    ${c ? `<label>candidat<select data-fe-cand="${n}">${d.candidats.map(x => `<option value="${escD(x.hash)}" ${x.hash === c.hash ? 'selected' : ''}>${escD(x.nom)}</option>`).join('')}</select></label>
+    <div class="tblw"><table class="tbl"><thead><tr><th>E (MeV)</th><th>C</th><th>N</th>${cols.map(k => `<th title="${escD(g[k] || '')}">${escD(k)}</th>`).join('')}</tr></thead><tbody>
+      ${c.per_energia.map(x => `<tr><td>${escD(x.E_MeV)}</td><td>${escD(x.C)}</td><td>${escD(x.N)}</td>${cols.map(k => `<td>${escD(x[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}`;
+}
+async function kFeCarrega(nom, hash){
+  const st = kFeSt(nom), e = kReavEtapa(nom);
+  try{ st.d = await api(`/api/campanya/formules?id=${kEnc(KC.id)}&etapa=${encodeURIComponent(nom)}&hash=${encodeURIComponent(hash || '')}`); st.err = ''; }
+  catch(er){ st.err = er.message; }
+  const el = document.querySelector(`[data-fep="${CSS.escape(nom)}"]`); if(el) el.innerHTML = kFeCos(e, st);
+}
+document.getElementById('k-out').addEventListener('toggle', ev => {
+  const d = ev.target; if(!d.dataset || d.dataset.feDet === undefined) return;
+  const nom = d.dataset.feDet, st = kFeSt(nom); st.obert = d.open;
+  if(d.open && !st.d) kFeCarrega(nom, '');
+}, true);
+document.getElementById('k-out').addEventListener('change', ev => { const s = ev.target; if(s.dataset && s.dataset.feCand !== undefined) kFeCarrega(s.dataset.feCand, s.value); });
 // ── REAVALUA-UI: torna a presentar els candidats d'una etapa amb altres criteris. Només lectura: els números ja són al candidats.csv i la
 // selecció (Pareto, frontera robusta, ε-restricció, restriccions dures) la fa neudet (`/api/campanya/reselecciona`); aquí només es mostra. ──
 KC.reav = {};
@@ -2220,6 +2260,7 @@ function kReavRes(e, st){
   if(st.err) return `<div class="panel bad"><b>neudet diu:</b> ${escD(st.err)}</div>`;
   const r = st.res, o = st.orig, mod = JSON.stringify(r.criteris) !== JSON.stringify(o.criteris);
   const mets = [...new Set([...r.criteris.objectius.map(x => x[0]), r.criteris.maxim, r.criteris.sobre].filter(Boolean))];
+  const fm = r.formules || {};
   const prev = {}; (o.guanyadors || []).forEach(g => { prev[g.c] = g.cap ? null : g.nom; });
   const gan = r.guanyadors.map(g => {
     const canvi = g.c in prev && prev[g.c] !== (g.cap ? null : g.nom);
@@ -2230,8 +2271,9 @@ function kReavRes(e, st){
   return `<div class="panel ${mod ? 'warn' : ''}"><b>Criteris aplicats${mod ? ' (modificats respecte als de la campanya)' : ' (els de la campanya)'}:</b> ${escD(kReavDescr(r.criteris))}.</div>
     <div class="cres"><b>${r.n_valids}</b> candidats vàlids de ${r.n_finals} finals${r.n_fora_restriccions ? ` · ${r.n_fora_restriccions} fora per les restriccions` : ''} · frontera de <b>${r.frontera.length}</b>${r.te_sig ? ` (${r.frontera.filter(f => f.robusta).length} robustos)` : ''}</div>
     ${r.avisos.map(a => `<div class="panel warn">${escD(a)}</div>`).join('')}
-    ${r.guanyadors.length ? `<h4>Guanyadors</h4><div class="tblw"><table class="tbl"><thead><tr><th>c</th><th>candidat</th><th>${escD(r.criteris.maxim)}</th><th>${escD(r.criteris.sobre)}</th></tr></thead><tbody>${gan}</tbody></table></div>` : '<div class="hint">Sense valors de c no hi ha guanyadors: posa\'n alguns a dalt.</div>'}
-    <h4>Frontera</h4><div class="tblw"><table class="tbl"><thead><tr><th>candidat</th>${mets.map(m => `<th>${escD(m)}</th>`).join('')}<th>robusta</th></tr></thead><tbody>${fr}</tbody></table></div>`;
+    ${Object.keys(fm).length ? `<details class="fold"><summary>Fórmules d'aquestes mètriques <span class="hint">(de neudet)</span></summary><ul class="msgs">${Object.entries(fm).map(([k, v]) => `<li><b>${escD(k)}</b>: <code>${escD(v)}</code></li>`).join('')}</ul></details>` : ''}
+    ${r.guanyadors.length ? `<h4>Guanyadors</h4><div class="tblw"><table class="tbl"><thead><tr><th>c</th><th>candidat</th><th title="${escD(fm[r.criteris.maxim] || '')}">${escD(r.criteris.maxim)}</th><th title="${escD(fm[r.criteris.sobre] || '')}">${escD(r.criteris.sobre)}</th></tr></thead><tbody>${gan}</tbody></table></div>` : '<div class="hint">Sense valors de c no hi ha guanyadors: posa\'n alguns a dalt.</div>'}
+    <h4>Frontera</h4><div class="tblw"><table class="tbl"><thead><tr><th>candidat</th>${mets.map(m => `<th title="${escD(fm[m] || '')}">${escD(m)}</th>`).join('')}<th>robusta</th></tr></thead><tbody>${fr}</tbody></table></div>`;
 }
 function kReavCrit(e, st){
   const cs = st.ctxt.split(/[\s,;]+/).filter(Boolean).map(Number).filter(Number.isFinite);
@@ -2292,12 +2334,12 @@ function kTaula(e){
   const cols = [{k: 'nom', t: 'nom'}, {k: 'hash', t: 'hash'}, {k: 'ronda', t: 'ronda'}, {k: 'n', t: 'n'}, {k: 'pareto_rang', t: 'rang Pareto'},
     {k: 'robusta', t: 'robusta'},
     ...KC.v.metriques.filter(m => e.columnes.includes(m))
-      .map(m => ({k: m, t: m, sig: e.columnes.includes(m + '_sig') ? m + '_sig' : null})),
+      .map(m => ({k: m, t: m, sig: e.columnes.includes(m + '_sig') ? m + '_sig' : null, formula: (KC.v.formules_metriques || {})[m]})),
     {k: 'g4', t: 'verificat a G4'}];
   const ord = KC.ordre[e.nom] || {k: 'pareto_rang', asc: true};
   const val = (c, k) => k === 'g4' ? (c.g4 || []).length : c[k];
   const rows = [...e.candidats].sort((a, b) => kCmp(val(a, ord.k), val(b, ord.k), ord.asc));
-  const head = cols.map(c => `<th data-st="${escD(e.nom)}" data-c="${escD(c.k)}" style="cursor:pointer" title="ordena">${escD(c.t)}${ord.k === c.k ? (ord.asc ? ' ▲' : ' ▼') : ''}</th>`).join('');
+  const head = cols.map(c => `<th data-st="${escD(e.nom)}" data-c="${escD(c.k)}" style="cursor:pointer" title="${escD('ordena' + (c.formula ? ' · ' + c.formula : ''))}">${escD(c.t)}${ord.k === c.k ? (ord.asc ? ' ▲' : ' ▼') : ''}</th>`).join('');
   const body = rows.map(c => `<tr class="kc" data-h="${escD(c.hash)}" data-n="${escD(c.nom)}" title="obre el resultat per tub">` +
     cols.map(col => `<td>${kCel(c, col)}</td>`).join('') + '</tr>').join('');
   return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;

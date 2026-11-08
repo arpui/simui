@@ -130,7 +130,9 @@ def reselecciona(id_: str, etapa: str, criteris: Optional[Dict[str, Any]] = None
         avisos.append(f"{n_restr} de {len(obj_ok)} finals no compleixen les restriccions dures: fora de la frontera i de la tria.")
     if len(finals) - len(obj_ok):
         avisos.append(f"{len(finals) - len(obj_ok)} finals tenen alguna de les objectius sense valor (nan) i no entren a la frontera.")
+    fm = CV.formules_metriques()
     return {"id": id_, "etapa": etapa,
+            "formules": {n: fm[n] for n in dict.fromkeys(usades) if n in fm},       # FORM-UI: de neudet, de les mètriques que es veuen
             "criteris": {"objectius": [list(p) for p in pareto], "k_sigma": k_sigma, "maxim": rest.get("maxim"), "sobre": rest.get("sobre"),
                          "c": cs, "restriccions": [list(r) for r in ob.restriccions]},
             "n_finals": len(finals), "n_valids": len(ok), "n_fora_restriccions": n_restr, "n_cribratge": n_crib,

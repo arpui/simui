@@ -519,6 +519,55 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "candidats": cands}, header)
 
 
+def formules_metriques() -> Dict[str, str]:
+    """FORM-UI (contracte §15): la fórmula de cada mètrica, tal com la dona neudet (`objectius.taula_objectius`). La UI no en escriu cap.
+    Sense neudet, buit (les pàgines continuen funcionant sense les fórmules)."""
+    try:
+        from . import design as DES
+        DES._neudet()
+        from neudet.disseny import objectius as OBJ
+        return {n: m["formula"] for n, m in OBJ.taula_objectius()["metriques"].items() if m.get("formula")}
+    except Exception:                                   # noqa: BLE001 — sense neudet no hi ha fórmules, i prou
+        return {}
+
+
+_FORMULES_CACHE: Dict[Any, Dict[str, Any]] = {}
+
+
+def formules_etapa(dir_: PathLike, etapa: str, hash_: Optional[str] = None) -> Dict[str, Any]:
+    """FORM-UI (contracte §15b): `formules_etapa` de neudet (`neudet.disseny.formules`): les fórmules generals i, d'un candidat (`hash_`, o el
+    primer), els valors d'aquella tanda per energia en text («ε = C/N = 116 / 50000 = 0,00232»). És el mateix que neudet escriu al camp `formules`
+    del manifest; es crida aquí perquè val també per a les etapes que encara no el porten. Només lectura; un error és un `ValueError`."""
+    d = Path(dir_)
+    if not etapa or "/" in etapa or "\\" in etapa or etapa.startswith("."):
+        raise ValueError(f"etapa {etapa!r}: cal el nom d'una carpeta de `etapes/`")
+    ed = d / "etapes" / etapa
+    if not ed.is_dir():
+        raise ValueError(f"{d.name} no té l'etapa {etapa!r}")
+    from . import design as DES
+    try:
+        DES._neudet()
+        from neudet.disseny.formules import formules_etapa as FE
+    except Exception as exc:                            # noqa: BLE001
+        raise ValueError(f"neudet no pot donar les fórmules: {exc}") from None
+    rt = ed / "resultats_tub.json"
+    clau = (str(ed), rt.stat().st_mtime if rt.is_file() else 0)
+    if clau not in _FORMULES_CACHE:
+        try:
+            _FORMULES_CACHE.clear()
+            _FORMULES_CACHE[clau] = FE(ed, tubs=False)
+        except (SystemExit, Exception) as exc:          # noqa: BLE001 — el missatge de neudet, verbatim
+            raise ValueError(str(exc)) from None
+    f = _FORMULES_CACHE[clau]
+    if not f:
+        return {"disponible": False, "motiu": "l'etapa no té resultats_tub.json o no ha corregut", "etapa": etapa}
+    cands = [{"hash": h, "nom": c.get("nom"), "ronda": c.get("ronda")} for h, c in f["candidats"].items()]
+    h = hash_ if hash_ in f["candidats"] else (cands[0]["hash"] if cands else None)
+    return {"disponible": True, "etapa": etapa, "motor": f.get("motor"), "generals": f.get("generals") or {},
+            "convergencia": f.get("convergencia"), "font_fora": f.get("font_fora"), "candidats": cands,
+            "candidat": dict(hash=h, **{k: v for k, v in f["candidats"][h].items()}) if h else None}
+
+
 def vista(dir_: PathLike) -> Dict[str, Any]:
     """La campanya com a dades: etapes i candidats (csv ⋈ json pel hash), Pareto, certificació, judici, report."""
     d = Path(dir_)
@@ -545,6 +594,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "certificacio": _certificacio(d, m["certificacio"]),
         "pareto": {"eixos": eixos, "motiu": motiu_p},
         "metriques": metriques,
+        "formules_metriques": formules_metriques(),                  # FORM-UI: la fórmula de cada mètrica, de neudet
         "etapes": etapes,
         "judici": m["judici"],
         "interpretacio": m.get("interpretacio") if isinstance(m.get("interpretacio"), str) else None,   # CONF-PLA: PLA.md des d'«interpretada»
