@@ -485,3 +485,10 @@ def test_desa_modifica_una_campanya_confirmada_i_treu_la_confirmacio(neudet_tmp,
     import yaml as _y
     y = _y.safe_load((neudet_tmp / "disseny" / "campanyes" / "c07b_prova" / "campanya.yaml").read_text())
     assert y["estat"] == "proposta" and "confirmacio" not in y
+
+
+def test_desa_modifica_una_campanya_aturada(neudet_tmp, cert_ok):
+    """Una tanda aturada per una porta no ha donat cap resultat vàlid: es pot modificar (torna a proposta)."""
+    _real_c04()
+    _camp(neudet_tmp, "c07c_prova", "id: c07c_prova\nestat: aturada\n")
+    assert CD.desa_proposta(_form_c04("c07c_prova"))["estat"] == "proposta"

@@ -2111,6 +2111,7 @@ function kResumInterp(v){
 }
 // «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
 function kConfirmaHtml(v){
+  if(v.estat_yaml === 'aturada') return `<div class="panel bad"><b>Aturada:</b> la tanda s'ha parat abans d'acabar (el motiu, a la resposta de l'etapa). <div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">torna a «proposta»; o demana al planificador que la torni a córrer tal com és (l'intent aturat es conserva).</span></div></div>`;
   if(v.estat_yaml === 'confirmada') return `<div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">Encara no ha corregut res: modificar-la treu la confirmació i torna a «proposta».</span></div>`;
   if(v.estat_yaml !== 'interpretada') return '';
   const mod = `<div class="bar"><button class="ghost" id="k-mod">Modifica la proposta</button><span class="hint">Obre el formulari per canviar-la; en desar torna a «proposta» i el planificador la reinterpreta.</span></div>`;

@@ -98,7 +98,7 @@ def _pot_sobreescriure(d: Path, id_: str) -> None:
     estat = y.get("estat") if isinstance(y, dict) else None
     # Sempre es pot tornar enrere mentre no ha corregut res (Albert, 2026-11-06): proposta, interpretada o confirmada → en
     # desar torna a `proposta` (la confirmació desapareix) i el planificador la reinterpreta. en_curs o després: tanteig amb un id nou.
-    if estat not in (ESTAT, "interpretada", "confirmada"):
+    if estat not in (ESTAT, "interpretada", "confirmada", "aturada"):
         raise DesaError(f"la campanya `{id_}` ja existeix (estat: {estat!r}): ja ha corregut o s'està corrent, "
                         "no es modifica mai una campanya existent: fes un tanteig amb un id nou")
 
