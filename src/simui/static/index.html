@@ -128,6 +128,13 @@ svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
 /* enganxat a dalt només si la finestra és prou gran: en una de petita, les vistes apilades taparien el formulari */
 @media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky;top:0;z-index:5}}
 .sticky-bloc .tres svg.bloc,.sticky-bloc .tres svg.blocl{margin:2px 0}
+.kgraf{background:#fff;border:1px solid var(--line);margin:6px 0;display:block}
+.kgraf text{font-size:10.5px;fill:var(--muted)}.kgraf .gal{fill:var(--ink);font-size:11.5px}.kgraf .gg{stroke:var(--line);stroke-width:1}
+.kgraf .gp{stroke-width:1.2}.kgraf .gn{fill:#b9b4aa;stroke:#8d887e}.kgraf .gf{fill:#fff;stroke:var(--accent);stroke-width:1.8}
+.kgraf .gf.gr{fill:var(--accent)}.kgraf .gw{fill:#e0a526;stroke:var(--ink);stroke-width:1.6}
+.kgraf .gm line{stroke:var(--bad);stroke-width:1.4;stroke-dasharray:5 3}.kgraf .gm line.gh{stroke:transparent;stroke-width:14;stroke-dasharray:none}
+.kgraf .gmc circle,.kgraf .gmr rect{fill:var(--bad);stroke:#fff}.kgraf .gm text{fill:var(--bad);font-weight:700}
+.lg{display:inline-flex;align-items:center;gap:3px;margin-right:10px}.lg .gn{fill:#b9b4aa;stroke:#8d887e}.lg .gf{fill:#fff;stroke:var(--accent);stroke-width:1.8}.lg .gf.gr{fill:var(--accent)}.lg .gw{fill:#e0a526;stroke:var(--ink)}
 .v3d-svg{width:300px;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:grab;touch-action:none;user-select:none}
 .v3d-svg:active{cursor:grabbing}
 .blocbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0}
@@ -2335,7 +2342,7 @@ const kRvOps = ['<=', '>=', '<', '>', '=='];
 function kReavHtml(e){
   const st = kRvSt(e.nom), n = escD(e.nom);
   return `<details class="fold" data-rv-det="${n}" ${st.obert ? 'open' : ''}><summary><b>Criteris</b>: torna a presentar els candidats <span class="hint">(només lectura: no simula ni escriu res)</span></summary>
-    <div data-rvp="f" data-rvn="${n}">${st.crit ? kReavForm(e, st) : ''}</div><div data-rvp="r" data-rvn="${n}">${st.res || st.err ? kReavRes(e, st) : (st.obert ? '<div class="hint">neudet reordena els candidats…</div>' : '')}</div></details>`;
+    <div data-rvp="f" data-rvn="${n}">${st.crit ? kReavForm(e, st) : ''}</div><div data-rvp="g" data-rvn="${n}">${st.res && !st.err ? kReavGrafHtml(st) : ''}</div><div data-rvp="r" data-rvn="${n}">${st.res || st.err ? kReavRes(e, st) : (st.obert ? '<div class="hint">neudet reordena els candidats…</div>' : '')}</div></details>`;
 }
 function kReavForm(e, st){
   const c = st.crit, n = escD(e.nom), mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m));
@@ -2378,6 +2385,114 @@ function kReavRes(e, st){
     ${r.guanyadors.length ? `<h4>Guanyadors</h4><div class="tblw"><table class="tbl"><thead><tr><th>c</th><th>candidat</th><th title="${escD(fm[r.criteris.maxim] || '')}">${escD(r.criteris.maxim)}</th><th title="${escD(fm[r.criteris.sobre] || '')}">${escD(r.criteris.sobre)}</th></tr></thead><tbody>${gan}</tbody></table></div>` : '<div class="hint">Sense valors de c no hi ha guanyadors: posa\'n alguns a dalt.</div>'}
     <h4>Frontera</h4><div class="tblw"><table class="tbl"><thead><tr><th>candidat</th>${mets.map(m => `<th title="${escD(fm[m] || '')}">${escD(m)}</th>`).join('')}<th>robusta</th></tr></thead><tbody>${fr}</tbody></table></div>`;
 }
+// ── gràfic de l'etapa: x = la mètrica de «sobre» (cv), y = la de «maxim» (ε̄). Tot ve de `reselecciona`: punts (candidats ja avaluats), rang/robusta
+// (frontera de neudet), guanyadors i g4 (verificat / nou / null = no es sap). Aquí no es calcula res: només s'escala i es dibuixa. ──
+const kGW = 560, kGH = 330, kGM = {l: 56, r: 16, t: 14, b: 40};
+function kGEsc(r, crit, px){
+  const xs = [], ys = [], X = crit.sobre, Y = crit.maxim;
+  (px || r.punts).forEach(p => { if(p[X] != null) xs.push(p[X]); if(p[Y] != null) ys.push(p[Y]); });
+  (crit.c || []).forEach(c => xs.push(c));
+  (crit.restriccions || []).forEach(q => { const v = Number(q[2]); if(q[0] === X && Number.isFinite(v)) xs.push(v); if(q[0] === Y && Number.isFinite(v)) ys.push(v); });
+  const rg = a => { if(!a.length) return [0, 1]; let lo = Math.min(...a), hi = Math.max(...a); if(lo === hi){ lo -= .5; hi += .5; } const m = (hi - lo) * .06; return [lo - m, hi + m]; };
+  const [x0, x1] = rg(xs), [y0, y1] = rg(ys);
+  return {x0, x1, y0, y1};
+}
+const kGX = (E, v) => kGM.l + (v - E.x0) / (E.x1 - E.x0) * (kGW - kGM.l - kGM.r);
+const kGY = (E, v) => kGH - kGM.b - (v - E.y0) / (E.y1 - E.y0) * (kGH - kGM.t - kGM.b);
+const kGVx = (E, px) => E.x0 + (px - kGM.l) / (kGW - kGM.l - kGM.r) * (E.x1 - E.x0);
+const kGVy = (E, py) => E.y0 + (kGH - kGM.b - py) / (kGH - kGM.t - kGM.b) * (E.y1 - E.y0);
+function kReavGrafPunts(r, E){
+  const X = r.criteris.sobre, Y = r.criteris.maxim, gan = new Set(r.guanyadors.filter(g => !g.cap).map(g => g.hash));
+  const forma = (p, cx, cy, rad, cl) => p.g4 === true ? `<circle class="${cl}" cx="${cx}" cy="${cy}" r="${rad}"/>`
+    : p.g4 === false ? `<polygon class="${cl}" points="${cx},${cy - rad - 1} ${cx + rad + 1},${cy + rad} ${cx - rad - 1},${cy + rad}"/>`
+    : `<rect class="${cl}" x="${cx - rad}" y="${cy - rad}" width="${2 * rad}" height="${2 * rad}"/>`;
+  const txt = p => `${p.nom}: ${Y} ${kRvNum(p[Y])}, ${X} ${kRvNum(p[X])} · ${p.g4 === true ? 'verificat a Geant4' : p.g4 === false ? 'nou (no verificat a Geant4)' : 'no es sap si és verificat (no hi ha etapa _g4)'}` +
+    (p.rang === 0 ? (p.robusta ? ' · a la frontera robusta' : ' · a la frontera (no robusta)') : '');
+  const ordre = p => gan.has(p.hash) ? 3 : p.rang === 0 ? 2 : 1;
+  return r.punts.filter(p => p[X] != null && p[Y] != null).sort((a, b) => ordre(a) - ordre(b)).map(p => {
+    const cx = +kGX(E, p[X]).toFixed(1), cy = +kGY(E, p[Y]).toFixed(1), g = gan.has(p.hash);
+    const cl = 'gp ' + (g ? 'gw' : p.rang === 0 ? (p.robusta ? 'gf gr' : 'gf') : 'gn');
+    return `<g class="kc" data-h="${escD(p.hash)}" data-n="${escD(p.nom)}" style="cursor:pointer">${forma(p, cx, cy, g ? 6 : p.rang === 0 ? 4.5 : 3, cl)}<title>${escD(txt(p))}</title></g>`;
+  }).join('');
+}
+function kReavGraf(r, crit, E){
+  const X = r.criteris.sobre, Y = r.criteris.maxim, fm = r.formules || {};
+  const tk = (lo, hi, n) => Array.from({length: n + 1}, (_, i) => lo + (hi - lo) * i / n);
+  const xt = tk(E.x0, E.x1, 5).map(v => `<line x1="${kGX(E, v).toFixed(1)}" x2="${kGX(E, v).toFixed(1)}" y1="${kGM.t}" y2="${kGH - kGM.b}" class="gg"/><text x="${kGX(E, v).toFixed(1)}" y="${kGH - kGM.b + 14}" text-anchor="middle">${kRvNum(v)}</text>`).join('');
+  const yt = tk(E.y0, E.y1, 5).map(v => `<line x1="${kGM.l}" x2="${kGW - kGM.r}" y1="${kGY(E, v).toFixed(1)}" y2="${kGY(E, v).toFixed(1)}" class="gg"/><text x="${kGM.l - 6}" y="${(kGY(E, v) + 4).toFixed(1)}" text-anchor="end">${kRvNum(v)}</text>`).join('');
+  return `<svg class="kgraf" data-rvg="svg" viewBox="0 0 ${kGW} ${kGH}" width="100%" style="max-width:${kGW}px;touch-action:none">
+    <g class="gax">${xt}${yt}</g>
+    <text class="gal" x="${(kGM.l + kGW - kGM.r) / 2}" y="${kGH - 6}" text-anchor="middle">${escD(X)} (c: ≤)<title>${escD(fm[X] || '')}</title></text>
+    <text class="gal" transform="translate(13 ${(kGM.t + kGH - kGM.b) / 2}) rotate(-90)" text-anchor="middle">${escD(Y)}<title>${escD(fm[Y] || '')}</title></text>
+    <g data-rvg="punts">${kReavGrafPunts(r, E)}</g>
+    <g data-rvg="mans">${kReavGrafMans(r, crit, E)}</g></svg>`;
+}
+// Les línies que es poden arrossegar: cada c (vertical, sobre l'eix de «sobre») i les restriccions sobre una de les dues mètriques dels eixos.
+function kReavGrafMans(r, crit, E){
+  const X = r.criteris.sobre, Y = r.criteris.maxim, y0 = kGM.t, y1 = kGH - kGM.b, x0 = kGM.l, x1 = kGW - kGM.r, o = [];
+  (crit.c || []).forEach((c, i) => { const x = kGX(E, c).toFixed(1);
+    o.push(`<g class="gm gmc" data-rvd="c" data-i="${i}" style="cursor:ew-resize"><line x1="${x}" x2="${x}" y1="${y0}" y2="${y1}"/><line class="gh" x1="${x}" x2="${x}" y1="${y0}" y2="${y1}"/><circle cx="${x}" cy="${y0 + 8}" r="6"/><text x="${x}" y="${y0 - 3}" text-anchor="middle">c=${kRvNum(c)}</text><title>c ${kRvNum(c)}: arrossega per canviar-lo (${escD(X)} ≤ c)</title></g>`); });
+  (crit.restriccions || []).forEach((q, i) => { const v = Number(q[2]); if(!Number.isFinite(v)) return;
+    if(q[0] === X){ const x = kGX(E, v).toFixed(1);
+      o.push(`<g class="gm gmr" data-rvd="rs" data-i="${i}" data-ax="x" style="cursor:ew-resize"><line x1="${x}" x2="${x}" y1="${y0}" y2="${y1}"/><line class="gh" x1="${x}" x2="${x}" y1="${y0}" y2="${y1}"/><rect x="${x - 5}" y="${y1 - 14}" width="10" height="10"/><text x="${x}" y="${y1 - 18}" text-anchor="middle">${escD(q[0])} ${escD(q[1])} ${kRvNum(v)}</text><title>restricció dura: arrossega per canviar-la</title></g>`); }
+    else if(q[0] === Y){ const y = kGY(E, v).toFixed(1);
+      o.push(`<g class="gm gmr" data-rvd="rs" data-i="${i}" data-ax="y" style="cursor:ns-resize"><line x1="${x0}" x2="${x1}" y1="${y}" y2="${y}"/><line class="gh" x1="${x0}" x2="${x1}" y1="${y}" y2="${y}"/><rect x="${x1 - 14}" y="${y - 5}" width="10" height="10"/><text x="${x1 - 18}" y="${y - 4}" text-anchor="end">${escD(q[0])} ${escD(q[1])} ${kRvNum(v)}</text><title>restricció dura: arrossega per canviar-la</title></g>`); }
+  });
+  return o.join('');
+}
+function kReavGrafPeu(r, crit){
+  const fm = r.formules || {}, X = r.criteris.sobre, Y = r.criteris.maxim;
+  const fora = (crit.restriccions || []).filter(q => q[0] !== X && q[0] !== Y).map(q => `${q[0]} ${q[1]} ${q[2]}`);
+  const fo = [Y, X].filter(m => fm[m]).map(m => `<li><b>${escD(m)}</b>: <code>${escD(fm[m])}</code></li>`).join('');
+  return `<div class="hint"><span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="4" class="gp gn"/></svg> candidat</span>
+    <span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="5" class="gp gf gr"/></svg> frontera robusta</span>
+    <span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="5" class="gp gf"/></svg> frontera (no robusta)</span>
+    <span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="5" class="gp gw"/></svg> guanyador d'un c</span> ·
+    forma: <span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="4" class="gp gn"/></svg> verificat a Geant4</span>
+    <span class="lg"><svg width="12" height="12"><polygon points="6,1 11,11 1,11" class="gp gn"/></svg> nou</span>
+    <span class="lg"><svg width="12" height="12"><rect x="2" y="2" width="8" height="8" class="gp gn"/></svg> no es sap (sense etapa <code>${escD(r.etapa_g4 || r.etapa + '_g4')}</code>)</span></div>
+    <div class="hint"><b>Criteris aplicats:</b> ${escD(kReavDescr(r.criteris))}. Només compten els <b>${r.n_valids}</b> candidats ja avaluats fins al final${r.n_cribratge ? ` (${r.n_cribratge} de cribratge descartats amb els criteris d'origen no hi són)` : ''}.
+    ${r.te_sig ? 'Amb columnes <code>_sig</code>: la frontera robusta descompta el soroll.' : '<b>Falten les columnes <code>_sig</code></b>: la frontera no té soroll (és la de Pareto).'}
+    Arrossega una <b>c</b> o una restricció per canviar-la; neudet refà guanyadors i frontera.${fora.length ? ` Restriccions sobre altres mètriques (només al formulari): ${escD(fora.join(' · '))}.` : ''}</div>
+    ${fo ? `<ul class="msgs">${fo}</ul>` : ''}`;
+}
+function kReavGrafHtml(st){
+  const crit = {...st.res.criteris, c: st.res.criteris.c, restriccions: st.res.criteris.restriccions};
+  st.esc = kGEsc(st.orig, crit, st.orig.punts); return kReavGraf(st.res, crit, st.esc) + kReavGrafPeu(st.res, crit);
+}
+function kReavGrafPinta(nom, completa){
+  const st = kRvSt(nom), el = kRvEl(nom, 'g'); if(!el) return;
+  if(!st.res || st.err){ el.innerHTML = ''; return; }
+  const crit = kReavCrit(kReavEtapa(nom), st);
+  if(completa || !st.esc || !el.querySelector('[data-rvg=punts]')){ st.esc = kGEsc(st.orig, crit, st.orig.punts); el.innerHTML = kReavGraf(st.res, crit, st.esc) + kReavGrafPeu(st.res, crit); }
+  else { el.querySelector('[data-rvg=punts]').innerHTML = kReavGrafPunts(st.res, st.esc); }
+}
+// arrossegar una c o una restricció: només es mou la línia; a cada moviment es crida `reselecciona` i es refà el que neudet torna
+(function(){
+  const out = document.getElementById('k-out');
+  const nomDe = el => { const d = el.closest('[data-rvp="g"]'); return d && d.dataset.rvn; };
+  out.addEventListener('pointerdown', ev => {
+    const h = ev.target.closest('[data-rvd]'); if(!h) return;
+    const nom = nomDe(h); if(!nom) return; const svg = h.ownerSVGElement;
+    kRvSt(nom).drag = {tipus: h.dataset.rvd, i: +h.dataset.i, ax: h.dataset.ax || 'x', svg};
+    svg.setPointerCapture(ev.pointerId); ev.preventDefault();
+  });
+  out.addEventListener('pointermove', ev => {
+    const svg = ev.target.closest && ev.target.closest('svg.kgraf'); const nom = svg && nomDe(svg); if(!nom) return;
+    const st = kRvSt(nom); if(!st.drag) return;
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const v = +(st.drag.ax === 'y' ? kGVy(st.esc, q.y) : kGVx(st.esc, q.x)).toPrecision(3);
+    if(st.drag.tipus === 'c'){ const cs = st.ctxt.split(/[\s,;]+/).filter(Boolean); cs[st.drag.i] = String(v); st.ctxt = cs.join(', ');
+      const inp = document.querySelector(`[data-rv="${CSS.escape(nom)}"][data-k="c"]`); if(inp) inp.value = st.ctxt; }
+    else { st.crit.restriccions[st.drag.i][2] = v;
+      const inp = document.querySelector(`[data-rv="${CSS.escape(nom)}"][data-k="rs.${st.drag.i}.v"]`); if(inp) inp.value = v; }
+    svg.querySelector('[data-rvg=mans]').innerHTML = kReavGrafMans(st.res, kReavCrit(kReavEtapa(nom), st), st.esc);
+    clearTimeout(st.t); st.t = setTimeout(() => kReavCalcula(nom, false), 40);
+  });
+  const fi = ev => { const svg = ev.target.closest && ev.target.closest('svg.kgraf'); const nom = svg && nomDe(svg); if(!nom) return;
+    const st = kRvSt(nom); if(!st.drag) return; st.drag = null; clearTimeout(st.t); kReavCalcula(nom, false); };
+  out.addEventListener('pointerup', fi); out.addEventListener('pointercancel', fi);
+})();
 function kReavCrit(e, st){
   const cs = st.ctxt.split(/[\s,;]+/).filter(Boolean).map(Number).filter(Number.isFinite);
   return {objectius: st.crit.objectius, k_sigma: Number(st.crit.k_sigma), maxim: st.crit.maxim, sobre: st.crit.sobre, c: cs,
@@ -2394,6 +2509,7 @@ async function kReavCalcula(nom, inicial){
   const f = kRvEl(nom, 'f'), q = kRvEl(nom, 'r');
   if(f && st.crit && inicial) f.innerHTML = kReavForm(e, st);
   if(q) q.innerHTML = st.res || st.err ? kReavRes(e, st) : '';
+  kReavGrafPinta(nom, !st.drag);
 }
 function kReavEtapa(nom){ return (KC.v.etapes || []).find(x => x.nom === nom) || null; }
 // Els esdeveniments del panell (el contenidor és #k-out, que es repinta sencer: l'estat és a KC.reav).

@@ -105,3 +105,34 @@ def test_l_endpoint_i_la_pagina_porten_el_panell_de_criteris():
     for tros in ("function kReavHtml", "function kReavForm", "function kReavRes", "/api/campanya/reselecciona", "només lectura: no simula ni escriu res",
                  "Criteris aplicats", "(modificats respecte als de la campanya)", "torna als criteris de la campanya", "Només <code>hits</code>"[:0] or "restriccions dures"):
         assert tros in pagina, tros
+
+
+# ── pas 3: les dades que rep el gràfic ε̄–cv ──
+
+def test_els_punts_porten_verificat_o_nou_segons_neudet_i_no_se_n_inventa_cap():
+    arrel = _arrel()
+    if not (arrel / "c03_3anells_grups" / "etapes" / "S3_g4" / "candidats.csv").is_file():
+        pytest.skip("no hi ha c03 S3_g4")
+    from types import SimpleNamespace
+    from neudet.disseny import criteris as CR
+    ver = set(CR.verificats(SimpleNamespace(dir=arrel / "c03_3anells_grups"), "S3"))
+    r = R.reselecciona("c03_3anells_grups", "S3")
+    assert ver and r["etapa_g4"] == "S3_g4"
+    assert {p["hash"] for p in r["punts"] if p["g4"] is True} == {p["hash"] for p in r["punts"]} & ver
+    assert all(p["g4"] is (p["hash"] in ver) for p in r["punts"])
+    assert all(g["g4"] is (g["hash"] in ver) for g in r["guanyadors"] if not g["cap"])
+    assert all(f["g4"] is (f["hash"] in ver) for f in r["frontera"])
+    # sense etapa _g4 no es sap: ni verificat ni nou
+    s0 = R.reselecciona("c01_8tubs_30x30x80", "S0")
+    if not (arrel / "c01_8tubs_30x30x80" / "etapes" / "S0_g4").is_dir():
+        assert s0["etapa_g4"] is None and all(p["g4"] is None for p in s0["punts"])
+
+
+def test_els_punts_porten_rang_robusta_i_els_eixos_del_grafic_i_la_frontera_es_la_de_neudet():
+    _arrel()
+    r = R.reselecciona("c01_8tubs_30x30x80", "S0")
+    X, Y = r["criteris"]["sobre"], r["criteris"]["maxim"]
+    assert all(X in p and Y in p and "rang" in p and "robusta" in p for p in r["punts"])
+    assert {p["hash"] for p in r["punts"] if p["rang"] == 0} == {f["hash"] for f in r["frontera"]}
+    assert {p["hash"] for p in r["punts"] if p["rang"] == 0 and p["robusta"]} == {f["hash"] for f in r["frontera"] if f["robusta"]}
+    assert r["te_sig"] is True and r["formules"].get(X) and r["formules"].get(Y)       # les fórmules són de neudet (§15)

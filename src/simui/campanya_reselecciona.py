@@ -49,6 +49,11 @@ def _etapa_dir(camp: Path, etapa: str) -> Path:
     return d
 
 
+def _g4(g4: Optional[set], f: Dict[str, Any]) -> Optional[bool]:
+    """True = verificat a Geant4, False = nou (hi ha `<etapa>_g4` i no hi és), None = no es sap (no hi ha `<etapa>_g4` per mirar)."""
+    return None if g4 is None else f["hash"] in g4
+
+
 def reselecciona(id_: str, etapa: str, criteris: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Els guanyadors, la frontera i els recomptes d'una etapa amb els criteris de la campanya, o amb els que es donin.
 
@@ -102,6 +107,15 @@ def reselecciona(id_: str, etapa: str, criteris: Optional[Dict[str, Any]] = None
     obj_ok = [f for f in finals if all(math.isfinite(f[n]) for n, _ in pareto)]
     ok = [f for f in obj_ok if ob.compleix(f)]                 # el mateix filtre que `campanya.py`
     n_restr = len(obj_ok) - len(ok)
+    # verificat a Geant4: `criteris.verificats` de neudet (el mateix que `pla_verificacio`: «nou» = no és a <etapa>_g4/candidats.csv)
+    g4 = None
+    if (camp / "etapes" / f"{etapa}_g4" / "candidats.csv").is_file():
+        try:
+            from neudet.disseny import criteris as CR
+            from types import SimpleNamespace
+            g4 = set(CR.verificats(SimpleNamespace(dir=camp), etapa))           # neudet: {hash: fila} del <etapa>_g4/candidats.csv
+        except (ImportError, AttributeError):
+            g4 = None                                                            # aquesta neudet no sap dir-ho: es mostra que no es sap
     rang, rob = [], []
     if ok:
         rang = rang_pareto(ok, pareto)
@@ -112,12 +126,12 @@ def reselecciona(id_: str, etapa: str, criteris: Optional[Dict[str, Any]] = None
         i = epsilon_restriccio(tria, c, rest["maxim"], rest["sobre"]) if tria else -1
         g = {"c": c, "cap": i < 0}
         if i >= 0:
-            g.update({"nom": tria[i]["nom"], "hash": tria[i]["hash"], "maxim": tria[i][rest["maxim"]], "sobre": tria[i][rest["sobre"]]})
+            g.update({"nom": tria[i]["nom"], "hash": tria[i]["hash"], "g4": _g4(g4, tria[i]), "maxim": tria[i][rest["maxim"]], "sobre": tria[i][rest["sobre"]]})
         guanyadors.append(g)
     metr = lambda f: {m: _net(f[m]) for m in mets}
-    frontera = [dict(nom=f["nom"], hash=f["hash"], robusta=bool(rb), **metr(f)) for f, rg, rb in zip(ok, rang, rob) if rg == 0]
+    frontera = [dict(nom=f["nom"], hash=f["hash"], robusta=bool(rb), g4=_g4(g4, f), **metr(f)) for f, rg, rb in zip(ok, rang, rob) if rg == 0]
     frontera.sort(key=lambda f: -(f[pareto[0][0]] or 0) if pareto[0][1] == "max" else (f[pareto[0][0]] or 0))
-    punts = [dict(nom=f["nom"], hash=f["hash"], rang=int(rg), robusta=bool(rb), **metr(f)) for f, rg, rb in zip(ok, rang, rob)]
+    punts = [dict(nom=f["nom"], hash=f["hash"], rang=int(rg), robusta=bool(rb), g4=_g4(g4, f), **metr(f)) for f, rg, rb in zip(ok, rang, rob)]
     avisos = []
     n_crib = len(totes) - len(finals)
     if n_crib:
@@ -136,4 +150,4 @@ def reselecciona(id_: str, etapa: str, criteris: Optional[Dict[str, Any]] = None
             "criteris": {"objectius": [list(p) for p in pareto], "k_sigma": k_sigma, "maxim": rest.get("maxim"), "sobre": rest.get("sobre"),
                          "c": cs, "restriccions": [list(r) for r in ob.restriccions]},
             "n_finals": len(finals), "n_valids": len(ok), "n_fora_restriccions": n_restr, "n_cribratge": n_crib,
-            "te_sig": not sense_sig, "frontera": frontera, "guanyadors": guanyadors, "punts": punts, "avisos": avisos}
+            "te_sig": not sense_sig, "etapa_g4": f"{etapa}_g4" if g4 is not None else None, "frontera": frontera, "guanyadors": guanyadors, "punts": punts, "avisos": avisos}
