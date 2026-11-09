@@ -377,6 +377,24 @@ def campanya_reselecciona(body: Dict[str, Any]) -> Dict[str, Any]:
     return RES.reselecciona(str(body.get("id") or ""), str(body.get("etapa") or ""), body.get("criteris") or None)
 
 
+def campanya_desa_criteri(body: Dict[str, Any]) -> Dict[str, Any]:
+    """REAVALUA-UI pas 4: «Desa aquest criteri» (`id`, `etapa`, `criteri`): ho desa `desa_criteri` de neudet a `etapes/<e>/criteris.json`."""
+    from . import campanya_criteris as CRI
+    return CRI.desa(str(body.get("id") or ""), str(body.get("etapa") or ""), body.get("criteri"))
+
+
+def campanya_criteris(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Els criteris de l'etapa (`id`, `etapa`) amb els seus guanyadors. Només lectura."""
+    from . import campanya_criteris as CRI
+    return CRI.llista(str(body.get("id") or ""), str(body.get("etapa") or ""))
+
+
+def campanya_pla_verificacio(body: Dict[str, Any]) -> Dict[str, Any]:
+    """El pla de verificació a Geant4 (`pla_verificacio` de neudet) i l'ordre que executa Albert. Només lectura: no llança res."""
+    from . import campanya_criteris as CRI
+    return CRI.pla(str(body.get("id") or ""), str(body.get("etapa") or ""))
+
+
 def campanya_exemple(body: Dict[str, Any]) -> Dict[str, Any]:
     """UI-DIB2: els tubs del dibuix d'exemple (`tubs`) davant les restriccions de la campanya (`form`), amb `violacions` de neudet."""
     text = CF.to_yaml(body.get("form"))

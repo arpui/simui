@@ -2342,7 +2342,8 @@ const kRvOps = ['<=', '>=', '<', '>', '=='];
 function kReavHtml(e){
   const st = kRvSt(e.nom), n = escD(e.nom);
   return `<details class="fold" data-rv-det="${n}" ${st.obert ? 'open' : ''}><summary><b>Criteris</b>: torna a presentar els candidats <span class="hint">(només lectura: no simula ni escriu res)</span></summary>
-    <div data-rvp="f" data-rvn="${n}">${st.crit ? kReavForm(e, st) : ''}</div><div data-rvp="g" data-rvn="${n}">${st.res && !st.err ? kReavGrafHtml(st) : ''}</div><div data-rvp="r" data-rvn="${n}">${st.res || st.err ? kReavRes(e, st) : (st.obert ? '<div class="hint">neudet reordena els candidats…</div>' : '')}</div></details>`;
+    <div data-rvp="f" data-rvn="${n}">${st.crit ? kReavForm(e, st) : ''}</div><div data-rvp="g" data-rvn="${n}">${st.res && !st.err ? kReavGrafHtml(st) : ''}</div><div data-rvp="r" data-rvn="${n}">${st.res || st.err ? kReavRes(e, st) : (st.obert ? '<div class="hint">neudet reordena els candidats…</div>' : '')}</div>
+    <div data-rvp="d" data-rvn="${n}">${st.res && !st.err ? kCrDesa(e, st) : ''}</div></details>`;
 }
 function kReavForm(e, st){
   const c = st.crit, n = escD(e.nom), mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m));
@@ -2493,6 +2494,100 @@ function kReavGrafPinta(nom, completa){
     const st = kRvSt(nom); if(!st.drag) return; st.drag = null; clearTimeout(st.t); kReavCalcula(nom, false); };
   out.addEventListener('pointerup', fi); out.addEventListener('pointercancel', fi);
 })();
+// ── REAVALUA-UI pas 4: «Desa aquest criteri» (el desa neudet: `desa_criteri` → etapes/<e>/criteris.json; la UI no escriu res de neudet) i el pla de
+// verificació a Geant4 (`pla_verificacio`, pura). El botó de verificació NOMÉS MOSTRA el pla (un GET de lectura) i l'ordre que executa Albert: no llança res. ──
+const kCrPla = nom => '/api/campanya/pla_verificacio?id=' + kEnc(KC.id) + '&etapa=' + kEnc(nom);
+function kCrCriteri(e, st){
+  // El que va a `desa_criteri`: la preferència (maxim, sobre, c), les restriccions que s'AFEGEIXEN a les de la campanya i els objectius només si canvien
+  // (null = els de l'etapa; si hi són, els guanyadors afegeixen la frontera robusta).
+  const cr = kReavCrit(e, st), o = st.orig.criteris, mateixos = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const nouR = cr.restriccions.filter(r => !o.restriccions.some(x => mateixos([x[0], x[1], Number(x[2])], r)));
+  return {nom: st.nomCrit || '', preferencia: {maxim: cr.maxim, sobre: cr.sobre, c: cr.c}, restriccions: nouR,
+          objectius: mateixos(cr.objectius, o.objectius) ? null : cr.objectius, nota: st.notaCrit || ''};
+}
+function kCrAvisosForma(e, st){
+  const cr = kReavCrit(e, st), o = st.orig.criteris, av = [];
+  if(Number(cr.k_sigma) !== Number(o.k_sigma)) av.push(`k·σ (${cr.k_sigma}) no es desa: un criteri no porta k·σ i neudet fa servir el de la campanya (${o.k_sigma}).`);
+  const perduda = o.restriccions.filter(x => !cr.restriccions.some(r => JSON.stringify([x[0], x[1], Number(x[2])]) === JSON.stringify(r)));
+  if(perduda.length) av.push(`has tret restriccions de la campanya (${perduda.map(x => x.join(' ')).join(', ')}): un criteri només les pot AFEGIR; neudet aplicarà les de la campanya igualment.`);
+  if(JSON.stringify(cr.objectius) !== JSON.stringify(o.objectius)) av.push('els objectius són diferents dels de l\'etapa: es desen i els guanyadors inclouen la frontera robusta.');
+  return av;
+}
+function kCrLlista(e, st){
+  if(st.llErr) return `<div class="panel bad"><b>neudet diu:</b> ${escD(st.llErr)}</div>`;
+  if(!st.ll) return st.obert ? '<div class="hint">llegint els criteris de l\'etapa…</div>' : '';
+  const l = st.ll, marca = g => g.g4 === true ? '<span class="tag t-ok">verificat</span>' : g.g4 === false ? '<span class="tag t-wa">nou</span>' : '<span class="hint">no es sap (no hi ha ' + escD(e.nom) + '_g4)</span>';
+  return `<h4>Criteris de l'etapa <span class="hint">(de neudet: <code>criteris_de</code> i <code>guanyadors</code>)</span></h4>` + l.criteris.map(c => `<div class="panel ${c.avis ? 'warn' : ''}">
+    <b>${escD(c.nom)}</b>${c.inicial ? ' <span class="hint">(el de campanya.yaml; no es desa ni es pot sobreescriure)</span>' : ''} ·
+    guanya el de més ${escD(c.preferencia.maxim)} amb ${escD(c.preferencia.sobre)} ≤ c, c = ${escD((c.preferencia.c || []).join(', ') || '—')}
+    ${(c.restriccions || []).length ? ` · restriccions ${escD(c.restriccions.map(r => r.join(' ')).join(' i '))}` : ''}
+    ${c.objectius ? ` · objectius ${escD(c.objectius.map(o => o.join(' ')).join(', '))}` : ''}${c.nota ? ` · <i>${escD(c.nota)}</i>` : ''}${c.creat ? ` · <span class="hint">${escD(c.creat)}</span>` : ''}
+    ${c.avis ? `<div class="panel warn">${escD(c.avis)}</div>` : ''}
+    <div class="tblw"><table class="tbl"><thead><tr><th>candidat</th><th>motius</th><th>${escD(c.preferencia.maxim)}</th><th>${escD(c.preferencia.sobre)}</th><th>Geant4</th></tr></thead><tbody>
+    ${c.guanyadors.map(g => `<tr class="kc" data-h="${escD(g.hash)}" data-n="${escD(g.nom)}" style="cursor:pointer"><td>${escD(g.nom)}</td><td>${escD(g.motius.join('; '))}</td><td>${escD(g.maxim ?? '')}</td><td>${escD(g.sobre ?? '')}</td><td>${marca(g)}</td></tr>`).join('') || '<tr><td colspan="5"><i>cap guanyador</i></td></tr>'}</tbody></table></div></div>`).join('');
+}
+function kCrPlaHtml(e, st){
+  if(st.plaErr) return `<div class="panel bad"><b>neudet diu:</b> ${escD(st.plaErr)}</div>`;
+  const p = st.pla; if(!p) return '';
+  const llistaH = a => a.length ? a.map(x => `<code>${escD(x.nom)}</code>`).join(', ') : '<i>cap</i>';
+  const c = p.cost, f = p.formules_cost || {}, fx = (k, v) => v == null ? '<i>neudet no el dona</i>' : escD(v) + (f[k] ? ` <span class="hint">— ${escD(f[k])}</span>` : '');
+  const pc = p.parametres;
+  return `<div class="panel"><b>Pla de verificació a Geant4</b> <span class="hint">(<code>pla_verificacio</code> de neudet; només es mostra, no s'ha llançat res)</span>
+    <div class="hint">Paràmetres: ${escD(pc.aleatoris)} aleatoris, llavor ${escD(pc.llavor)}, n = ${escD(pc.n)} events per energia, hits = ${escD(pc.hits)}, quants = ${escD(pc.quants ?? '—')} (${escD(pc.origen)}). ${p.etapa_g4 ? 'Ja existeix ' + escD(p.etapa_g4) + '.' : 'Encara no existeix ' + escD(e.nom) + '_g4.'}</div>
+    ${p.avisos.map(a => `<div class="panel warn">${escD(a)}</div>`).join('')}
+    <p><b>Nous</b> (${p.nous.length}; la unió dels guanyadors no verificats): ${llistaH(p.nous)}</p>
+    <p><b>Ja verificats</b> (${p.verificats_ja.length}): ${llistaH(p.verificats_ja)}</p>
+    <p><b>Per criteri</b>: ${Object.entries(p.per_criteri).map(([k, g]) => `<b>${escD(k)}</b> ${g.length ? g.map(x => `${escD(x.nom)} <span class="tag ${x.nou ? 't-wa' : 't-ok'}">${x.nou ? 'nou' : 'verificat'}</span>`).join(', ') : '<i>cap guanyador</i>'}`).join(' · ')}</p>
+    ${p.sense_truth.length ? `<div class="panel warn">${p.sense_truth.length} candidats ja són verificats però no tenen el truth a disc: es tornarien a córrer i compten al cost (${llistaH(p.sense_truth)}).</div>` : ''}
+    ${c ? `<div class="tblw"><table class="tbl"><thead><tr><th>cost</th><th>valor (neudet)</th></tr></thead><tbody>
+      <tr><td>cel·les a córrer</td><td>${escD(p.cel_les_a_correr)} <span class="hint">— ${escD(f.cel_les || '')}</span></td></tr>
+      <tr><td>CPU (core·h)</td><td>${fx('cpu_h', c.cpu_h)}</td></tr><tr><td>durada (h)</td><td>${fx('durada_h', c.durada_h)}</td></tr>
+      <tr><td>disc (GB)</td><td>${fx('disc_gb', c.disc_gb)}${c.porta_disc_gb != null ? ` · a tenir lliure: ${escD(c.porta_disc_gb)} GB` : ''}</td></tr></tbody></table></div>`
+      : '<div class="hint">Res a córrer: tots els candidats ja són verificats (neudet no dona cap cost).</div>'}
+    <p><b>Ordre per córrer-ho</b> (la UI no la llança: <b>ho executa Albert</b>, i reescriu <code>${escD(e.nom)}_g4</code> sencer, verificats + nous):</p>
+    <pre class="code" data-cr-ordre>${escD(p.ordre)}</pre><div class="hint">${escD(p.frase)}</div></div>`;
+}
+function kCrDesa(e, st){
+  const d = st.des;
+  return `<h4>Desa aquest criteri</h4>
+    <div class="hint">El desa neudet a <code>etapes/${escD(e.nom)}/criteris.json</code> (<code>desa_criteri</code>); la UI no escriu res de neudet. Un criteri amb el mateix nom se substitueix; <code>inicial</code> és reservat.</div>
+    <div class="row">${cLab('nom del criteri', `<input data-cr="nom" data-rvn="${escD(e.nom)}" value="${escD(st.nomCrit || '')}" placeholder="p. ex. planor">`)}${cLab('nota (opcional)', `<input data-cr="nota" data-rvn="${escD(e.nom)}" value="${escD(st.notaCrit || '')}">`)}</div>
+    ${kCrAvisosForma(e, st).map(a => `<div class="panel warn">${escD(a)}</div>`).join('')}
+    <div class="bar"><button type="button" data-cr-act="desa" data-rvn="${escD(e.nom)}">Desa aquest criteri</button></div>
+    <div data-crp="des">${d ? (d.err ? `<div class="panel bad"><b>neudet diu:</b> ${escD(d.err)}</div>` : `<div class="panel ok">Desat per neudet a <code>${escD(d.path)}</code>.</div>${d.avis ? `<div class="panel warn"><b>Avís de neudet:</b> ${escD(d.avis)}</div>` : ''}`) : ''}</div>
+    <div data-crp="ll">${kCrLlista(e, st)}</div>
+    <h4>Verifica a Geant4 els nous</h4>
+    <div class="hint">Mostra què caldria verificar (la unió dels guanyadors de tots els criteris menys els ja verificats) i quant costa. <b>No llança res</b>: l'ordre la corre Albert.</div>
+    <div class="bar"><button type="button" class="ghost" data-cr-act="pla" data-rvn="${escD(e.nom)}">Verifica a Geant4 els nous (mostra el pla)</button></div>
+    <div data-crp="pla">${kCrPlaHtml(e, st)}</div>`;
+}
+async function kCrCarregaLlista(nom){
+  const st = kRvSt(nom), e = kReavEtapa(nom);
+  try{ st.ll = await api('/api/campanya/criteris?id=' + kEnc(KC.id) + '&etapa=' + kEnc(nom)); st.llErr = ''; } catch(er){ st.llErr = er.message; }
+  const el = document.querySelector(`[data-rvp="d"][data-rvn="${CSS.escape(nom)}"] [data-crp="ll"]`); if(el) el.innerHTML = kCrLlista(e, st);
+}
+async function kCrDesaAra(nom){
+  const st = kRvSt(nom), e = kReavEtapa(nom);
+  try{
+    const r = await api('/api/campanya/desa_criteri', {id: KC.id, etapa: nom, criteri: kCrCriteri(e, st)});
+    st.des = {path: r.path, avis: r.avis}; st.ll = {criteris: r.criteris}; st.llErr = '';
+  } catch(er){ st.des = {err: er.message}; }
+  const d = document.querySelector(`[data-rvp="d"][data-rvn="${CSS.escape(nom)}"]`); if(d) d.innerHTML = kCrDesa(e, st);
+  if(!st.des.err){ st.pla = null; st.plaErr = ''; await kReavCalcula(nom, false); }      // recarrega el gràfic (verificat/nou i guanyadors, de neudet) sense perdre els criteris editats
+}
+async function kCrMostraPla(nom){
+  const st = kRvSt(nom), e = kReavEtapa(nom);
+  try{ st.pla = await api(kCrPla(nom)); st.plaErr = ''; } catch(er){ st.pla = null; st.plaErr = er.message; }     // GET: llegeix i prou
+  const el = document.querySelector(`[data-rvp="d"][data-rvn="${CSS.escape(nom)}"] [data-crp="pla"]`); if(el) el.innerHTML = kCrPlaHtml(e, st);
+}
+document.getElementById('k-out').addEventListener('input', ev => {
+  const t = ev.target; if(!t.dataset || t.dataset.cr === undefined) return;
+  const st = kRvSt(t.dataset.rvn); if(t.dataset.cr === 'nom') st.nomCrit = t.value; else st.notaCrit = t.value;
+});
+document.getElementById('k-out').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-cr-act]'); if(!b) return;
+  if(b.dataset.crAct === 'desa') kCrDesaAra(b.dataset.rvn); else if(b.dataset.crAct === 'pla') kCrMostraPla(b.dataset.rvn);
+});
 function kReavCrit(e, st){
   const cs = st.ctxt.split(/[\s,;]+/).filter(Boolean).map(Number).filter(Number.isFinite);
   return {objectius: st.crit.objectius, k_sigma: Number(st.crit.k_sigma), maxim: st.crit.maxim, sobre: st.crit.sobre, c: cs,
@@ -2508,6 +2603,8 @@ async function kReavCalcula(nom, inicial){
   } catch(er){ if(seq !== st.seq) return; st.err = er.message; }
   const f = kRvEl(nom, 'f'), q = kRvEl(nom, 'r');
   if(f && st.crit && inicial) f.innerHTML = kReavForm(e, st);
+  const dd = kRvEl(nom, 'd'); if(dd && st.res && !st.err && !st.drag) dd.innerHTML = kCrDesa(e, st);
+  if(inicial && !st.err) kCrCarregaLlista(nom);
   if(q) q.innerHTML = st.res || st.err ? kReavRes(e, st) : '';
   kReavGrafPinta(nom, !st.drag);
 }
