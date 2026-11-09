@@ -191,6 +191,9 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 #h-title:empty{display:none}
 .nlc.fora{background:#fbeeea;color:var(--bad);text-decoration:line-through}
 .nlc.novalidat{background:#fbf3e3;color:var(--warn)}
+.nlc.diag{background:#fbeeea;color:var(--bad);border:1px dashed var(--bad)}
+.diag-av{border:2px solid var(--bad);background:#fbeeea;color:var(--bad);border-radius:6px;padding:6px 10px;margin:8px 0;font-weight:600}
+.diag-tag{display:inline-block;border:1px solid var(--bad);color:var(--bad);background:#fbeeea;border-radius:4px;padding:0 6px;font-size:.8em;font-weight:600;margin-left:6px;white-space:nowrap}
 </style></head><body>
 
 <header class="top">
@@ -674,12 +677,25 @@ const cRngOk = v => typeof v === 'number' || (cEsRang(v) && typeof v.de === 'num
 const fmtE = e => e >= 1 ? `${+e.toPrecision(4)} MeV` : e >= 1e-3 ? `${+(e * 1e3).toPrecision(4)} keV`
   : e >= 1e-6 ? `${+(e * 1e6).toPrecision(4)} eV` : `${+(e * 1e9).toPrecision(4)} meV`;
 const UNITATS_E = {MeV: 1, keV: 1e-3, eV: 1e-6, meV: 1e-9};
+// DIAG-UI (contracte §18): la casella de diagnòstic i, activada, un ckpt per material (la llista és de neudet: BASELINE i els alternatius).
+function cDiagHtml(d){
+  const D = CP.schema.diagnostic || {}, on = d.diagnostic === true, ck = (CP.f.avaluacio || {}).ckpts || {};
+  const casella = `<label class="chk"><input type="checkbox" data-p="domini.diagnostic" data-t="bool" data-s ${on ? 'checked' : ''}> <b>Diagnòstic</b> (fora del domini validat; <b>no citable</b>)</label>`;
+  if(!on) return `${casella}<div class="hint">Permet energies per sobre del màxim validat i ckpts no BASELINE. Opció permanent del mètode: serveix per provar el que encara no està certificat sense barrejar-ho amb el certificat. ${escD(D.nota || '')}</div>`;
+  const llista = D.ckpts;
+  const sel = !llista ? `<div class="panel warn">No trobo simnet (<code>SIMNET_ROOT</code>) i no puc llistar els ckpts: neudet els resol allà.</div>`
+    : `<div class="row3">${Object.keys(llista).map(m => cLab(`ckpt ${escD(m)}`, `<select data-p="avaluacio.ckpts.${escD(m)}" data-t="ostr">${
+        llista[m].map(n => `<option value="${n === D.base ? '' : escD(n)}" ${(ck[m] || D.base) === n ? 'selected' : ''}>${escD(n)}${n === D.base ? ' (per defecte)' : ''}</option>`).join('')}</select>`)).join('')}</div>
+      <div class="hint">Llista de neudet (<code>data/material/&lt;M&gt;/ckpt/neutro/*/ckpt_final.pt</code>); només es mostren els materials que en tenen. Els que deixis a BASELINE no s'escriuen.</div>`;
+  return `${casella}<div class="diag-av" data-diag-av>⚠ ${escD(D.text || 'diagnòstic, no citable')}: tot el que surti d'aquesta campanya és diagnòstic.</div>${sel}`;
+}
 function cEnergiesDomini(d){
   const G = CP.schema.energies_domini || {}, en = (d.energies_MeV || []).map(Number);
-  const franja = e => G.min != null && (e < G.min || e > G.max) ? 'fora'
+  const diag = d.diagnostic === true;
+  const franja = e => G.min != null && (e < G.min || e > G.max) ? (diag && e > G.max ? 'diag' : 'fora')
     : G.validat_PE_min != null && e < G.validat_PE_min ? 'novalidat' : '';
   const xips = en.map((e, i) => `<span class="nlc ${franja(e)}" title="${e} MeV">${fmtE(e)}<button class="x" data-act="en-" data-i="${i}" title="treu">×</button></span>`).join('');
-  const nFora = en.filter(e => franja(e) === 'fora').length, nNV = en.filter(e => franja(e) === 'novalidat').length;
+  const nFora = en.filter(e => franja(e) === 'fora').length, nDiag = en.filter(e => franja(e) === 'diag').length, nNV = en.filter(e => franja(e) === 'novalidat').length;
   const uSel = id => `<select id="${id}">${Object.keys(UNITATS_E).map(u => `<option${u === 'MeV' ? ' selected' : ''}>${u}</option>`).join('')}</select>`;
   return `${cLab(`energies del domini: ${en.length}`, `<div class="nl">${xips || '<span class="hint">cap</span>'}</div>`)}
     <div class="row3">
@@ -690,6 +706,7 @@ function cEnergiesDomini(d){
     <div class="hint">S'ordenen soles i sense repetides; al yaml van en MeV.
     ${G.min != null ? `Permeses de <b>${fmtE(G.min)}</b> a <b>${fmtE(G.max)}</b> (fora, neudet diu «prohibit»${nFora ? `: <b>${nFora} fora</b>` : ''}).` : ''}
     ${G.validat_PE_min != null ? `Per sota de <b>${fmtE(G.validat_PE_min)}</b> la xarxa no està validada dins de PE (només al tub sol): «no validat», en ambre${nNV ? ` (${nNV})` : ''}; en un esborrany només avisa.` : ''}
+    ${diag ? `<b class="diagmsg">Diagnòstic:</b> es poden afegir energies per sobre de ${fmtE(G.max)} (en vermell discontinu${nDiag ? `: ${nDiag}` : ''}); neudet no en fixa un màxim aquí (el contracte §18 parla de fins a 12 MeV, el rang d'E12) i els resultats no seran citables.` : G.max != null ? `Per sobre de ${fmtE(G.max)}: només amb la casella «Diagnòstic» de dalt.` : ''}
     Font: ${escD(G.font || 'validacions.json')} (contracte §8). Els objectius en trien un subconjunt; més energies = més temps de xarxa i de Geant4.</div>`;
 }
 // Cd per anell o per al mapa. Fracció 0 = sense Cd (candidat.py:221); arc (0, 360] (candidat.py:224).
@@ -1430,7 +1447,7 @@ function cAvalHtml(f){
   const opt = (lst, cur) => lst.map(o => ({valor: o.valor})).map(o => `<option value="${escD(o.valor)}" ${o.valor === cur ? 'selected' : ''}>${escD(o.valor)}</option>`).join('');
   const xarxaV = av.xarxa ?? A.xarxa.defecte, modeV = av.mode ?? A.mode.defecte;
   const xa = A.xarxa.valors.find(o => o.valor === xarxaV), mo = A.mode.valors.find(o => o.valor === modeV);
-  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus'];
+  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts'];
   const extra = Object.keys(av).filter(k => !known.includes(k));
   return `
   <div class="row">${cLab('xarxa', `<select data-p="avaluacio.xarxa" data-t="str">${opt(A.xarxa.valors, xarxaV)}</select>`)}
@@ -1512,6 +1529,7 @@ function cFormHtml(){
   ${cFontHtml(d)}
 
   <h2>Energies i tubs</h2>
+  ${cDiagHtml(d)}
   ${cEnergiesDomini(d)}
   <div class="hint">Els tipus de tub es trien a cada tongada (un tipus per anell o punt, o un inventari de tubs disponibles); neudet en deriva la llista del domini.</div>
   ${S.cd.avis ? `<div class="panel warn">${escD(S.cd.avis)}</div>` : ''}
@@ -1735,6 +1753,8 @@ function cEdita(el, change){
   try{ v = cParse(el); } catch(e){ el.classList.add('bad'); return; }
   el.classList.remove('bad');
   cSet(CP.f, p, v);
+  if(p === 'domini.diagnostic'){ if(!v){ delete CP.f.domini.diagnostic; if(CP.f.avaluacio) delete CP.f.avaluacio.ckpts; } }      // DIAG-UI: sense diagnòstic no hi ha ckpts alternatius
+  if(p.startsWith('avaluacio.ckpts.') && CP.f.avaluacio && CP.f.avaluacio.ckpts && !Object.keys(CP.f.avaluacio.ckpts).length) delete CP.f.avaluacio.ckpts;
   const mt = /^(etapes\.[^.]+\.tongades\.\d+)\./.exec(p); if(mt) cSyncInv(cGetS(CP.f, mt[1]));
   if(p.startsWith('domini.bloc') || p.startsWith('domini.font') || p.startsWith('etapes.')) cRedibuixa();
   if(p === 'domini.tipus_tub.0'){ const m = Q('#c-tubmarca'); if(m) m.textContent = cTubMarca(v); }
@@ -2065,10 +2085,16 @@ async function kCarrega(id){
   KC.v = v;
   kPinta();
 }
+// DIAG-UI (contracte §18): l'avís fix de les campanyes de diagnòstic. El text és el de neudet quan el porta.
+const diagTxt = d => (d && d.text) || 'diagnòstic, no citable';
+const diagAv = d => d && d.actiu ? `<div class="diag-av" data-diag-av>⚠ ${escD(diagTxt(d))}: aquesta campanya és fora del domini validat (energies per sobre del màxim i/o ckpts no BASELINE). Cap xifra d'aquí no es pot citar.${
+  d.ckpts && Object.keys(d.ckpts).length ? ` Ckpts: ${Object.entries(d.ckpts).map(([m, n]) => `${escD(m)} = <code>${escD(n)}</code>`).join(', ')}.` : ''}</div>` : '';
+const diagTag = d => d && d.actiu ? `<span class="diag-tag" data-diag-tag>${escD(diagTxt(d))}</span>` : '';
 function kPinta(){
   const v = KC.v, out = [], basica = kBasica(v);
-  out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
+  out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${diagTag(v.diagnostic)}${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
     (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
+  out.push(diagAv(v.diagnostic));
   out.push(kAccions());
   if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
   v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
@@ -2106,7 +2132,7 @@ function kEstatConf(v){
 }
 function kResumInterp(v){
   const rs = v.certificacio && v.certificacio.resum_text;
-  return (rs ? `<details class="fold" open><summary>Què entén neudet que farà (resum)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(rs)}</div></details>` : '') +
+  return (rs ? `<details class="fold" open><summary>Què entén neudet que farà (resum)${diagTag(v.diagnostic)}</summary>${diagAv(v.diagnostic)}<div class="panel pre" style="white-space:pre-wrap">${escD(rs)}</div></details>` : '') +
     (v.interpretacio ? `<details class="fold" open><summary>Interpretació del planificador (PLA.md)</summary><div class="panel">${kMd(v.interpretacio)}</div></details>` : '');
 }
 // «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
@@ -2178,6 +2204,7 @@ function kEtapa(e){
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
     ${kPla(e)}
     ${kResposta(e)}
+    ${KC.v.diagnostic && KC.v.diagnostic.actiu ? `<div class="diag-av" data-diag-xifres>⚠ ${escD(diagTxt(KC.v.diagnostic))} — les xifres d'aquesta taula</div>` : ''}
     <div class="tblw">${kTaula(e)}</div>
     ${kFormMetr(e)}${kFormEtapaHtml(e)}
     ${kReavHtml(e)}
@@ -2994,9 +3021,9 @@ function rCard(e){
   const motiu = !ok && e.motiu ? `<div class="hint" style="padding:8px 14px 0">${escD(e.motiu)}</div>` : '';
   const warns = (e.warnings || []).map(w => `<div class="panel warn" style="margin:8px 14px 0">${escD(w)}</div>`).join('');
   return `<article class="card" style="margin-bottom:12px">
-    <header><h3>${escD(e.campanya)} · ${escD(e.etapa)}</h3>${tag}${prov}
+    <header><h3>${escD(e.campanya)} · ${escD(e.etapa)}</h3>${tag}${prov}${e.diagnostic ? diagTag({actiu: true}) : ''}
     <span class="meta">${escD(e.motor || '')}${e.nom ? ' · ' + escD(e.nom) : ''}</span></header>
-    ${motiu}${motius}${warns}${e.metrics ? metricsHtml(e.metrics) : ''}</article>`;
+    ${e.diagnostic ? `<div class="diag-av" style="margin:8px 14px 0">⚠ diagnòstic, no citable</div>` : ''}${motiu}${motius}${warns}${e.metrics ? metricsHtml(e.metrics) : ''}</article>`;
 }
 function rTaula(){
   const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
@@ -3006,7 +3033,7 @@ function rTaula(){
   const head = '<th>#</th><th>tipus</th><th>x, y, z (cm)</th>' + en.map((x, k) => `<th class="${hl(k)}">${x} MeV</th>`).join('');
   const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${fmtPos(t)}</td>` +
     en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
-  return `<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  return `${e.diagnostic ? '<div class="diag-av" data-diag-xifres>⚠ diagnòstic, no citable — les xifres d\'aquesta taula</div>' : ''}<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 // La comparativa ja ve calculada de l'API (`results_tub.comparativa`): aquí només es pinta.
 function rComp(){

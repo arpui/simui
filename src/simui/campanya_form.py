@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from . import design as DES
+from . import mc_sources as MS
 from . import detector_config as DC
 
 #: el campanya.yaml de referència, relatiu a l'arrel de neudet
@@ -467,6 +468,26 @@ def _fitxa():
         return None
 
 
+#: contracte §18: el text que neudet posa a tot arreu on surt una xifra d'una campanya de diagnòstic
+DIAGNOSTIC_TEXT = "diagnòstic, no citable"
+CKPT_BASE = "BASELINE"
+
+
+def ckpts_disponibles() -> Optional[Dict[str, List[str]]]:
+    """DIAG-UI (contracte §18): els ckpts que neudet sap resoldre per material, `{material: [nom, …]}`: els directoris de
+    `<simnet>/data/material/<M>/ckpt/neutro/` amb `ckpt_final.pt` (el mateix lloc on `Campanya.ckpts_yaml` els busca; no se'n fa còpia).
+    BASELINE primer. None si simnet no és trobable."""
+    root = MS.owner_root("simnet")
+    if root is None:
+        return None
+    out: Dict[str, List[str]] = {}
+    for mat in sorted((root / "data" / "material").glob("*")):
+        noms = sorted(p.parent.name for p in (mat / "ckpt" / "neutro").glob("*/ckpt_final.pt"))
+        if noms:
+            out[mat.name] = sorted(noms, key=lambda n: (n != CKPT_BASE, n))
+    return out
+
+
 def energies_domini() -> Optional[Dict[str, Any]]:
     """El domini d'energies de neudet (validacions.json, secció `domini`, CAMP-2): {min, max, per_defecte}.
     La campanya tria les energies que vulgui; neudet certifica que siguin dins de min–max (fitxa.py).
@@ -828,6 +849,9 @@ def schema() -> Dict[str, Any]:
         "plantilles": _schema_plantilles(),
         "tipus_tub": tubs,
         "energies_domini": energies_domini(),
+        "diagnostic": {"text": DIAGNOSTIC_TEXT, "base": CKPT_BASE, "ckpts": ckpts_disponibles(),
+                       "nota": "contracte §18: energies per sobre del màxim validat (neudet avui n'accepta fins al rang d'E12, 12 MeV; "
+                               "la UI no en fixa el límit) i ckpts no BASELINE; els resultats no són citables"},
         "validacio": {"registre": reg is not None,
                       "motiu": "" if reg is not None else SENSE_REGISTRE},
         "cd": {"fraccio": {"minim": 0, "maxim": 1, "fitxer": CANDIDAT_PY, "linia": CD_FRACCIO_LINIA,
@@ -897,11 +921,15 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
         # contracte §8: fora de min–max neudet ho certifica com a «prohibit» (atura sempre): el formulari ja no ho
         # deixa passar. Entre min i validat_PE_min és «no_validat» (només avisa en draft): ho decideix neudet.
         g = energies_domini()
+        diag = dom.get("diagnostic") is True
         if g is not None and g.get("min") is not None and g.get("max") is not None:
-            fora = [x for x in en if not (g["min"] <= float(x) <= g["max"])]
+            # DIAG-UI (§18): amb `domini.diagnostic: true` neudet deixa passar només les energies PER SOBRE del màxim (fitxa.py)
+            fora = [x for x in en if not (g["min"] <= float(x) <= g["max"]) and not (diag and float(x) > g["max"])]
             if fora:
                 e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV fora del domini permès "
                          f"{g['min']:g}–{g['max']:g} MeV (validacions.json; contracte §8: «prohibit»)")
+    if "diagnostic" in dom and not isinstance(dom["diagnostic"], bool):
+        e.append("domini.diagnostic: sí o no (contracte §18)")
     tt = dom.get("tipus_tub")                  # SIMPLIFICA: neudet el deriva dels tipus de les tongades; el formulari ja no l'escriu
     if tt is not None and not (isinstance(tt, list) and tt and all(isinstance(t, str) and t for t in tt)):
         e.append("domini.tipus_tub: una llista de noms de tub (del catàleg), o res (neudet el deriva de les tongades)")
@@ -1408,6 +1436,17 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
             e.append(f"avaluacio.{clau}: un enter ≥ {c['minim']} (campanya.py:{c['linia']})")
     if "geom_vect" in av and not isinstance(av["geom_vect"], bool):
         e.append(f"avaluacio.geom_vect: sí o no (campanya.py:{GEOM_VECT_LINIA})")
+    if "ckpts" in av:                                           # DIAG-UI (§18): un ckpt per material, de la llista de neudet
+        ck = av["ckpts"]
+        if not (isinstance(ck, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in ck.items())):
+            e.append("avaluacio.ckpts: un diccionari {material: nom_de_ckpt} (campanya.py)")
+        elif ck:
+            if (f.get("domini") or {}).get("diagnostic") is not True:
+                e.append("avaluacio.ckpts: només amb domini.diagnostic: true (contracte §18: els ckpts no BASELINE són de diagnòstic)")
+            disp = ckpts_disponibles()
+            for m, v in ck.items():
+                if disp is not None and v not in (disp.get(m) or []):
+                    e.append(f"avaluacio.ckpts.{m} = {v}: neudet no el troba (n'hi ha: {', '.join(disp.get(m) or []) or 'cap'})")
     return e
 
 

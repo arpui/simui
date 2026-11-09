@@ -568,6 +568,22 @@ def formules_etapa(dir_: PathLike, etapa: str, hash_: Optional[str] = None) -> D
             "candidat": dict(hash=h, **{k: v for k, v in f["candidats"][h].items()}) if h else None}
 
 
+def _diagnostic(d: Path, m: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
+    """DIAG-UI (contracte §18): la campanya és de diagnòstic si ho diu el yaml (`domini.diagnostic`) o el manifest/`comprova.json`
+    de neudet (`diagnostic`). El text és el de neudet quan el porta; si no, el del contracte. No recalcula res."""
+    doc: Dict[str, Any] = {}
+    if m.get("certificacio"):
+        try:
+            doc = _json(_dins(d, m["certificacio"], "certificacio"))
+        except Exception:                                          # noqa: BLE001
+            doc = {}
+    actiu = bool((y.get("domini") or {}).get("diagnostic")) or bool(m.get("diagnostic")) or bool(doc.get("diagnostic"))
+    ck = (y.get("avaluacio") or {}).get("ckpts")
+    return {"actiu": actiu,
+            "text": str(doc.get("diagnostic_text") or m.get("diagnostic_text") or "diagnòstic, no citable"),
+            "ckpts": ck if isinstance(ck, dict) else {}}
+
+
 def vista(dir_: PathLike) -> Dict[str, Any]:
     """La campanya com a dades: etapes i candidats (csv ⋈ json pel hash), Pareto, certificació, judici, report."""
     d = Path(dir_)
@@ -586,6 +602,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
     metriques = [x for x in ((y.get("objectius") or {}).get("metriques") or []) if isinstance(x, str)]
     return {
         "id": d.name,
+        "diagnostic": _diagnostic(d, m, y),                           # DIAG-UI (§18)
         "provisional": bool(m.get("provisional")),
         "motiu": m.get("motiu"),
         "estat": m["estat"],

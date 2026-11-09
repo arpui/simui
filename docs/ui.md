@@ -195,3 +195,19 @@ l'espectròmetre, els paràmetres amb el valor per defecte visible). Fora la lli
 - **Resultats, «Com s'han calculat les xifres»:** per etapa, les fórmules generals (ε = C/N, σ = √(ε(1−ε)/N), per tub…) i, d'un candidat triat, una taula per energia amb els valors d'aquella tanda: «ε = C/N = 1253947 / 2000000 = 0,627». Amb la font a fora o amb convergència, hi surten també f, G, σ/ε i N necessària quan neudet els dona.
 - **Panell Criteris:** les capçaleres de la taula de guanyadors i de la frontera, i el plegable «Fórmules d'aquestes mètriques».
 - **Pendent:** el resum de la petició i `resposta.md` ja porten les fórmules que hi escriu neudet; als dibuixos de la fitxa del candidat no n'hi ha.
+
+
+## Campanya de diagnòstic (DIAG-UI, contracte §18)
+
+Una opció **permanent** del mètode: provar el que encara no està certificat sense barrejar-ho amb el certificat.
+
+- **Formulari** (bloc «Energies i tubs»): casella **«Diagnòstic (fora del domini validat; no citable)»** → `domini.diagnostic: true`.
+  Activada, les energies **per sobre del màxim** del domini deixen de ser error (en vermell discontinu); per sota del mínim continua
+  sent «prohibit», com a `fitxa.py`. La UI **no fixa cap màxim**: neudet no el publica (el contracte parla de fins a 12 MeV, el rang d'E12).
+- **Ckpts**: un selector per material, amb la llista que neudet resol: els directoris de `<simnet>/data/material/<M>/ckpt/neutro/*/ckpt_final.pt`
+  (`campanya_form.ckpts_disponibles`; BASELINE primer). Els que es deixen a BASELINE no s'escriuen. S'escriuen a `avaluacio.ckpts`, només amb
+  diagnòstic (si es desmarca la casella, desapareixen) i el formulari para un nom que neudet no trobaria.
+- **Avís vermell fix** («diagnòstic, no citable», o el text de neudet si el porta `comprova.json`/manifest): a la pàgina de la campanya, al resum
+  de què entén neudet, a cada taula de xifres (campanya i resultats) i com a etiqueta a les targetes. La vista (`campanya_vista._diagnostic`)
+  i les entrades de resultats (`results_tub.diagnostic_de`) només LLEGEIXEN el yaml, el manifest i `meta.json` (`extra.diagnostic`).
+- Tests: `tests/test_diag_ui.py` (inclou el bessó: la plantilla no porta `diagnostic` i continua passant).
