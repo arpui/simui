@@ -52,19 +52,50 @@ def test_sense_simnet_no_s_inventa_cap_llista(monkeypatch):
     assert CF.ckpts_disponibles() is None
 
 
-def test_energies_per_sobre_del_maxim_nomes_amb_diagnostic():
+def _domini(monkeypatch, **kw):
+    g = {"min": 2.5e-08, "max": 5.0, "max_diagnostic": 12.0, "validat_PE_min": 2.5e-08, "per_defecte": [1.0], "nota": None, "font": "t"}
+    g.update(kw)
+    monkeypatch.setattr(CF, "energies_domini", lambda: g)
+    return g
+
+
+def test_energies_per_sobre_del_maxim_nomes_amb_diagnostic_i_fins_a_max_diagnostic(monkeypatch):
+    """DIAG-UI2: el límit (12 MeV) és el que publica neudet a validacions.json; per sobre, prohibit també en diagnòstic."""
+    _domini(monkeypatch)
     f = _form()
-    g = CF.energies_domini()
-    if g is None or g.get("max") is None:
-        pytest.skip("validacions.json sense el domini del §8")
-    f["domini"]["energies_MeV"] = [1.0, g["max"] * 2.4]
+    f["domini"]["energies_MeV"] = [1.0, 12.0]
     with pytest.raises(CF.FormError, match="fora del domini permès"):
         CF.to_yaml(f)
     f["domini"]["diagnostic"] = True
-    assert yaml.safe_load(CF.to_yaml(f))["domini"]["diagnostic"] is True
-    f["domini"]["energies_MeV"] = [g["min"] / 2, 1.0]            # per sota del mínim, neudet encara ho prohibeix
+    assert yaml.safe_load(CF.to_yaml(f))["domini"]["diagnostic"] is True        # 12 MeV: el límit mateix passa
+    f["domini"]["energies_MeV"] = [1.0, 12.5]
+    with pytest.raises(CF.FormError, match="fins a 12 MeV"):
+        CF.to_yaml(f)
+    f["domini"]["energies_MeV"] = [1e-9, 1.0]                                   # per sota del mínim, neudet encara ho prohibeix
     with pytest.raises(CF.FormError, match="fora del domini permès"):
         CF.to_yaml(f)
+
+
+def test_sense_max_diagnostic_de_neudet_no_s_inventa_cap_limit(monkeypatch):
+    _domini(monkeypatch, max_diagnostic=None)
+    f = _form()
+    f["domini"].update(diagnostic=True, energies_MeV=[1.0, 8.0])
+    with pytest.raises(CF.FormError, match="no publica `max_diagnostic`"):
+        CF.to_yaml(f)
+
+
+def test_l_esquema_porta_el_max_diagnostic_del_registre_de_neudet(monkeypatch):
+    g = _domini(monkeypatch)
+    assert CF.schema()["diagnostic"]["max_diagnostic"] == g["max_diagnostic"] == 12.0
+    assert CF.energies_domini is not None
+
+
+def test_el_registre_real_de_neudet_si_publica_max_diagnostic_es_llegeix():
+    _form()
+    g = CF.energies_domini()
+    if g is None or g.get("max_diagnostic") is None:
+        pytest.skip("el validacions.json de neudet d'aquesta còpia encara no porta max_diagnostic (neudet ad8664b)")
+    assert g["max_diagnostic"] > g["max"]
 
 
 def test_diagnostic_ha_de_ser_booleà():
@@ -123,6 +154,6 @@ def test_una_etapa_es_diagnostic_pel_meta_o_pel_yaml_de_la_campanya(tmp_path):
 
 def test_la_pagina_porta_l_avis_a_tots_els_llocs():
     for tok in ("data-diag-av", "data-diag-tag", "data-diag-xifres", "function cDiagHtml", "domini.diagnostic", "avaluacio.ckpts.",
-                "diagAv(v.diagnostic)", "e.diagnostic"):
+                "diagAv(v.diagnostic)", "e.diagnostic", "G.max_diagnostic"):
         assert tok in INDEX, tok
     assert INDEX.count("data-diag-xifres") >= 2          # taula de la campanya i dels resultats

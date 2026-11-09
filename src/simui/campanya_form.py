@@ -496,7 +496,7 @@ def energies_domini() -> Optional[Dict[str, Any]]:
     d = ((reg or {}).get("domini") or {}).get("energies_MeV")
     if not (isinstance(d, dict) and isinstance(d.get("per_defecte"), list) and d["per_defecte"]):
         return None
-    return {"min": d.get("min"), "max": d.get("max"), "validat_PE_min": d.get("validat_PE_min"),
+    return {"min": d.get("min"), "max": d.get("max"), "max_diagnostic": d.get("max_diagnostic"), "validat_PE_min": d.get("validat_PE_min"),
             "per_defecte": [float(x) for x in d["per_defecte"]], "nota": d.get("nota"),
             "font": "validacions.json · domini.energies_MeV"}
 
@@ -850,8 +850,9 @@ def schema() -> Dict[str, Any]:
         "tipus_tub": tubs,
         "energies_domini": energies_domini(),
         "diagnostic": {"text": DIAGNOSTIC_TEXT, "base": CKPT_BASE, "ckpts": ckpts_disponibles(),
-                       "nota": "contracte §18: energies per sobre del màxim validat (neudet avui n'accepta fins al rang d'E12, 12 MeV; "
-                               "la UI no en fixa el límit) i ckpts no BASELINE; els resultats no són citables"},
+                       "max_diagnostic": (energies_domini() or {}).get("max_diagnostic"),
+                       "nota": "contracte §18: energies per sobre del màxim validat fins a `max_diagnostic` (de neudet, validacions.json) "
+                               "i ckpts no BASELINE; els resultats no són citables"},
         "validacio": {"registre": reg is not None,
                       "motiu": "" if reg is not None else SENSE_REGISTRE},
         "cd": {"fraccio": {"minim": 0, "maxim": 1, "fitxer": CANDIDAT_PY, "linia": CD_FRACCIO_LINIA,
@@ -924,10 +925,18 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
         diag = dom.get("diagnostic") is True
         if g is not None and g.get("min") is not None and g.get("max") is not None:
             # DIAG-UI (§18): amb `domini.diagnostic: true` neudet deixa passar només les energies PER SOBRE del màxim (fitxa.py)
-            fora = [x for x in en if not (g["min"] <= float(x) <= g["max"]) and not (diag and float(x) > g["max"])]
+            # DIAG-UI2: el límit de diagnòstic el publica neudet (`max_diagnostic`); sense ell no se n'inventa cap: no es deixa passar res
+            md = g.get("max_diagnostic")
+            fora = [x for x in en if not (g["min"] <= float(x) <= g["max"])
+                    and not (diag and md is not None and g["max"] < float(x) <= md)]
             if fora:
-                e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV fora del domini permès "
-                         f"{g['min']:g}–{g['max']:g} MeV (validacions.json; contracte §8: «prohibit»)")
+                if diag and md is None and any(float(x) > g["max"] for x in fora):
+                    e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV: neudet no publica `max_diagnostic` a validacions.json "
+                             f"(domini.energies_MeV); sense ell el diagnòstic no té límit conegut (contracte §18)")
+                else:
+                    lim = (f"; amb diagnòstic, fins a {md:g} MeV" if md is not None else "")
+                    e.append(f"domini.energies_MeV: {', '.join('%g' % x for x in fora)} MeV fora del domini permès "
+                             f"{g['min']:g}–{g['max']:g} MeV{lim} (validacions.json; contracte §8/§18: «prohibit»)")
     if "diagnostic" in dom and not isinstance(dom["diagnostic"], bool):
         e.append("domini.diagnostic: sí o no (contracte §18)")
     tt = dom.get("tipus_tub")                  # SIMPLIFICA: neudet el deriva dels tipus de les tongades; el formulari ja no l'escriu

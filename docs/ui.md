@@ -203,7 +203,7 @@ Una opció **permanent** del mètode: provar el que encara no està certificat s
 
 - **Formulari** (bloc «Energies i tubs»): casella **«Diagnòstic (fora del domini validat; no citable)»** → `domini.diagnostic: true`.
   Activada, les energies **per sobre del màxim** del domini deixen de ser error (en vermell discontinu); per sota del mínim continua
-  sent «prohibit», com a `fitxa.py`. La UI **no fixa cap màxim**: neudet no el publica (el contracte parla de fins a 12 MeV, el rang d'E12).
+  sent «prohibit», com a `fitxa.py`. El límit el publica neudet: `validacions.json → domini.energies_MeV.max_diagnostic` (12 MeV, DIAG-UI2); per sobre, error en paraules. Sense aquest camp no es deixa passar res (no s'inventa cap límit).
 - **Ckpts**: un selector per material, amb la llista que neudet resol: els directoris de `<simnet>/data/material/<M>/ckpt/neutro/*/ckpt_final.pt`
   (`campanya_form.ckpts_disponibles`; BASELINE primer). Els que es deixen a BASELINE no s'escriuen. S'escriuen a `avaluacio.ckpts`, només amb
   diagnòstic (si es desmarca la casella, desapareixen) i el formulari para un nom que neudet no trobaria.

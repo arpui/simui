@@ -692,7 +692,7 @@ function cDiagHtml(d){
 function cEnergiesDomini(d){
   const G = CP.schema.energies_domini || {}, en = (d.energies_MeV || []).map(Number);
   const diag = d.diagnostic === true;
-  const franja = e => G.min != null && (e < G.min || e > G.max) ? (diag && e > G.max ? 'diag' : 'fora')
+  const franja = e => G.min != null && (e < G.min || e > G.max) ? (diag && G.max_diagnostic != null && e > G.max && e <= G.max_diagnostic ? 'diag' : 'fora')
     : G.validat_PE_min != null && e < G.validat_PE_min ? 'novalidat' : '';
   const xips = en.map((e, i) => `<span class="nlc ${franja(e)}" title="${e} MeV">${fmtE(e)}<button class="x" data-act="en-" data-i="${i}" title="treu">×</button></span>`).join('');
   const nFora = en.filter(e => franja(e) === 'fora').length, nDiag = en.filter(e => franja(e) === 'diag').length, nNV = en.filter(e => franja(e) === 'novalidat').length;
@@ -706,7 +706,7 @@ function cEnergiesDomini(d){
     <div class="hint">S'ordenen soles i sense repetides; al yaml van en MeV.
     ${G.min != null ? `Permeses de <b>${fmtE(G.min)}</b> a <b>${fmtE(G.max)}</b> (fora, neudet diu «prohibit»${nFora ? `: <b>${nFora} fora</b>` : ''}).` : ''}
     ${G.validat_PE_min != null ? `Per sota de <b>${fmtE(G.validat_PE_min)}</b> la xarxa no està validada dins de PE (només al tub sol): «no validat», en ambre${nNV ? ` (${nNV})` : ''}; en un esborrany només avisa.` : ''}
-    ${diag ? `<b class="diagmsg">Diagnòstic:</b> es poden afegir energies per sobre de ${fmtE(G.max)} (en vermell discontinu${nDiag ? `: ${nDiag}` : ''}); neudet no en fixa un màxim aquí (el contracte §18 parla de fins a 12 MeV, el rang d'E12) i els resultats no seran citables.` : G.max != null ? `Per sobre de ${fmtE(G.max)}: només amb la casella «Diagnòstic» de dalt.` : ''}
+    ${diag ? `<b class="diagmsg">Diagnòstic:</b> ${G.max_diagnostic != null ? `es poden afegir energies per sobre de ${fmtE(G.max)} i fins a <b>${fmtE(G.max_diagnostic)}</b> (límit de neudet; en vermell discontinu${nDiag ? `: ${nDiag}` : ''}); per sobre, prohibit. Els resultats no seran citables.` : `<b>neudet no publica <code>max_diagnostic</code></b> (validacions.json): sense límit conegut no es deixa afegir cap energia per sobre de ${fmtE(G.max)}.`}` : G.max != null ? `Per sobre de ${fmtE(G.max)}: només amb la casella «Diagnòstic» de dalt.` : ''}
     Font: ${escD(G.font || 'validacions.json')} (contracte §8). Els objectius en trien un subconjunt; més energies = més temps de xarxa i de Geant4.</div>`;
 }
 // Cd per anell o per al mapa. Fracció 0 = sense Cd (candidat.py:221); arc (0, 360] (candidat.py:224).
