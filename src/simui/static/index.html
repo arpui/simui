@@ -125,8 +125,8 @@ svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
 #c-form .anell-h input{max-width:30em}
 @media (max-width:760px){#c-form .row,#c-form .row3{grid-template-columns:1fr}#c-form input,#c-form select{max-width:100%}}
 .sticky-bloc{background:var(--bg);border-bottom:1px solid var(--line);padding:4px 0 6px;margin-bottom:8px}
-/* enganxat a dalt només si la finestra és prou gran: en una de petita, les vistes apilades taparien el formulari */
-@media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky;top:0;z-index:5}}
+/* enganxat a dalt només si la finestra és prou gran; i com a molt el 45 % de l'alçada (amb scroll propi): amb les vistes apilades el bloc feia ~1450 px i tapava el formulari */
+@media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky;top:0;z-index:5;max-height:45vh;overflow:auto}}
 .sticky-bloc .tres svg.bloc,.sticky-bloc .tres svg.blocl{margin:2px 0}
 .kgraf{background:#fff;border:1px solid var(--line);margin:6px 0;display:block}
 .kgraf text{font-size:10.5px;fill:var(--muted)}.kgraf .gal{fill:var(--ink);font-size:11.5px}.kgraf .gg{stroke:var(--line);stroke-width:1}
