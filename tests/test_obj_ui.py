@@ -33,6 +33,18 @@ def _form(objectius):
     return f
 
 
+#: FONT-B (neudet `campanya.py`, `Campanya.avis_font`): al cicle nou (`objectius.finalitat`) la font dins del bloc és un error, i la
+#: plantilla (c04_draft) la té a [0, 0, 0]. Per als tests d'espectròmetre (que calculen candidats) es fa servir la font a fora del
+#: fixture de neudet (`tests/test_font_b.py`, `FONT45`, mateix bloc 30×30×80). On va la font per defecte del formulari NO es decideix aquí.
+FONT_FORA_NEUDET = {"tipus": "iso", "pos_cm": [0.0, 0.0, -45.0], "entre": "buit"}
+
+
+def _form_espectre(objectius):
+    f = _form(objectius)
+    f["domini"]["font"] = copy.deepcopy(FONT_FORA_NEUDET)
+    return f
+
+
 # ── forma (to_yaml, sense neudet) ────────────────────────────────────────────
 def test_cicle_nou_passa_la_forma_i_es_llegeix_igual():
     ob = {"finalitat": "comptador", "objectius": [["eps_mitja", "max"], ["cv", "min"]], "informatives": "auto",
@@ -97,7 +109,7 @@ def test_objectius_comptador_en_paraules():
 
 def test_espectrometre_un_sol_anell_es_error_en_vermell():
     _neudet()
-    f = _form({"finalitat": "espectrometre"})
+    f = _form_espectre({"finalitat": "espectrometre"})
     anells = f["etapes"]["S1"]["tongades"][0]["posicions"]["anells"]
     del anells[1:]
     r = CC.objectius(CF.to_yaml(f), "S1")
@@ -109,7 +121,7 @@ def test_espectrometre_un_sol_anell_es_error_en_vermell():
 
 def test_espectrometre_err_grups_sense_grups_proposa_els_de_c03():
     _neudet()
-    r = CC.objectius(CF.to_yaml(_form({"finalitat": "espectrometre", "objectius": [["eps_mitja", "max"], ["err_grups", "min"]]})), "S1")
+    r = CC.objectius(CF.to_yaml(_form_espectre({"finalitat": "espectrometre", "objectius": [["eps_mitja", "max"], ["err_grups", "min"]]})), "S1")
     a = next(x for x in r["avisos"] if x["codi"] == "err_grups_sense_grups")
     assert a["nivell"] == "error" and "els de c03" in a["text"]
 
@@ -134,7 +146,7 @@ def test_espectrometre_sense_cd_diu_no_aplica_sense_bloquejar():
     from neudet.disseny import objectius
     if not hasattr(objectius, "NO_APLICA"):
         pytest.skip("aquest neudet encara no té OBJ·espectre")
-    r = CC.objectius(CF.to_yaml(_form({"finalitat": "espectrometre"})), "S1")
+    r = CC.objectius(CF.to_yaml(_form_espectre({"finalitat": "espectrometre"})), "S1")
     na = [a for a in r["avisos"] if a["codi"] == "no_aplica"]
     assert na and na[0]["nivell"] == "info" and objectius.NO_APLICA_TEXT in na[0]["text"]
     assert not [a for a in r["avisos"] if a["nivell"] == "error"]
@@ -153,3 +165,13 @@ def test_la_nota_de_quins_wi_usa_cada_metrica_ve_de_la_descripcio_de_neudet():
     ds = {m["nom"]: m["descripcio"] for m in CF.schema()["objectius"]["metriques"]}
     assert "(amb pesos)" in ds["eps_mitja"] and "(amb pesos)" in ds["cv"]
     assert "pesos de letargia" in ds["res_E"] and "pesos de letargia" in ds["sE_N"]
+
+
+def test_la_plantilla_amb_finalitat_espectrometre_rep_l_error_de_font_de_neudet_tal_com_es():
+    """Divergència fixada (FONT-B): la plantilla c04_draft té la font a dins i el cicle nou ho rebutja. La UI no ho resol: mostra el
+    missatge de neudet verbatim. Quan neudet (o Albert) decideixi la font per defecte, aquest test ha de canviar."""
+    _neudet()
+    from neudet.disseny.candidat import TEXT_FONT_DINS
+    with pytest.raises(ValueError, match="font dins del bloc") as e:
+        CC.objectius(CF.to_yaml(_form({"finalitat": "espectrometre"})), "S1")
+    assert TEXT_FONT_DINS in str(e.value)

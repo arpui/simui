@@ -98,8 +98,8 @@ RESTRICCIO_LINIA = 238
 DEFECTE_NOMS_LINIA = 228
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
 #: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
-FINALITATS_LINIA = 472                       # FINALITATS = {"comptador": …, "espectrometre": …}
-TAULA_LINIA = 812                            # def taula_objectius()
+FINALITATS_LINIA = 473                       # FINALITATS = {"comptador": …, "espectrometre": …}
+TAULA_LINIA = 813                            # def taula_objectius()
 FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
     "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2"),
     "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2"),
