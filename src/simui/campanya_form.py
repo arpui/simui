@@ -486,6 +486,39 @@ def font_avis(domini: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+# Contracte UI §17 (ENTRE-MAT): domini.entre i, amb aire_humit, domini.humitat_relativa_pct i domini.temperatura_C (obligatoris).
+# Valors del contracte, usats només mentre neudet no els publica (`font.ENTRE_VALIDS`, `entre.constants_mf()`); amb neudet nou es llegeixen d'allà.
+ENTRE_CONTRACTE = ("buit", "aire", "aire_humit")
+ENTRE_HR = {"min": 0, "max": 100, "defecte": 50}                  # §17: 0–100, defecte 50 % (Albert, 2026-11-09)
+ENTRE_T = {"min": -40, "max": 50, "defecte": 20}                  # §17: −40…50, defecte 20 °C
+ENTRE_FONT_CONTRACTE = "contracte UI §17 (2026-11-09); neudet encara no ho publica: espera el pull de neudet"
+
+
+def entre_info() -> Dict[str, Any]:
+    """Els valors de `domini.entre` i els rangs, de neudet si els publica (`neudet.disseny.font.ENTRE_VALIDS`,
+    `neudet.disseny.entre.constants_mf()`); si no, els del contracte §17, i ho diu (`font`)."""
+    valids, f_valids = list(ENTRE_CONTRACTE), ENTRE_FONT_CONTRACTE
+    t = dict(ENTRE_T); f_t = ENTRE_FONT_CONTRACTE
+    try:
+        DES._neudet()
+        import importlib
+        fm = importlib.import_module("neudet.disseny.font")
+        if hasattr(fm, "ENTRE_VALIDS"):
+            valids, f_valids = list(fm.ENTRE_VALIDS), "neudet.disseny.font.ENTRE_VALIDS"
+        try:
+            c = importlib.import_module("neudet.disseny.entre").constants_mf()
+            t["min"], t["max"] = c["kHumidTmin_C"], c["kHumidTmax_C"]
+            f_t = "neudet.disseny.entre.constants_mf() (MaterialFactory.cc)"
+        except Exception:                                          # noqa: BLE001  (neudet vell, sense el bloc ENTRE-MAT)
+            pass
+    except DES.DesignError:
+        pass
+    return {"valids": valids, "font_valids": f_valids,
+            "humitat_relativa_pct": dict(ENTRE_HR, font=ENTRE_FONT_CONTRACTE + " (rang 0–100 també a neudet.disseny.entre.valida)"),
+            "temperatura_C": dict(t, font=f_t, defecte=ENTRE_T["defecte"]),
+            "defecte": "buit"}
+
+
 def _fitxa():
     """`neudet.disseny.fitxa` (registre i regla de validació de neudet), o None si no hi és."""
     try:
@@ -777,6 +810,17 @@ def _schema_avaluacio() -> Dict[str, Any]:
     }
 
 
+def _mon_mig_cm() -> Dict[str, Any]:
+    """§17: `verificacio.mon_mig_cm` (opcional; mig costat del món de Geant4 quan la font és lluny). La línia, de neudet si ja ho llegeix."""
+    d = {"llegit": True, "descripcio": "opcional: mig costat (cm) del món de Geant4 quan la font és lluny (p. ex. 110 amb la font a −100); "
+                                       "sense ell, el món de l'app (75 cm) (contracte UI §17)"}
+    try:
+        d.update(fitxer=CAMPANYA_PY, linia=_troba(CAMPANYA_PY, 384, "mon_mig_cm"))
+    except DES.DesignError:
+        d.update(fitxer=CAMPANYA_PY, linia="?", descripcio=d["descripcio"] + " [neudet encara no ho llegeix: espera el pull de neudet]")
+    return d
+
+
 def _schema_verificacio() -> Dict[str, Any]:
     _linia(VERIFICA_G4_PY, 398, '"--aleatoris"', _SCRIPTS)
     _linia(VERIFICA_G4_PY, 400, '"--n"', _SCRIPTS)
@@ -792,6 +836,7 @@ def _schema_verificacio() -> Dict[str, Any]:
             "hits": {"llegit": True, "fitxer": FITXA_PY, "linia": 108,
                      "descripcio": "mode del bolcat de Geant4, obligatori (G4-COMPACT): «all» (tots els passos) o "
                                    "«detect» (només les files He3(n,p), ~60 vegades menys disc)"},
+            "mon_mig_cm": _mon_mig_cm(),
             "porta": {"llegit": False, "fitxer": FITXA_PY, "linia": 105,
                       "descripcio": "text lliure que neudet ja no exigeix (SIMPLIFICA, 2026-11-05); la porta que "
                                     "compta és la del PLA.md de la campanya"}}
@@ -891,6 +936,7 @@ def schema() -> Dict[str, Any]:
         "font": {"tipus": [{"valor": t, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for t in FONT_TIPUS],
                  "eixos": [{"valor": e, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for e in EIXOS],
                  "eix_defecte": {"valor": "z", "fitxer": CANDIDAT_PY, "linia": EIX_DEFECTE_LINIA},
+                 "entre": entre_info(),
                  "defecte": {"cara_cm": FONT_CARA_CM, "tolerancia_cara_cm": FONT_CARA_MM_ERROR, "entre": "buit",
                              "font": "contracte UI §19 (2026-11-09)"}},
         "objectius": _schema_objectius(obj),
@@ -921,6 +967,26 @@ def _llista_de(x, ok, n: Optional[int] = None) -> bool:
     return all(ok(v) for v in x)
 
 
+def _errors_entre(dom: Dict[str, Any]) -> List[str]:
+    """§17: entre ∈ valids; amb aire_humit, HR (0–100) i T obligatòries i dins del rang; sense aire_humit no hi poden ser."""
+    info = entre_info()
+    ent = dom.get("entre", "buit")
+    hum = [k for k in ("humitat_relativa_pct", "temperatura_C") if dom.get(k) is not None]
+    if ent not in info["valids"]:
+        return [f"domini.entre: cal {' o '.join(info['valids'])} (contracte UI §17)"]
+    if ent != "aire_humit":
+        return [f"domini.{k}: només amb domini.entre: aire_humit (§17)" for k in hum]
+    e: List[str] = []
+    for k in ("humitat_relativa_pct", "temperatura_C"):
+        r = info[k]
+        v = dom.get(k)
+        if v is None:
+            e.append(f"domini.{k}: obligatori amb aire_humit, sense valor implícit (§17)")
+        elif not _num(v) or not (r["min"] <= v <= r["max"]):
+            e.append(f"domini.{k}: un número entre {r['min']:g} i {r['max']:g} (§17)")
+    return e
+
+
 def _errors_domini(dom: Dict[str, Any]) -> List[str]:
     e: List[str] = []
     bloc = dom.get("bloc") if isinstance(dom.get("bloc"), dict) else {}
@@ -943,6 +1009,7 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
             e.append(f"domini.font.eix: cal {' o '.join(EIXOS)} (feix, candidat.py:{FONT_LINIA})")
         if not _llista_de(font.get("desplacament_cm"), _num, 2):
             e.append("domini.font.desplacament_cm: dues coordenades en cm (feix)")
+    e += _errors_entre(dom)
     if not _llista_de(dom.get("energies_MeV"), _pos):
         e.append("domini.energies_MeV: una llista de energies positives en MeV")
     else:
@@ -1538,6 +1605,9 @@ def _errors(f: Any) -> List[str]:
                 e += _errors_tongades(etapa["tongades"], f"etapes.{nom}.tongades")
     if "draft" in f and not isinstance(f["draft"], bool):
         e.append("draft: sí o no (fitxa.py: decideix)")
+    mm = (f.get("verificacio") or {}).get("mon_mig_cm") if isinstance(f.get("verificacio"), dict) else None
+    if mm is not None and not _pos(mm):
+        e.append("verificacio.mon_mig_cm: un número > 0 (cm) o buit (§17)")
     e += _errors_objectius(f)
     e += _errors_avaluacio(f)
     e += _errors_cerca(f)

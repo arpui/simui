@@ -614,6 +614,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "formules_metriques": formules_metriques(),                  # FORM-UI: la fórmula de cada mètrica, de neudet
         "etapes": etapes,
         "judici": m["judici"],
+        "entre": m.get("entre") if isinstance(m.get("entre"), dict) else None,    # ENTRE-UI (§17): tal com ho dona neudet (campanya_ui.json)
         "interpretacio": m.get("interpretacio") if isinstance(m.get("interpretacio"), str) else None,   # CONF-PLA: PLA.md des d'«interpretada»
         "report": list(m["report"]),
         "export": m["export"],

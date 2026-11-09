@@ -1469,11 +1469,11 @@ function cVerifHtml(f){
   const claus = [...Object.keys(V), ...Object.keys(ver).filter(k => !(k in V))];
   const items = claus.map(k => {
     const info = V[k];
-    const val = k === 'hits' ? cSel('verificacio.hits', [{valor: 'all'}, {valor: 'detect'}], ver.hits, 'str') : cRO(ver[k] ?? '—');     // UI-AFINA: l'únic que neudet llegeix, editable
+    const val = k === 'mon_mig_cm' ? cNumIn('verificacio.mon_mig_cm', ver.mon_mig_cm, {min: 0, ph: 'buit: el món de sempre'}) : k === 'hits' ? cSel('verificacio.hits', [{valor: 'all'}, {valor: 'detect'}], ver.hits, 'str') : cRO(ver[k] ?? '—');     // UI-AFINA: l'únic que neudet llegeix, editable
     return `<div class="kv"><div><code>${escD(k)}</code> ${val}</div>
       <div class="hint">${info ? escD(info.descripcio) : 'clau que el formulari no coneix'}${info ? ` <span class="src">(${escD(cSrc(info.fitxer, info.linia))})</span>` : ''}</div></div>`;
   }).join('');
-  return `${items}<div class="hint">Només <code>hits</code> es pot canviar aquí; la resta és de lectura: per canviar-los, a neudet (<code>disseny/campanyes/&lt;id&gt;/campanya.yaml</code>).</div>`;
+  return `${items}<div class="hint">Només <code>hits</code> i <code>mon_mig_cm</code> es poden canviar aquí; la resta és de lectura: per canviar-los, a neudet (<code>disseny/campanyes/&lt;id&gt;/campanya.yaml</code>).</div>`;
 }
 
 // Cerca de l'etapa: el tipus és una llista tancada (cerca.py), i cada tipus té els seus camps.
@@ -1502,6 +1502,39 @@ function cFontAvisHtml(d){
   if(!a) return '';
   return `<div class="panel warn" data-font-avis="${a}"><b>${a === 'dins' ? 'Font dins del bloc' : 'Font sobre la cara del bloc'}.</b> neudet ${a === 'dins' ? 'la rebutja (avís, FONT-A)' : 'dona error (a menys d\'1 mm d\'una cara, FONT-B)'}; la font per defecte és a fora, a ${escD(cara)} cm de la cara z− (contracte UI §19).
     ${CP.congelat ? '' : '<button type="button" class="ghost" data-act="fontfora">posa-la a fora (per defecte)</button>'}</div>`;
+}
+// ENTRE-UI (contracte UI §17): què hi ha entre la font i el bloc. Només si la font és a fora; els valors i els rangs són de neudet
+// (o, mentre no els publica, del contracte, i ho diu). La fracció d'H2O i la densitat les calcula neudet: es veuen a la campanya desada.
+const ENTRE_TXT = {buit: 'buit', aire: 'aire', aire_humit: 'aire humit'};
+function cEntreHtml(d){
+  const E = CP.schema.font.entre, ent = d.entre ?? E.defecte, a = d.font.tipus === 'iso' ? cFontAvis(d, CP.schema.font.defecte.tolerancia_cara_cm) : 'no_iso';
+  if(a){
+    return ent !== E.defecte ? `<div class="panel warn" data-entre-sense-font>domini.entre és <code>${escD(ent)}</code>, però només té sentit amb la font a fora del bloc (contracte UI §17).</div>` : '';
+  }
+  const hr = E.humitat_relativa_pct, tt = E.temperatura_C;
+  const sel = cSel('domini.entre', E.valids.map(v => ({valor: v, text: ENTRE_TXT[v] || v})), ent, 'str', 'data-s');
+  const hum = ent === 'aire_humit'
+    ? `<div class="row">${cLab(`humitat relativa (%, ${hr.min}–${hr.max})`, cNumIn('domini.humitat_relativa_pct', d.humitat_relativa_pct, {min: hr.min, max: hr.max}))}
+        ${cLab(`temperatura (°C, ${tt.min}…${tt.max})`, cNumIn('domini.temperatura_C', d.temperatura_C, {min: tt.min, max: tt.max}))}</div>
+       <div class="hint">Valors per defecte del formulari: HR ${hr.defecte} %, ${tt.defecte} °C (Albert, 2026-11-09; contracte UI §17). Rangs: ${escD(tt.font)}.</div>` : '';
+  return `<div id="c-entre" data-entre>${cLab('entre la font i el bloc', sel)}${hum}
+    <div class="hint">Valors de <code>domini.entre</code>: ${escD(E.font_valids)}. La fracció d'H₂O (massa) i la densitat de l'aire les calcula neudet: surten a la campanya desada, tal com les dona.</div></div>`;
+}
+function cEntreCanvi(v){                                            // §17: amb aire_humit, HR i T amb el valor per defecte; si no, no hi poden ser
+  const d = CP.f.domini, E = CP.schema.font.entre;
+  if(v === 'aire_humit'){ if(d.humitat_relativa_pct === undefined) d.humitat_relativa_pct = E.humitat_relativa_pct.defecte; if(d.temperatura_C === undefined) d.temperatura_C = E.temperatura_C.defecte; }
+  else { delete d.humitat_relativa_pct; delete d.temperatura_C; }
+}
+// La campanya desada: el que neudet diu que hi ha entre la font i el bloc (campanya_ui.json → entre), tal com ve, i l'avís del resum.
+function kEntreHtml(v){
+  const e = v.entre; if(!e || !e.entre || e.entre === 'buit') return '';
+  const dada = (k, u) => e[k] === undefined || e[k] === null ? `<span class="hint">${k}: neudet no ho dona al campanya_ui.json</span>` : `${k} = <b>${escD(e[k])}</b>${u}`;
+  const rs = (v.certificacio && v.certificacio.resum_text) || '';
+  const avis = rs.split('\n').filter(l => /dispersió a l'aire/i.test(l)).map(l => l.trim());
+  return `<div class="panel" data-entre-vista><b>Entre la font i el bloc: ${escD(ENTRE_TXT[e.entre] || e.entre)}</b>
+    ${e.humitat_relativa_pct !== undefined ? ` · ${dada('humitat_relativa_pct', ' %')} · ${dada('temperatura_C', ' °C')}` : ''}
+    · ${dada('fraccio_h2o_massa', '')} · ${dada('rho_gcm3', ' g/cm³')}
+    ${avis.map(l => `<div class="hint">${escD(l)} <span class="src">(resum de neudet)</span></div>`).join('')}</div>`;
 }
 function cFontHtml(d){
   const F = CP.schema.font;
@@ -1534,6 +1567,7 @@ function cFormHtml(){
   ${cLab('tipus (neudet: iso o feix)', cSel('domini.font.tipus', S.font.tipus, d.font.tipus, 'str', 'data-s'))}
   ${cFontHtml(d)}
   <div id="c-font-avis">${cFontAvisHtml(d)}</div>
+  ${cEntreHtml(d)}
 
   <h2>Energies i tubs</h2>
   ${cDiagHtml(d)}
@@ -1763,6 +1797,7 @@ function cEdita(el, change){
   if(p === 'domini.diagnostic'){ if(!v){ delete CP.f.domini.diagnostic; if(CP.f.avaluacio) delete CP.f.avaluacio.ckpts; } }      // DIAG-UI: sense diagnòstic no hi ha ckpts alternatius
   if(p.startsWith('avaluacio.ckpts.') && CP.f.avaluacio && CP.f.avaluacio.ckpts && !Object.keys(CP.f.avaluacio.ckpts).length) delete CP.f.avaluacio.ckpts;
   const mt = /^(etapes\.[^.]+\.tongades\.\d+)\./.exec(p); if(mt) cSyncInv(cGetS(CP.f, mt[1]));
+  if(p === 'domini.entre') cEntreCanvi(v);
   if(p.startsWith('domini.font')) CP.fontMoguda = true;              // §19: una font moguda per l'usuari no es recalcula
   if(/^domini\.bloc\.mides_cm\./.test(p) && !CP.fontMoguda && CP.f.domini.font.tipus === 'iso'){
     const m = CP.f.domini.bloc.mides_cm;
@@ -2172,6 +2207,7 @@ function kEstatConf(v){
 function kResumInterp(v){
   const rs = v.certificacio && v.certificacio.resum_text;
   return (rs ? `<details class="fold" open><summary>Què entén neudet que farà (resum)${diagTag(v.diagnostic)}</summary>${diagAv(v.diagnostic)}<div class="panel pre" style="white-space:pre-wrap">${escD(rs)}</div></details>` : '') +
+    kEntreHtml(v) +
     (v.interpretacio ? `<details class="fold" open><summary>Interpretació del planificador (PLA.md)</summary><div class="panel">${kMd(v.interpretacio)}</div></details>` : '');
 }
 // «Confirmar i congelar»: només si la campanya és `interpretada`; l'escriu neudet (hash del yaml i del PLA) i qui confirma hi consta.
