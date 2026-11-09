@@ -55,8 +55,8 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from . import results_tub as RES
-from .design import DesignError, neudet_root
+from simphy.mcgen import results_tub as RES
+from simphy.mcgen.design import DesignError, neudet_root
 
 PathLike = Union[str, Path]
 
@@ -523,7 +523,7 @@ def formules_metriques() -> Dict[str, str]:
     """FORM-UI (contracte §15): la fórmula de cada mètrica, tal com la dona neudet (`objectius.taula_objectius`). La UI no en escriu cap.
     Sense neudet, buit (les pàgines continuen funcionant sense les fórmules)."""
     try:
-        from . import design as DES
+        from simphy.mcgen import design as DES
         DES._neudet()
         from neudet.disseny import objectius as OBJ
         return {n: m["formula"] for n, m in OBJ.taula_objectius()["metriques"].items() if m.get("formula")}
@@ -544,7 +544,7 @@ def formules_etapa(dir_: PathLike, etapa: str, hash_: Optional[str] = None) -> D
     ed = d / "etapes" / etapa
     if not ed.is_dir():
         raise ValueError(f"{d.name} no té l'etapa {etapa!r}")
-    from . import design as DES
+    from simphy.mcgen import design as DES
     try:
         DES._neudet()
         from neudet.disseny.formules import formules_etapa as FE

@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from simphy.mcgen import design as D  # noqa: E402
-from simphy.mcgen import campanya_form as CF  # noqa: E402
-from simphy.ui import server  # noqa: E402
+from simui import campanya_form as CF  # noqa: E402
+from simui import server  # noqa: E402
 
 try:
     _REAL_NEUDET = D.neudet_root()
@@ -138,7 +138,7 @@ def test_desa_per_http_no_sobreescriu_una_campanya_que_no_es_proposta(url, neude
 
 
 def test_desa_per_http_amb_certificacio_escriu_els_dos_fitxers(url, neudet_tmp, monkeypatch):
-    from simphy.mcgen import campanya_check as CC
+    from simui import campanya_check as CC
     monkeypatch.setattr(CC, "certifica_proposta", lambda y, i: {
         "campanya": i, "fitxa": 1, "draft": True, "etapes": {}, "elements": [], "atura": False})
     code, r = _json(url, "/api/campanya/desa", {"form": _form("c05_prova")})

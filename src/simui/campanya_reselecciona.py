@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import campanya_vista as CV
-from . import design as DES
+from simphy.mcgen import design as DES
 
 #: rondes que entren a la frontera (el mateix que `campanya.py` i `recalcula_objectiu.py`; verifica_g4 escriu «verificat»)
 FINALS = ("única", "final", "verificat")

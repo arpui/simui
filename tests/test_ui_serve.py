@@ -1,4 +1,4 @@
-"""La consola web (`scripts/ui/serve.py`) no pot dir una cosa diferent de `gen.py`.
+"""La consola web (`scripts/serve.py`) no pot dir una cosa diferent de `gen.py`.
 
 Totes dues passen per `factory.retarget` → `validate` → `render`. Aquest fitxer
 ho comprova igualment, exemple per exemple i codi per codi: si algun dia una de
@@ -16,14 +16,18 @@ from pathlib import Path
 
 import pytest
 
+from simphy import mcgen
 from simphy.mcgen import core
+from simphy.mcgen.paths import repo_root
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES = sorted((ROOT / "src/simphy/mcgen/examples").glob("*.json"))
+SIMPHY_ROOT = repo_root()                     # el repo de simphy (pip -e): `scripts/mcgen/gen.py` és seu
+SIMPHY_EXAMPLES = Path(mcgen.__file__).resolve().parent / "examples"   # els exemples són del paquet simphy
+EXAMPLES = sorted(SIMPHY_EXAMPLES.glob("*.json"))
 
 
-def _load(name: str, rel: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / rel)
+def _load(name: str, rel: str, root: Path = ROOT):
+    spec = importlib.util.spec_from_file_location(name, root / rel)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -31,12 +35,12 @@ def _load(name: str, rel: str):
 
 @pytest.fixture(scope="module")
 def ui():
-    return _load("simphy_ui_serve", "scripts/ui/serve.py")
+    return _load("simphy_ui_serve", "scripts/serve.py")
 
 
 @pytest.fixture(scope="module")
 def gen():
-    return _load("simphy_gen_cli", "scripts/mcgen/gen.py")
+    return _load("simphy_gen_cli", "scripts/mcgen/gen.py", SIMPHY_ROOT)
 
 
 def _gen_outcome(gen, path: Path, backend: str):
@@ -102,7 +106,7 @@ def test_els_desplegables_son_les_tuples_de_core(ui):
 
 def test_el_detector_als_quatre_codis(ui):
     """El cas de la presentació: dos decks i dos rebuigs amb l'alternativa."""
-    raw = json.loads((ROOT / "src/simphy/mcgen/examples/un_perp_detector.json").read_text())
+    raw = json.loads((SIMPHY_EXAMPLES / "un_perp_detector.json").read_text())
     got = {r["backend"]: r for r in ui.render_all(raw)}
     assert got["mcnp"]["status"] == "ok" and got["fluka"]["status"] == "ok"
     assert got["openmc"]["status"] == "rejected"
@@ -140,7 +144,7 @@ def test_serve_accepta_diverses_adreces_separades_per_comes():
     import sys
     import urllib.request
     from pathlib import Path
-    script = Path(__file__).resolve().parents[1] / "scripts" / "ui" / "serve.py"
+    script = Path(__file__).resolve().parents[1] / "scripts" / "serve.py"
     assert 'default="127.0.0.1"' in script.read_text(encoding="utf-8")        # sense --host: només aquesta màquina
     p = subprocess.Popen([sys.executable, str(script), "--host", "127.0.0.1,127.0.0.2", "--port", "18765"],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -166,7 +170,7 @@ def test_serve_restart_substitueix_el_servidor_que_ja_corre():
     import time
     import urllib.request
     from pathlib import Path
-    script = Path(__file__).resolve().parents[1] / "scripts" / "ui" / "serve.py"
+    script = Path(__file__).resolve().parents[1] / "scripts" / "serve.py"
     cmd = [sys.executable, str(script), "--host", "127.0.0.1", "--port", "18766"]
 
     def espera():
@@ -191,7 +195,7 @@ def test_serve_restart_substitueix_el_servidor_que_ja_corre():
 
 def test_connexio_tancada_pel_navegador_no_imprimeix_traca(capsys):
     """Un BrokenPipe (el navegador recarrega a mitges) no és un error de simphy; una altra excepció sí que es veu."""
-    from simphy.ui import server as S
+    from simui import server as S
     srv = S.make_server("127.0.0.1", 0)
     try:
         try:

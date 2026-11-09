@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """serve.py — consola web de simphy: un formulari (o un prompt) → els quatre codis.
 
-    python scripts/ui/serve.py                 # http://127.0.0.1:8765
-    python scripts/ui/serve.py --port 9000
-    python scripts/ui/serve.py --host 127.0.0.1,192.168.31.118,192.168.192.66   # diverses adreces (una per interfície)
-    python scripts/ui/serve.py --host ... --port 8765 --restart   # si ja hi ha un servidor en aquest port, l'atura i arrenca el nou
+    python scripts/serve.py                 # http://127.0.0.1:8765
+    python scripts/serve.py --port 9000
+    python scripts/serve.py --host 127.0.0.1,192.168.31.118,192.168.192.66   # diverses adreces (una per interfície)
+    python scripts/serve.py --host ... --port 8765 --restart   # si ja hi ha un servidor en aquest port, l'atura i arrenca el nou
 
-El codi és al paquet `simphy.ui` (`api.py`, `server.py`, `static/index.html`);
+El codi és al paquet `simui` (`api.py`, `server.py`, `static/index.html`);
 aquest fitxer només l'arrenca. `tests/test_ui_serve.py` comprova, exemple per
 exemple i codi per codi, que la pàgina i `gen.py` donen el mateix resultat.
 """
@@ -20,11 +20,11 @@ import threading
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from simphy.ui.api import EXAMPLES, ask, llm_status, meta, render_all, render_one  # noqa: E402,F401
-from simphy.ui.server import PAGE, Handler, make_server                         # noqa: E402,F401
+from simui.api import EXAMPLES, ask, llm_status, meta, render_all, render_one  # noqa: E402,F401
+from simui.server import PAGE, Handler, make_server                         # noqa: E402,F401
 
 
 def _pidfile(port: int) -> Path:

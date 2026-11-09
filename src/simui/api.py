@@ -24,23 +24,24 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..mcgen import core, factory
-from ..mcgen import detector_config as D
-from ..mcgen import materials as M
-from ..mcgen.backends.base import RenderError
-from ..mcgen.core import SpecError
-from ..mcgen.schema import parse
-from ..mcgen import design as DES
-from ..mcgen import design_catalog as CAT
-from ..mcgen import design_export as EXP
-from ..mcgen import design_view as VIEW
-from ..mcgen import results_tub as RES
-from ..mcgen import campanya_form as CF
-from ..mcgen import campanya_check as CC
-from ..mcgen import campanya_vista as CV
-from ..mcgen import campanya_desa as CD
+from simphy import mcgen as _mcgen
+from simphy.mcgen import core, factory
+from simphy.mcgen import detector_config as D
+from simphy.mcgen import materials as M
+from simphy.mcgen.backends.base import RenderError
+from simphy.mcgen.core import SpecError
+from simphy.mcgen.schema import parse
+from simphy.mcgen import design as DES
+from simphy.mcgen import design_catalog as CAT
+from simphy.mcgen import design_export as EXP
+from simphy.mcgen import design_view as VIEW
+from simphy.mcgen import results_tub as RES
+from . import campanya_form as CF
+from . import campanya_check as CC
+from . import campanya_vista as CV
+from . import campanya_desa as CD
 
-EXAMPLES = Path(__file__).resolve().parents[1] / "mcgen" / "examples"
+EXAMPLES = Path(_mcgen.__file__).resolve().parent / "examples"   # els exemples són del paquet simphy
 
 
 # ── el que la pàgina necessita saber ─────────────────────────────────────────
@@ -372,7 +373,7 @@ def campanya_formules(id_: str, etapa: str, hash_: str = "") -> Dict[str, Any]:
 def campanya_reselecciona(body: Dict[str, Any]) -> Dict[str, Any]:
     """REAVALUA-UI: els candidats d'una etapa (`id`, `etapa`) tornats a presentar amb altres `criteris` (opcionals: el que falta és el de
     la campanya). Només lectura: no simula ni escriu res; la selecció és de neudet (`campanya_reselecciona`)."""
-    from ..mcgen import campanya_reselecciona as RES
+    from . import campanya_reselecciona as RES
     return RES.reselecciona(str(body.get("id") or ""), str(body.get("etapa") or ""), body.get("criteris") or None)
 
 

@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from simphy.mcgen import campanya_reselecciona as RES
-from simphy.mcgen import campanya_vista as CV
+from simui import campanya_reselecciona as RES
+from simui import campanya_vista as CV
 from simphy.mcgen import design as DES
-from simphy.ui import api
+from simui import api
 
-INDEX = (Path(__file__).resolve().parents[1] / "src" / "simphy" / "ui" / "static" / "index.html").read_text(encoding="utf-8")
+INDEX = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
 
 
 def _neudet():

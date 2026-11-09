@@ -23,7 +23,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from simphy.mcgen import campanya_vista as V  # noqa: E402
+from simui import campanya_vista as V  # noqa: E402
 from simphy.mcgen import design as D  # noqa: E402
 from simphy.mcgen import results_tub as RES  # noqa: E402
 

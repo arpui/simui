@@ -28,8 +28,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import design as DES
-from . import design_view as VIEW
+from simphy.mcgen import design as DES
+from simphy.mcgen import design_view as VIEW
 
 #: el script de certificació de neudet (CAMP-1); si no hi és, no es certifica res
 SCRIPT_REL = "scripts/disseny/comprova_campanya.py"

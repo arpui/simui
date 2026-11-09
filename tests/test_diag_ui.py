@@ -9,13 +9,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from simphy.mcgen import campanya_form as CF
-from simphy.mcgen import campanya_vista as CV
+from simui import campanya_form as CF
+from simui import campanya_vista as CV
 from simphy.mcgen import design as DES
 from simphy.mcgen import mc_sources as MS
 from simphy.mcgen import results_tub as RT
 
-INDEX = (Path(__file__).resolve().parents[1] / "src" / "simphy" / "ui" / "static" / "index.html").read_text(encoding="utf-8")
+INDEX = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
 
 
 def _form():

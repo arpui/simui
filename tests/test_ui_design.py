@@ -35,7 +35,7 @@ def _simphy_resultats_aillats(tmp_path, monkeypatch):
 sys.path.insert(0, str(ROOT / "src"))
 
 from simphy.mcgen import design as D  # noqa: E402
-from simphy.ui import server  # noqa: E402
+from simui import server  # noqa: E402
 
 C03 = "campanyes/c03_3anells_grups/1x3_4x6_3x12"
 C02 = "campanyes/c02_cd_2grups/4x3_4x7_cd0p5a360c0"
@@ -151,7 +151,7 @@ def test_ask_amb_un_model_fals_proposa_un_disseny_verificat(url, monkeypatch):
     _neudet_o_skip()
     from simphy.mcgen.agent import llm as L
 
-    exemple = json.loads((ROOT / "src/simphy/mcgen/examples/design/design_c03_1x3_4x6_3x12.json").read_text())
+    exemple = json.loads((Path(D.__file__).resolve().parent / "examples" / "design" / "design_c03_1x3_4x6_3x12.json").read_text())
 
     class FakeLLM:
         last_mode, had_grammar, mode_log = "json_schema", True, []

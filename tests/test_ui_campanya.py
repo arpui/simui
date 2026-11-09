@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from simphy.mcgen import design as D  # noqa: E402
-from simphy.ui import api, server  # noqa: E402
+from simui import api, server  # noqa: E402
 
 
 def _neudet_o_skip() -> Path:
@@ -174,7 +174,7 @@ def test_compta_c04_s1_per_la_ruta(url):
 def test_compta_error_de_neudet_arriba_verbatim(url):
     """Una regla que neudet no pot generar: el missatge és el de neudet, tal com és (no reescrit)."""
     _neudet_o_skip()
-    from simphy.mcgen import campanya_check as CC, campanya_form as CF
+    from simui import campanya_check as CC, campanya_form as CF
     _, d = _json(url, "/api/campanya/defaults")
     d["etapes"]["S1"]["tongades"] = [{"nom": "t", "posicions": {"font": "anells", "anells": [{"r": 3, "n": 2, "phi": 0}]},
                                       "tipus": ["lnd_252285", "lnd_252248"], "cd": {"fraction": 0}, "eix": "z",
@@ -238,7 +238,7 @@ def test_candidat_de_campanya_porta_el_dat_de_neudet(url):
     """Un candidat de la llista d'una campanya no és a `export/`: `/api/campanya/candidat` el genera amb
     `Candidat.to_dat` i el Disseny el pot carregar (visor i inputs)."""
     root = _neudet_o_skip()
-    from simphy.mcgen import campanya_check as CC
+    from simui import campanya_check as CC
     if not (root / "disseny/campanyes/c04_draft/campanya.yaml").exists():
         pytest.skip("neudet no té c04_draft")
     _, d = _json(url, "/api/campanya/defaults")

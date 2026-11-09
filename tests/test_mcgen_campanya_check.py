@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from simphy.mcgen import campanya_check as CC
+from simui import campanya_check as CC
 
 
 
 # ── UI-DIB2: l'exemple del dibuix passa per `violacions` de neudet ─────────────────────────────────────────
 
 def _yaml_c0_2t0611():
-    from simphy.mcgen import campanya_form as CF
+    from simui import campanya_form as CF
     d = Path(os.environ.get("NEUDET_ROOT", Path.home() / "projects" / "neudet")) / "disseny" / "campanyes" / "c0_2t0611"
     if not (d / "campanya.yaml").is_file():
         pytest.skip("no hi ha c0_2t0611 a NEUDET")

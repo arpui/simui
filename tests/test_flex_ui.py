@@ -23,13 +23,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from simphy.mcgen import campanya_check as CC  # noqa: E402
-from simphy.mcgen import campanya_form as CF  # noqa: E402
+from simui import campanya_check as CC  # noqa: E402
+from simui import campanya_form as CF  # noqa: E402
 from simphy.mcgen import design as DES  # noqa: E402
 from simphy.mcgen import design_view as DV  # noqa: E402
 from simphy.mcgen import detector_config as DC  # noqa: E402
 
-INDEX = (ROOT / "src" / "simphy" / "ui" / "static" / "index.html").read_text()
+INDEX = (ROOT / "src" / "simui" / "static" / "index.html").read_text()
 
 
 def _neudet_o_skip() -> Path:
@@ -305,7 +305,7 @@ def test_despres_de_desar_la_pagina_diu_que_es_fa_i_amb_quin_missatge():
 # ── RESP-UI: resposta d'etapa i formulari congelat a la pàgina ──────────────
 
 def test_pagina_mostra_resposta_d_etapa_i_formulari_congelat():
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parents[1] / "src/simui/static/index.html").read_text(encoding="utf-8")
     for tros in ("function kResposta", "function kPla", "Aquesta etapa encara no té <code>resposta.md</code>",
                  "Per què aquesta etapa", "function kCongela", 'data-k="congela"', "Definició congelada",
                  "function cCongela", "CP.congelat"):
@@ -316,7 +316,7 @@ def test_pagina_mostra_resposta_d_etapa_i_formulari_congelat():
 
 
 def test_desa_mostra_en_vermell_errors_i_descartats():
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parents[1] / "src/simui/static/index.html").read_text(encoding="utf-8")
     assert "function cAvisosDesa" in html and "data-avis-desa" in html
     assert "${cAvisosDesa(r.certificacio)}" in html           # i és dins de la resposta de desar
     for tros in ("camps_falten", "candidats descartats", "e.motius", "'prohibit'"):
@@ -327,7 +327,7 @@ def test_desa_mostra_en_vermell_errors_i_descartats():
 def test_pregunta_per_etapa_passa_pel_formulari_i_neudet_la_tolera():
     """CONF-UI (contracte UI §13): «Què vull saber» és `etapes.<e>.pregunta`; el formulari la conserva i neudet no la rebutja."""
     import os
-    from simphy.mcgen import campanya_check as CC
+    from simui import campanya_check as CC
     y = Path(os.path.expanduser("~/projects/neudet/disseny/campanyes/c0_2anells/campanya.yaml"))
     if not y.is_file():
         pytest.skip("neudet no és present")
@@ -340,7 +340,7 @@ def test_pregunta_per_etapa_passa_pel_formulari_i_neudet_la_tolera():
 
 
 def test_pagina_te_pregunta_i_boto_modifica():
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parents[1] / "src/simui/static/index.html").read_text(encoding="utf-8")
     assert "Què vull saber" in html and "etapes.${E}.pregunta" in html
     assert "Modifica la proposta" in html and "Desa la proposta" in html
 
@@ -360,7 +360,7 @@ def _form_inv(inv=None, **pos):
 
 
 def test_inventari_passa_pel_formulari_i_neudet_compta_amb_simetria_i_no_escriu_tipus_tub():
-    from simphy.mcgen import campanya_check as CC
+    from simui import campanya_check as CC
     f, e = _form_inv()
     txt = CF.to_yaml(f)
     assert "inventari:" in txt and "tipus_tub" not in txt              # SIMPLIFICA: neudet el deriva dels tipus de les tongades
@@ -482,7 +482,7 @@ def test_el_visor_de_candidats_dona_tambe_el_tall_yz():
 # ── CONF-UI: resum, interpretació i confirmació (contracte UI §13) ──────────
 
 def test_la_vista_porta_resum_confirmacio_interpretacio_i_etapes_declarades():
-    from simphy.mcgen import campanya_vista as CV
+    from simui import campanya_vista as CV
     root = _neudet_o_skip()
     if not (root / "disseny/campanyes/c0_2a0511/campanya_ui.json").is_file():
         pytest.skip("c0_2a0511 no és a neudet")
@@ -537,7 +537,7 @@ def test_afina_punts_variables_i_cost_gran():
 
 def test_afina_opcions_cost_arriba_de_comprova_json(tmp_path):
     import json
-    from simphy.mcgen import campanya_vista as CV
+    from simui import campanya_vista as CV
     d = tmp_path / "c"; d.mkdir()
     (d / "comprova.json").write_text(json.dumps({"atura": False, "opcions_cost": [{"opcio": "mostres: 200", "cost_h": 9}]}))
     c = CV._certificacio(d, "comprova.json")

@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from simphy.mcgen import campanya_check as CC
-from simphy.mcgen import campanya_form as CF
+from simui import campanya_check as CC
+from simui import campanya_form as CF
 from simphy.mcgen import design as DES
 
-INDEX = (Path(__file__).resolve().parents[1] / "src" / "simphy" / "ui" / "static" / "index.html").read_text()
+INDEX = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text()
 
 
 def _neudet():

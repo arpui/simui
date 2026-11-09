@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from simphy.mcgen import design as D  # noqa: E402
-from simphy.ui import server  # noqa: E402
+from simui import server  # noqa: E402
 
 
 @pytest.fixture(scope="module")

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simui"
+version = "0.1.0"
+description = "La consola web de simphy i neudet: formulari de campanyes, dissenys i generació d'inputs (la UI no calcula res)"
+requires-python = ">=3.10"
+# simphy s'instal·la en editable des del seu repo (pip install -e ~/projects/simphy): `simphy.mcgen.paths.repo_root()`
+# només dona l'arrel de simphy si és editable. neudet i simnet NO s'instal·len: es troben per NEUDET_ROOT / SIMNET_ROOT.
+dependencies = ["simphy"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pyyaml"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+simui = ["static/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

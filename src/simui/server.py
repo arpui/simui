@@ -18,10 +18,10 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import api
 from .api import ask, llm_status, meta, render_all
-from ..mcgen import campanya_vista as CV
+from . import campanya_vista as CV
 
 PAGE_PATH = Path(__file__).resolve().parent / "static" / "index.html"   # es llegeix a cada petició: un canvi es veu recarregant, sense reiniciar
-PAGE = PAGE_PATH.read_text()   # només per compatibilitat (scripts/ui/serve.py l'importa); el servidor no el fa servir
+PAGE = PAGE_PATH.read_text()   # només per compatibilitat (scripts/serve.py l'importa); el servidor no el fa servir
 
 #: Errors que són culpa de l'entrada (un disseny que no es pot llegir, un hash que no hi és…).
 #: Tot el que no és d'aquesta llista és un forat de simphy i es retorna com a 500.

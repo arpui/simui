@@ -33,10 +33,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from simphy.mcgen import campanya_check as CC  # noqa: E402
-from simphy.mcgen import campanya_desa as CD  # noqa: E402
-from simphy.mcgen import campanya_form as CF  # noqa: E402
-from simphy.mcgen import campanya_vista as CV  # noqa: E402
+from simui import campanya_check as CC  # noqa: E402
+from simui import campanya_desa as CD  # noqa: E402
+from simui import campanya_form as CF  # noqa: E402
+from simui import campanya_vista as CV  # noqa: E402
 from simphy.mcgen import design as D  # noqa: E402
 
 

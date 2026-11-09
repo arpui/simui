@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from simphy.mcgen import campanya_reselecciona as R
-from simphy.mcgen import campanya_vista as CV
+from simui import campanya_reselecciona as R
+from simui import campanya_vista as CV
 from simphy.mcgen import design as DES
 
 
@@ -95,13 +95,13 @@ def test_les_etapes_amb_cribratge_ho_diuen():
 
 
 def test_l_endpoint_i_la_pagina_porten_el_panell_de_criteris():
-    from simphy.ui import api
-    from simphy.ui import server as S
+    from simui import api
+    from simui import server as S
     _arrel()
     r = api.campanya_reselecciona({"id": "c01_8tubs_30x30x80", "etapa": "S0", "criteris": {"c": [0.25]}})
     assert [g["c"] for g in r["guanyadors"]] == [0.25] and r["frontera"]
     assert "/api/campanya/reselecciona" in Path(S.__file__).read_text(encoding="utf-8")
-    pagina = (Path(__file__).resolve().parents[1] / "src" / "simphy" / "ui" / "static" / "index.html").read_text(encoding="utf-8")
+    pagina = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
     for tros in ("function kReavHtml", "function kReavForm", "function kReavRes", "/api/campanya/reselecciona", "només lectura: no simula ni escriu res",
                  "Criteris aplicats", "(modificats respecte als de la campanya)", "torna als criteris de la campanya", "Només <code>hits</code>"[:0] or "restriccions dures"):
         assert tros in pagina, tros

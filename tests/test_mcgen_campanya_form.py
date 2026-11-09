@@ -31,8 +31,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from simphy.mcgen import campanya_check as CC  # noqa: E402
-from simphy.mcgen import campanya_form as CF  # noqa: E402
+from simui import campanya_check as CC  # noqa: E402
+from simui import campanya_form as CF  # noqa: E402
 from simphy.mcgen import design as DES  # noqa: E402
 from simphy.mcgen import detector_config as DC  # noqa: E402
 
@@ -547,7 +547,7 @@ def test_c01_i_c02_s_obren_sencers_al_formulari(camp):
     """Abans el Cd d'aquestes dues era una llista i el formulari ho refusava. Si neudet les treu o les
     canvia, es salta (⊇: no es fixa res de com són, només que el que hi ha es pot obrir)."""
     root = _neudet_o_skip()
-    from simphy.mcgen import campanya_vista as CV
+    from simui import campanya_vista as CV
     d = root / "disseny" / "campanyes" / camp / "campanya.yaml"
     if not d.exists():
         pytest.skip(f"neudet no té {camp}")
@@ -559,7 +559,7 @@ def test_c01_i_c02_s_obren_sencers_al_formulari(camp):
 def test_la_pagina_deixa_editar_el_cd_com_a_llista():
     """La plantilla ensenya el que el check accepta: cada camp de Cd (fracció, arc, centre) té «+ valor» i,
     si ja és una llista, els seus valors editables (no només de lectura)."""
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parents[1] / "src/simui/static/index.html").read_text(encoding="utf-8")
     cd = html[html.index("function cCdHtml("):html.index("function cNumList(")]
     assert "cNumList(q, v, lab" in cd and 'data-act="nl+"' in cd
     assert "rang o llista: a neudet" not in html
@@ -586,7 +586,7 @@ def test_l_avis_del_cd_es_nomes_el_limit_de_neudet():
 
 
 def test_la_pagina_no_pinta_el_panell_del_cd_si_no_hi_ha_avis():
-    html = (Path(__file__).resolve().parents[1] / "src/simphy/ui/static/index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parents[1] / "src/simui/static/index.html").read_text(encoding="utf-8")
     assert "S.cd.avis ?" in html
 
 

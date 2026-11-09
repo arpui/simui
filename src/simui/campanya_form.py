@@ -36,9 +36,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from . import design as DES
-from . import mc_sources as MS
-from . import detector_config as DC
+from simphy.mcgen import design as DES
+from simphy.mcgen import mc_sources as MS
+from simphy.mcgen import detector_config as DC
 
 #: el campanya.yaml de referència, relatiu a l'arrel de neudet
 C04_YAML = "disseny/campanyes/c04_draft/campanya.yaml"
