@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""serve.py — consola web de simphy: un formulari (o un prompt) → els quatre codis.
+"""serve.py — consola web (simui, la UI de simphy i neudet): un formulari (o un prompt) → els quatre codis.
 
     python scripts/serve.py                 # http://127.0.0.1:8765
     python scripts/serve.py --port 9000
@@ -77,7 +77,7 @@ def main(argv=None) -> int:
     _pidfile(args.port).write_text(str(os.getpid()))
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))     # SIGTERM = Ctrl+C
     for h, srv in zip(hosts, srvs):
-        print(f"[ui] simphy a http://{h}:{srv.server_address[1]}  (Ctrl+C per aturar)", flush=True)
+        print(f"[ui] simui a http://{h}:{srv.server_address[1]}  (Ctrl+C per aturar)", flush=True)
     for srv in srvs[1:]:
         threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
