@@ -458,6 +458,34 @@ def defaults() -> Dict[str, Any]:
     return de_fitxer(DES.neudet_root() / C04_YAML)
 
 
+# Contracte UI §19 (font per defecte d'una campanya nova): font isòtropa sobre l'eix, a 5 cm de la cara z− del bloc, entre = buit.
+# El 5 cm és del contracte (no és a neudet); la UI només l'aplica, neudet jutja la font (FONT-A/B).
+FONT_CARA_CM = 5
+FONT_CARA_MM_ERROR = 0.1                    # §19: neudet dona error si la font és a menys d'1 mm d'una cara (en cm)
+
+
+def font_defecte(mides_cm) -> Dict[str, Any]:
+    """§19: `{tipus: iso, pos_cm: [0, 0, −(mides_cm[2]/2 + 5)]}`."""
+    if not _llista_de(mides_cm, _pos, 3):
+        raise DES.DesignError("font per defecte: calen les tres mides del bloc (domini.bloc.mides_cm), en cm")
+    z = -(float(mides_cm[2]) / 2 + FONT_CARA_CM)
+    return {"tipus": "iso", "pos_cm": [0, 0, int(z) if z == int(z) else z]}
+
+
+def font_avis(domini: Dict[str, Any]) -> Optional[str]:
+    """`dins` | `cara` | None: la font iso és dins del bloc o a menys d'1 mm d'una cara (§19; neudet FONT-A/B). Només avís."""
+    f = domini.get("font") or {}
+    m = (domini.get("bloc") or {}).get("mides_cm")
+    if f.get("tipus") != "iso" or not _llista_de(m, _pos, 3) or not _llista_de(f.get("pos_cm"), _num, 3):
+        return None
+    d = [abs(float(p)) - float(h) / 2 for p, h in zip(f["pos_cm"], m)]       # <0: dins de la franja d'aquell eix
+    if all(x < -FONT_CARA_MM_ERROR for x in d):
+        return "dins"
+    if all(x <= FONT_CARA_MM_ERROR for x in d):
+        return "cara"
+    return None
+
+
 def _fitxa():
     """`neudet.disseny.fitxa` (registre i regla de validació de neudet), o None si no hi és."""
     try:
@@ -862,7 +890,9 @@ def schema() -> Dict[str, Any]:
                "centre_deg": 0, "avis": cd_avis(), "exemples_contracte": CD_FRACCIONS},
         "font": {"tipus": [{"valor": t, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for t in FONT_TIPUS],
                  "eixos": [{"valor": e, "fitxer": CANDIDAT_PY, "linia": FONT_LINIA} for e in EIXOS],
-                 "eix_defecte": {"valor": "z", "fitxer": CANDIDAT_PY, "linia": EIX_DEFECTE_LINIA}},
+                 "eix_defecte": {"valor": "z", "fitxer": CANDIDAT_PY, "linia": EIX_DEFECTE_LINIA},
+                 "defecte": {"cara_cm": FONT_CARA_CM, "tolerancia_cara_cm": FONT_CARA_MM_ERROR, "entre": "buit",
+                             "font": "contracte UI §19 (2026-11-09)"}},
         "objectius": _schema_objectius(obj),
         "cerca": _schema_cerca(cer, _entrades_docstring(CERCA_PY)),
         "avaluacio": _schema_avaluacio(),

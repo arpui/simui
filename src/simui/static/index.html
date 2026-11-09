@@ -1157,7 +1157,7 @@ function cTubsVista(){
     : 'Una combinació per tongada (la primera de cada ventall); els punts tènues són les posicions possibles d\'una malla. Arrossega un punt de «punts» per moure\'l: s\'escriu a x i y.') : '';
   return out;
 }
-const cRedibuixa = () => { const w = Q('#c-bloc-wrap'); if(w) w.innerHTML = cBlocSvg(); };
+const cRedibuixa = () => { const w = Q('#c-bloc-wrap'); if(w) w.innerHTML = cBlocSvg(); const a = Q('#c-font-avis'); if(a && CP.f) a.innerHTML = cFontAvisHtml(CP.f.domini); };
 // Les tres vistes alhora, una al costat de l'altra (VISTA-3): de dalt (x, y), lateral (x, z) i lateral (y, z). En pantalla estreta, una sota l'altra.
 // Un sol dibuix per a tot el formulari (UI-AFINA), sempre visible: amb l'exemple a l'atzar, la llegenda de colors per tipus i la posició de la font.
 // UI-DIB2: els tubs de l'exemple passen per `violacions` de neudet (la UI no calcula si caben): els rebutjats, en vermell i amb el motiu.
@@ -1497,6 +1497,12 @@ function cCercaHtml(E, et){
     ${et.avaluacio !== undefined ? `<div class="panel warn">Aquesta etapa té <code>avaluacio</code> propi (${cRO(et.avaluacio)}). El formulari no l'edita: per canviar-lo, a neudet.</div>` : ''}`;
 }
 
+function cFontAvisHtml(d){
+  const a = cFontAvis(d, CP.schema.font.defecte.tolerancia_cara_cm), cara = CP.schema.font.defecte.cara_cm;
+  if(!a) return '';
+  return `<div class="panel warn" data-font-avis="${a}"><b>${a === 'dins' ? 'Font dins del bloc' : 'Font sobre la cara del bloc'}.</b> neudet ${a === 'dins' ? 'la rebutja (avís, FONT-A)' : 'dona error (a menys d\'1 mm d\'una cara, FONT-B)'}; la font per defecte és a fora, a ${escD(cara)} cm de la cara z− (contracte UI §19).
+    ${CP.congelat ? '' : '<button type="button" class="ghost" data-act="fontfora">posa-la a fora (per defecte)</button>'}</div>`;
+}
 function cFontHtml(d){
   const F = CP.schema.font;
   if(d.font.tipus === 'feix'){
@@ -1527,6 +1533,7 @@ function cFormHtml(){
   <h2>Font</h2>
   ${cLab('tipus (neudet: iso o feix)', cSel('domini.font.tipus', S.font.tipus, d.font.tipus, 'str', 'data-s'))}
   ${cFontHtml(d)}
+  <div id="c-font-avis">${cFontAvisHtml(d)}</div>
 
   <h2>Energies i tubs</h2>
   ${cDiagHtml(d)}
@@ -1756,6 +1763,11 @@ function cEdita(el, change){
   if(p === 'domini.diagnostic'){ if(!v){ delete CP.f.domini.diagnostic; if(CP.f.avaluacio) delete CP.f.avaluacio.ckpts; } }      // DIAG-UI: sense diagnòstic no hi ha ckpts alternatius
   if(p.startsWith('avaluacio.ckpts.') && CP.f.avaluacio && CP.f.avaluacio.ckpts && !Object.keys(CP.f.avaluacio.ckpts).length) delete CP.f.avaluacio.ckpts;
   const mt = /^(etapes\.[^.]+\.tongades\.\d+)\./.exec(p); if(mt) cSyncInv(cGetS(CP.f, mt[1]));
+  if(p.startsWith('domini.font')) CP.fontMoguda = true;              // §19: una font moguda per l'usuari no es recalcula
+  if(/^domini\.bloc\.mides_cm\./.test(p) && !CP.fontMoguda && CP.f.domini.font.tipus === 'iso'){
+    const m = CP.f.domini.bloc.mides_cm;
+    if(m.length === 3 && m.every(x => Number(x) > 0)){ CP.f.domini.font = cFontDefecte(m, CP.schema.font.defecte.cara_cm); cPintaForm(); }   // §19: segueix el bloc
+  }
   if(p.startsWith('domini.bloc') || p.startsWith('domini.font') || p.startsWith('etapes.')) cRedibuixa();
   if(p === 'domini.tipus_tub.0'){ const m = Q('#c-tubmarca'); if(m) m.textContent = cTubMarca(v); }
   if(change && el.hasAttribute('data-s')) cPintaForm();
@@ -1824,6 +1836,7 @@ function cClicBloc(svg, e){
   const x = (e.clientX - r.left) / r.width * 2 * L - L, y = -((e.clientY - r.top) / r.height * 2 * L - L);
   const z = (f.pos_cm && f.pos_cm[2]) ?? 0;
   f.pos_cm = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, z];
+  CP.fontMoguda = true;
   cPintaForm(); cYaml();
 }
 // La llista d'un camp (x, y, polar, tubs): si és un número, passa a ser una llista d'un element.
@@ -1878,6 +1891,7 @@ function cAccio(act, ds){
     const noms = cInvNoms(t.inventari); let k = 0; while(noms.includes(cLletra(k))) k++;
     t.inventari.push({nom: cLletra(k), tipus: tub0, quantitat: 1, cd: {fraction: 0}}); cSyncInv(t);
   }
+  if(act === 'fontfora'){ cAplicaFontDefecte(CP.f.domini); }         // §19: «posa-la a fora (per defecte)»
   if(act === 'rec-'){ const t = cGetS(CP.f, ds.p); cSyncInv(t); t.inventari.splice(+ds.i, 1); cSyncInv(t); }
   if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
   if(act === 'nl-') cArr(ds.p).splice(+ds.i, 1);
@@ -1896,11 +1910,25 @@ function cAccio(act, ds){
 
 // La plantilla de neudet (c04_draft) porta un `que:` seu («com c01 S3»): una proposta nova no l'hereta, i el planificador no el llegeix com la pregunta.
 function cSenseQue(d){ Object.values(d.etapes || {}).forEach(e => { delete e.que; }); }
+// §19 (contracte UI): font per defecte d'una campanya nova = iso, sobre l'eix, a `cara_cm` de la cara z− del bloc; entre = buit.
+// FONT-DEF-BEGIN (funcions pures: el test les executa amb node)
+function cFontDefecte(mides, cara){ const z = -(Number(mides[2]) / 2 + cara); return {tipus: 'iso', pos_cm: [0, 0, z]}; }
+function cFontAvis(dom, tol){                       // 'dins' | 'cara' | null (neudet, FONT-A/B, és qui jutja; això només avisa)
+  const f = dom.font || {}, m = (dom.bloc || {}).mides_cm, p = f.pos_cm;
+  if(f.tipus !== 'iso' || !Array.isArray(m) || !Array.isArray(p) || m.length !== 3 || p.length !== 3) return null;
+  const d = p.map((v, i) => Math.abs(Number(v)) - Number(m[i]) / 2);
+  if(d.every(x => x < -tol)) return 'dins';
+  if(d.every(x => x <= tol)) return 'cara';
+  return null;
+}
+// FONT-DEF-END
+function cAplicaFontDefecte(d){ d.font = cFontDefecte(d.bloc.mides_cm, CP.schema.font.defecte.cara_cm); d.entre = CP.schema.font.defecte.entre; CP.fontMoguda = false; }
 async function cInit(){
   if(CP.f) return;
   const [s, d] = await Promise.all([api('/api/campanya/schema'), api('/api/campanya/defaults')]);
   cSenseQue(d);
   CP.schema = s; CP.f = d; CP.etapa = Object.keys(d.etapes)[0];
+  cAplicaFontDefecte(d.domini);
   if(!d.objectius || d.objectius.finalitat === undefined) cObjNou('comptador');      // OBJ: una proposta nova és del cicle nou (finalitat primer)
   cPintaForm(); cYaml();
 }
@@ -1993,7 +2021,7 @@ function cCarrega(form, nota, congelat){
   // INV: una campanya del format antic s'obre convertida a recursos (simphy, `a_inventari`); si no es pot, en només lectura
   const cv = form._conversio; delete form._conversio;
   const ro = !!(cv && cv.nomes_lectura);
-  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.desat = null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
+  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.fontMoguda = true; CP.desat = null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
   cPintaForm(); cYaml();
   const conv = !cv ? '' : ro ? `<div class="panel bad"><b>Només lectura:</b> aquesta campanya és del format antic (un tipus per anell o punt) i no es pot convertir a recursos: ${escD(cv.nomes_lectura)}.</div>`
     : `<div class="panel warn"><b>Convertida des del format antic</b> (un tipus per anell o punt → tubs disponibles i assignació; els mateixos candidats): <ul>${cv.convertida.map(x => `<li>${escD(x)}</li>`).join('')}</ul></div>`;
@@ -2626,9 +2654,11 @@ async function nzNova(){
   // una campanya NOVA: sense l'id, l'estat ni la data de la plantilla (c04_draft)
   d.id = ''; d.estat = 'proposta'; d.creada = new Date().toISOString().slice(0, 10);
   cSenseQue(d);
+  cAplicaFontDefecte(d.domini);                          // §19: font a fora (no la de c04_draft, al centre); cCarrega no la marca com a moguda
   delete d._conversio;                                   // INV: la plantilla ja ve convertida a recursos; una proposta nova no és cap conversió
   if(!d.objectius || d.objectius.finalitat === undefined) cObjNou('comptador', d);   // OBJ: una proposta nova és del cicle nou (finalitat primer)
   NZ.sel = {k: 'nova'};
+  CP.fontMoguda = false;
   cCarrega(d, `Proposta nova, amb els valors de <code>${escD(de)}</code> com a plantilla. Posa-li un id (p. ex. <code>c05_draft</code>) abans de desar: és el nom de la carpeta a neudet.`);
   return nzVeu();
 }
