@@ -120,3 +120,26 @@ def test_la_pagina_diu_els_impossibles_en_paraules():
     assert "panel bad" in INDEX.split("function cInvCompte")[1].split("function cSyncInv")[0]
     # fins que no hi ha cap recurs, l'estructura i l'assignació no s'activen
     assert "fins aleshores, l'estructura i l'assignació no s'activen" in INDEX
+
+
+@pytest.mark.parametrize("n", [{"de": 2, "a": 6, "pas": 2}, [2, 4, 6], 4])
+def test_n_dels_anells_amb_recursos_pot_ser_valor_llista_o_rang(n):
+    """§10c «Per anell: n absent = lliure; enter = fix; rang = com abans»: el formulari ho escriu tal com és (mentre no passi del total)."""
+    y = yaml.safe_load(CF.to_yaml(_f_inv(n=n)))
+    assert y["etapes"]["S1"]["tongades"][0]["posicions"]["anells"][1]["n"] == n
+
+
+def test_n_en_rang_dona_a_neudet_mes_candidats_que_n_fix():
+    """Test bessó amb neudet: un rang d'n a l'anell d'un inventari és acceptat i genera candidats (no es redueix a un valor)."""
+    root = _neudet()
+    pla = root / "disseny" / "campanyes" / "c0_2a0511" / "PLA.md"
+    res = {}
+    for clau, n in (("fix", 4), ("rang", {"de": 2, "a": 6, "pas": 2})):
+        with tempfile.TemporaryDirectory() as tmp:
+            dn = Path(tmp) / "c0_2a0511"
+            dn.mkdir()
+            (dn / "campanya.yaml").write_text(CF.to_yaml(_f_inv(n=n)))
+            if pla.exists():
+                (dn / "PLA.md").write_text(pla.read_text())
+            res[clau] = _cands(dn, "S1")
+    assert res["fix"][0] and len(res["rang"][0]) > len(res["fix"][0]), {k: (len(v[0]), len(v[1])) for k, v in res.items()}
