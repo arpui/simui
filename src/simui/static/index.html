@@ -1953,8 +1953,17 @@ function cPintaCert(c){
 // AFINA-N: si el cost passa del límit, neudet porta `opcions_cost` (2–3 opcions amb el seu cost, en paraules). El format és seu: es mostra tal com ve.
 function cCostHtml(opc){
   if(!Array.isArray(opc) || !opc.length) return '';
-  const txt = o => typeof o === 'string' ? escD(o) : (o && typeof o === 'object') ? Object.entries(o).map(([k, v]) => `<b>${escD(k)}</b>: ${escD(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ') : escD(o);
-  return `<div class="panel bad" data-cost-gran><b>Massa gran per a un tanteig.</b> neudet proposa aquestes opcions, amb el seu cost:<ul class="msgs">${opc.map(o => `<li>${txt(o)}</li>`).join('')}</ul></div>`;
+  // §11b: cada opció és {camp, valor, per_que: gpu|disc, gpu_h, disc_gb, porta_disc_gb, cpu_g4_h, durada_h, en_paraules}. Es mostra la frase de neudet i els números tal com vénen; un camp que no hi és (o null) no s'escriu.
+  const num = [['gpu_h', 'h GPU'], ['disc_gb', 'GB de disc'], ['porta_disc_gb', 'GB de disc a tenir lliure (porta)'], ['cpu_g4_h', 'h CPU Geant4'], ['durada_h', 'h de durada']];
+  const txt = o => {
+    if(typeof o === 'string') return escD(o);
+    if(!o || typeof o !== 'object') return escD(o);
+    const cap = o.camp !== undefined ? `<code>${escD(o.camp)}</code> = <b>${escD(typeof o.valor === 'object' ? JSON.stringify(o.valor) : o.valor)}</b>${o.per_que ? ` <span class="hint">(per ${o.per_que === 'gpu' ? 'les hores de GPU' : o.per_que === 'disc' ? 'el disc' : escD(o.per_que)})</span>` : ''}` : '';
+    const n = num.filter(([k]) => o[k] !== undefined && o[k] !== null).map(([k, u]) => `${escD(o[k])} ${u}`).join(' · ');
+    if(!cap && !o.en_paraules && !n) return Object.entries(o).map(([k, v]) => `<b>${escD(k)}</b>: ${escD(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ');
+    return [cap, o.en_paraules ? escD(o.en_paraules) : '', n ? `<span class="hint">${n}</span>` : ''].filter(Boolean).join(' — ');
+  };
+  return `<div class="panel bad" data-cost-gran><b>Massa gran per a un tanteig.</b> neudet proposa aquestes opcions, amb el seu cost <span class="hint">(és un avís, no bloqueja res; la UI no n'aplica cap: si en tries una, canvia-la tu al formulari)</span>:<ul class="msgs">${opc.map(o => `<li>${txt(o)}</li>`).join('')}</ul></div>`;
 }
 // Després de desar, neudet encara no ha respost: avís ben visible i refresc sol cada 30 s fins que la campanya deixa de ser «proposta».
 function cEsperaStop(){ if(CP.esp){ clearInterval(CP.esp.t); CP.esp = null; } }
@@ -1980,6 +1989,7 @@ function cAvisosDesa(c){
   if(!c) return '';
   const out = [];
   if(c.opcions_cost && c.opcions_cost.length) out.push(cCostHtml(c.opcions_cost));
+  if(Array.isArray(c.avisos_en_paraules) && c.avisos_en_paraules.length) out.push('<b>Avisos de neudet:</b><ul class="msgs">' + c.avisos_en_paraules.map(t => `<li>${escD(t)}</li>`).join('') + '</ul>');
   if(c.camps_falten) out.push(`<b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre>`);
   const oav = ((c.objectius || {}).avisos || []).filter(a => a.nivell !== 'info');       // OBJ: un sol canal, grups que falten…
   if(oav.length) out.push('<b>Objectius (neudet):</b><ul class="msgs">' + oav.map(a => `<li>${a.nivell === 'error' ? '⛔' : '⚠'} ${escD(a.text)}</li>`).join('') + '</ul>');
@@ -1987,6 +1997,7 @@ function cAvisosDesa(c){
   if(mal.length) out.push('<b>Elements que neudet no accepta:</b><ul class="msgs">' +
     mal.map(e => `<li>${e.estat === 'prohibit' ? '⛔' : '⚠'} ${escD(e.element)} — ${escD(e.estat)}${e.motiu ? ': ' + escD(e.motiu) : ''}</li>`).join('') + '</ul>');
   for(const [nom, e] of Object.entries(c.etapes || {})){
+    if(e.error || e.en_paraules) out.push(`<b>Etapa ${escD(nom)}: neudet no pot generar candidats</b> <span class="hint">(INV, §10c)</span><pre class="pre">${escD([e.error, e.en_paraules].filter(Boolean).join('\n'))}</pre>`);   // impossibles: el motiu de neudet tal com és
     if(!e.invalids) continue;
     const mot = Object.entries(e.motius || {}).sort((x, y) => y[1] - x[1]);
     out.push(`<b>Etapa ${escD(nom)}: ${e.invalids} candidats descartats</b> (${e.valids} vàlids)` +
