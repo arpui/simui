@@ -1348,13 +1348,16 @@ function cBlocXY(id = 'c-bloc', V0, D0){
 // 5 Com es pondera l'energia. Les frases, les preguntes i els valors per defecte són de neudet (`taula_objectius`, schema.objectius.cicle_nou).
 const cFinNom = k => k === 'espectrometre' ? 'espectròmetre' : k;
 const cObjT = () => CP.schema.objectius.cicle_nou;
+// Família D «soroll» (neudet `SOROLL`, contracte §21): es pot demanar a `informatives`, mai decidir (ni objectiu ni
+// restricció) i mai a les automàtiques. La llista la dona neudet (`schema.objectius.metriques[].decideix`).
+const cSoroll = () => new Set(((CP.schema.objectius || {}).metriques || []).filter(m => m.decideix === false).map(m => m.nom));
 const cObjDecideix = ob => (Array.isArray(ob.objectius) ? ob.objectius : (cObjT().finalitats[ob.finalitat] || {}).objectius || [])
   .map(x => Array.isArray(x) ? [x[0], x[1] ?? (cObjT().metriques[x[0]] || {}).sentit] : [x, (cObjT().metriques[x] || {}).sentit]);
 // Les informatives automàtiques: totes les de la finalitat que no decideixen (err_grups només amb grups_MeV), com `normalitza` de neudet.
 function cObjInfAuto(ob){
   const T = cObjT(), F = T.finalitats[ob.finalitat] || {}, dec = cObjDecideix(ob).map(x => x[0]);
   const grups = Array.isArray(ob.grups_MeV) && ob.grups_MeV.length;
-  return (F.metriques || []).filter(n => !dec.includes(n) && (n !== 'err_grups' || grups));
+  return (F.metriques || []).filter(n => !dec.includes(n) && !cSoroll().has(n) && (n !== 'err_grups' || grups));
 }
 // La preferència per defecte que es deriva dels objectius (com neudet): màxim = el primer «max», sobre = el primer «min», c del `sobre`.
 function cObjPrefDef(ob){
@@ -1395,15 +1398,16 @@ function cObjHtml(f){
       neudet ho llegeix com sempre. Per canviar-los, tria una finalitat (els objectius passen als de la finalitat; els candidats no canvien).</div>
       <h3 class="pas">1 · Finalitat</h3>${fins}`;
   }
-  const F = T.finalitats[ob.finalitat] || {metriques: []}, dec = cObjDecideix(ob);
-  const opt = cur => F.metriques.map(n => `<option value="${escD(n)}" ${n === cur ? 'selected' : ''}>${escD(n)}</option>`).join('');
+  const F = T.finalitats[ob.finalitat] || {metriques: []}, dec = cObjDecideix(ob), sor = cSoroll();
+  // se n'exclou el soroll (mai decideix), excepte si ja és escrit: la UI no amaga el que hi ha al formulari
+  const opt = cur => F.metriques.filter(n => !sor.has(n) || n === cur).map(n => `<option value="${escD(n)}" ${n === cur ? 'selected' : ''}>${escD(n)}</option>`).join('');
   const decRows = dec.map(([n, sn], i) => `<div class="row"><label>objectiu ${i + 1}<select data-objn="${i}">${opt(n)}</select></label>
       <label>sentit${cRO(sn === 'max' ? 'més (max)' : 'menys (min)')}</label></div><div class="hint">${escD((T.metriques[n] || {}).pregunta || '')}${(T.metriques[n] || {}).formula ? `<br><code>${escD(T.metriques[n].formula)}</code>${cObjPes(n) ? ` · <b>${escD(cObjPes(n))}</b>` : ''}` : ''}</div>
       ${dec.length > 1 ? `<button type="button" class="ghost" data-act="obj-" data-i="${i}">treu l'objectiu ${i + 1}</button>` : ''}`).join('');
   const auto = ob.informatives === undefined || ob.informatives === 'auto';
   const infL = auto ? cObjInfAuto(ob) : ob.informatives, infS = new Set(infL);
   const infChecks = F.metriques.filter(n => !dec.some(x => x[0] === n)).map(n => `<label class="chk mrow"><input type="checkbox" data-inf="${escD(n)}" ${infS.has(n) ? 'checked' : ''} ${auto ? 'disabled' : ''}>
-      <span><b>${escD(n)}</b> ${cObjQ(n)}</span></label>`).join('');
+      <span><b>${escD(n)}</b> ${cObjQ(n)}${sor.has(n) ? ` <span class="hint">soroll (família ${escD((T.metriques[n] || {}).familia || 'D')} de neudet): només s'informa, mai un 0</span>` : ''}</span></label>`).join('');
   const pref = ob.preferencia || cObjPrefDef(ob), cs = Array.isArray(pref.c) ? pref.c : [];
   const rs = Array.isArray(ob.restriccions) ? ob.restriccions : [];
   const rsRows = rs.map((r, i) => `<div class="row3"><label>mètrica<select data-p="objectius.restriccions.${i}.0" data-t="str">${opt(r[0])}</select></label>
@@ -1941,7 +1945,7 @@ function cAccio(act, ds){
   if(act === 'obj+' || act === 'obj-'){                              // OBJ: 1–3 objectius de la finalitat
     const ob = CP.f.objectius, d = cObjDecideix(ob), T = cObjT();
     if(act === 'obj-') d.splice(+ds.i, 1);
-    else { const n = T.finalitats[ob.finalitat].metriques.find(m => !d.some(x => x[0] === m)); if(n) d.push([n, T.metriques[n].sentit]); }
+    else { const n = T.finalitats[ob.finalitat].metriques.find(m => !d.some(x => x[0] === m) && !cSoroll().has(m)); if(n) d.push([n, T.metriques[n].sentit]); }
     ob.objectius = d; cObjSyncPref();
   }
   if(act === 'rs+'){ const ob = CP.f.objectius; (ob.restriccions = ob.restriccions || []).push(ob.finalitat === 'comptador' ? ['eps_min', '>=', 0.2] : ['cv', '<=', 0.3]); }

@@ -413,7 +413,9 @@ def test_llistes_tancades_de_simphy_son_les_de_neudet():
     assert set(CF.CERQUES_LINIA) == set(C.CERQUES)
     assert set(CF.METRIQUES_LINIA) == set(O.METRIQUES) | set(O.METRIQUES_GRUP) | set(O.METRIQUES_GRUP2) | set(O.METRIQUES_GRUP3)
     assert set(CF.AUTO_NOMS) == O.GEOMETRIQUES | O.GRUP | O.GRUP2 | O.GRUP3
-    assert set(CF.DEFECTE_NOMS) == {n for n in O.METRIQUES if n not in O.GEOMETRIQUES}
+    # neudet (SOROLL, 2026-11-11): el defecte de l'objectiu exclou les geomètriques **i** les de soroll (`objectius.py:245`)
+    assert set(CF.DEFECTE_NOMS) == {n for n in O.METRIQUES if n not in O.GEOMETRIQUES and n not in O.SOROLL}
+    assert not (set(CF.AUTO_NOMS) & O.SOROLL)             # el soroll no ve mai sol (ni al Pareto ni a la restricció)
 
 
 @pytest.mark.parametrize("tipus", ["punts", "malla", "anells"])

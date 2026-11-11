@@ -70,39 +70,42 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 33, "cv": 34, "rang": 35, "eps_min": 37, "cd_cm2": 38,            # METRIQUES
-    "q_rang": 46, "q_monoton": 47, "res_E": 48,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 75, "sE_N": 76, "n_ef": 77,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 116, "err_grups": 117,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 38, "cv": 39, "rang": 40, "eps_min": 42, "cd_cm2": 43, "eps_gamma": 44,   # METRIQUES
+    "q_rang": 63, "q_monoton": 64, "res_E": 65,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 92, "sE_N": 93, "n_ef": 94,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 133, "err_grups": 134,                                              # METRIQUES_GRUP3 (MET3)
 }
-#: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:240-242)
-AUTO_LINIA = 240
-#: sentit (objectius.py:399: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
+#: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:257-259)
+AUTO_LINIA = 257
+#: sentit (objectius.py:425: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 399
+SENTITS_LINIA = 425
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
-#: les mètriques per defecte de l'objectiu (objectius.py:228): totes les que no són geomètriques
+#: les mètriques per defecte de l'objectiu (objectius.py:245): les que no són geomètriques ni de SOROLL
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 217, "letargia": 219}
-PESOS_DEFECTE_LINIA = 215
-#: energies: «totes» (objectius.py:209); subconjunt dins de la graella (objectius.py:214)
-ENERGIES_LINIA = 209
-GRAELLA_LINIA = 214
-K_SIGMA_LINIA = 243
-ERR_GRUPS_CAL_LINIA = 159        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
-#: ε-restricció per defecte (objectius.py:238)
-RESTRICCIO_LINIA = 238
+PESOS_LINIA: Dict[str, int] = {"uniforme": 234, "letargia": 236}
+PESOS_DEFECTE_LINIA = 232
+#: energies: «totes» (objectius.py:226); subconjunt dins de la graella (objectius.py:231)
+ENERGIES_LINIA = 226
+GRAELLA_LINIA = 231
+K_SIGMA_LINIA = 260
+ERR_GRUPS_CAL_LINIA = 176        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+#: ε-restricció per defecte (objectius.py:255)
+RESTRICCIO_LINIA = 255
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
-DEFECTE_NOMS_LINIA = 228
+DEFECTE_NOMS_LINIA = 245
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
 #: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
-FINALITATS_LINIA = 473                       # FINALITATS = {"comptador": …, "espectrometre": …}
-TAULA_LINIA = 813                            # def taula_objectius()
+FINALITATS_LINIA = 506                       # FINALITATS: Dict[str, dict] = {
+TAULA_LINIA = 1270                           # def taula_objectius()
+#: `eps_gamma` hi és perquè neudet la permet a `informatives` (família D «soroll»); NO pot decidir: la UI ho filtra
+#: amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
-    "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2"),
-    "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2"),
+    "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2", "eps_gamma"),
+    "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2",
+                      "eps_gamma"),
 }
 ALIES_OBJ = {"res_E_k": "res_E"}
 OPERADORS = (">=", "<=", ">", "<")
@@ -644,6 +647,7 @@ def _entrades_docstring(fitxer: str, dir_=_DIS) -> Dict[str, Dict[str, Any]]:
 def _metriques_neudet(obj) -> Dict[str, Dict[str, Any]]:
     """Els registres de mètriques de neudet, en una sola taula: {nom: {familia, sentit, descripcio}}."""
     out: Dict[str, Dict[str, Any]] = {}
+    soroll = set(obj.SOROLL)                                   # neudet: les mètriques d'artefacte que mai decideixen
     for familia, reg in (("base", obj.METRIQUES), ("grup MET2", obj.METRIQUES_GRUP),
                          ("IND", obj.METRIQUES_GRUP2), ("MET3", obj.METRIQUES_GRUP3)):
         for nom, v in reg.items():
@@ -651,9 +655,13 @@ def _metriques_neudet(obj) -> Dict[str, Dict[str, Any]]:
                 sentit, desc = v[1], v[2]
             else:
                 sentit, desc = v[0], v[1]
+            calaix = familia                                      # no reassignar `familia`: és la del bucle de dalt
             if nom in obj.GEOMETRIQUES:
-                familia = "geomètrica (x03)"
-            out[nom] = {"familia": familia, "sentit": sentit, "descripcio": desc}
+                calaix = "geomètrica (x03)"
+            if nom in soroll:
+                calaix = "soroll (x08)"
+            out[nom] = {"familia": calaix, "sentit": sentit, "descripcio": desc,
+                        "decideix": nom not in soroll}
     return out
 
 
@@ -702,7 +710,7 @@ def _schema_objectius(obj) -> Dict[str, Any]:
     metriques = []
     for nom, linia in METRIQUES_LINIA.items():
         m = met[nom]
-        metriques.append({"nom": nom, "familia": m["familia"], "sentit": m["sentit"],
+        metriques.append({"nom": nom, "familia": m["familia"], "sentit": m["sentit"], "decideix": m["decideix"],
                           "descripcio": m["descripcio"], "fitxer": OBJECTIUS_PY, "linia": linia,
                           "requereix": ({"clau": "objectius.grups_MeV", "fitxer": OBJECTIUS_PY,
                                          "linia": ERR_GRUPS_CAL_LINIA} if nom == "err_grups" else None)})
@@ -729,16 +737,16 @@ def _schema_objectius(obj) -> Dict[str, Any]:
                            "descripcio": "frontera robusta: només domina qui guanya per més de k·σ. "
                                          "Amb k = 0 és la frontera de Pareto (objectius.py, frontera_robusta)"},
         "altres": [
-            {"clau": "comptes_ref", "defecte": d.comptes_ref, "fitxer": OBJECTIUS_PY, "linia": 232,
+            {"clau": "comptes_ref", "defecte": d.comptes_ref, "fitxer": OBJECTIUS_PY, "linia": 249,
              "descripcio": "comptes de referència de res_E, N_obj i sE_N (sense comentari a neudet)"},
-            {"clau": "N_font", "defecte": d.N_font, "fitxer": OBJECTIUS_PY, "linia": 233,
-             "descripcio": _comentari(OBJECTIUS_PY, 233, token='"N_font"')},
-            {"clau": "sE_obj", "defecte": d.sE_obj, "fitxer": OBJECTIUS_PY, "linia": 234,
-             "descripcio": _comentari(OBJECTIUS_PY, 234, token='"sE_obj"')},
-            {"clau": "delta_q", "defecte": d.delta_q, "fitxer": OBJECTIUS_PY, "linia": 235,
-             "descripcio": _comentari(OBJECTIUS_PY, 235, token='"delta_q"')},
-            {"clau": "grups_MeV", "defecte": [], "fitxer": OBJECTIUS_PY, "linia": 236,
-             "descripcio": _comentari(OBJECTIUS_PY, 236, token='"grups_MeV"') + " (cal per a err_grups)"},
+            {"clau": "N_font", "defecte": d.N_font, "fitxer": OBJECTIUS_PY, "linia": 250,
+             "descripcio": _comentari(OBJECTIUS_PY, 250, token='"N_font"')},
+            {"clau": "sE_obj", "defecte": d.sE_obj, "fitxer": OBJECTIUS_PY, "linia": 251,
+             "descripcio": _comentari(OBJECTIUS_PY, 251, token='"sE_obj"')},
+            {"clau": "delta_q", "defecte": d.delta_q, "fitxer": OBJECTIUS_PY, "linia": 252,
+             "descripcio": _comentari(OBJECTIUS_PY, 252, token='"delta_q"')},
+            {"clau": "grups_MeV", "defecte": [], "fitxer": OBJECTIUS_PY, "linia": 253,
+             "descripcio": _comentari(OBJECTIUS_PY, 253, token='"grups_MeV"') + " (cal per a err_grups)"},
             {"clau": "restriccio", "defecte": {"maxim": d.restriccio["maxim"], "sobre": d.restriccio["sobre"],
                                               "c": []}, "fitxer": OBJECTIUS_PY, "linia": RESTRICCIO_LINIA,
              "descripcio": "ε-restricció: maximitzar «maxim» amb «sobre» ≤ c; sense c, no n'hi ha"},

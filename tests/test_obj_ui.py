@@ -2,10 +2,15 @@
 1 Finalitat · 2 Què decideix · 3 Què s'informa · 4 Com es tria · 5 Com es pondera l'energia. Les frases i els valors per defecte són de
 neudet (`taula_objectius`); què vol dir i els avisos (un sol canal…), també (`/api/campanya/objectius`)."""
 import copy
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
+
+node = pytest.mark.skipif(shutil.which("node") is None, reason="cal node")
 
 from simui import campanya_check as CC
 from simui import campanya_form as CF
@@ -165,6 +170,50 @@ def test_la_nota_de_quins_wi_usa_cada_metrica_ve_de_la_descripcio_de_neudet():
     ds = {m["nom"]: m["descripcio"] for m in CF.schema()["objectius"]["metriques"]}
     assert "(amb pesos)" in ds["eps_mitja"] and "(amb pesos)" in ds["cv"]
     assert "pesos de letargia" in ds["res_E"] and "pesos de letargia" in ds["sE_N"]
+
+
+@node
+def test_eps_gamma_es_soroll_de_neudet_i_la_ui_no_la_deixa_decidir():
+    """Bessó (contracte §21, família D «soroll», neudet 2026-11-11): `eps_gamma` és a les llistes de neudet
+    (`METRIQUES` + les `metriques` de les dues finalitats) i la UI l'accepta, però la regla de qui pot decidir la dona
+    neudet (`SOROLL` i `taula_objectius()["soroll"]`) — la UI no n'escriu cap de pròpia. Permet-la a `informatives`,
+    mai a objectius, restriccions ni informatives automàtiques, i mai un 0."""
+    _neudet()
+    from neudet.disseny import objectius as O
+    s = CF.schema()["objectius"]
+    # el sentit i la família de CADA entrada són els de neudet (si no, `_metriques_neudet` barreja les famílies:
+    # el 2026-11-11 `cd_cm2` (geomètrica) deixava la seva família a la següent entrada i `eps_gamma` sortia sense sentit)
+    for m in s["metriques"]:
+        assert m["sentit"] in CF.SENTITS, m["nom"]
+    per_nom = {m["nom"]: m for m in s["metriques"]}
+    assert per_nom["eps_gamma"]["familia"] == "soroll (x08)" and per_nom["eps_gamma"]["decideix"] is False
+    assert per_nom["cd_cm2"]["familia"] == "geomètrica (x03)" and per_nom["cd_cm2"]["decideix"] is True
+    assert [m["nom"] for m in s["metriques"] if m["decideix"] is False] == [n for n in CF.METRIQUES_LINIA if n in O.SOROLL]
+    # la taula de neudet passa sencera (la UI no en copia res): `mai_decideix`, `mai_0` i el text «sense dades»
+    sor = s["cicle_nou"]["soroll"]
+    assert sor["mai_decideix"] == sorted(O.SOROLL) and sor["mai_0"] is True
+    assert sor["sense_dades_text"] == O.SENSE_DADES_TEXT
+    _pagina_filtra_soroll(s)
+
+
+def _pagina_filtra_soroll(s):
+    """Executa amb node el que fa la pàgina amb AQUESTA taula de neudet: el soroll no surt a les tries d'objectiu ni
+    a les informatives automàtiques, i no s'amaga si ja és escrit al formulari."""
+    cap = INDEX[INDEX.index("const cObjT = "):INDEX.index("// La preferència per defecte")]
+    opt = next(l.strip() for l in INDEX.splitlines() if l.strip().startswith("const opt = cur =>"))
+    js = ("const CP = {schema: %s}; const escD = s => String(s);\n%s\n"
+          "const T = CP.schema.objectius.cicle_nou, F = T.finalitats['comptador'], sor = cSoroll();\n%s\n"
+          "const val = s => (opt(s).match(/value=\"([^\"]+)\"/g) || []).map(x => x.slice(7, -1));\n"
+          "console.log(JSON.stringify({sor: [...cSoroll()], opt: val(''), ja_escrit: val('eps_gamma').includes('eps_gamma'), "
+          "auto: cObjInfAuto({finalitat: 'comptador', objectius: [['eps_mitja', 'max'], ['cv', 'min']]}), "
+          "selectes: [...new Set([...F.objectius.flat(), ...F.informatives.flat()]).values()].filter(n => sor.has(n))}));"
+          % (json.dumps({"objectius": s}, ensure_ascii=False), cap, opt))
+    d = json.loads(subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout)
+    assert d["sor"] == ["eps_gamma"]
+    assert "eps_gamma" not in d["opt"], d["opt"]                       # els selectors d'objectiu i de restricció
+    assert d["ja_escrit"] is True                                      # la UI no amaga el que ja hi ha escrit
+    assert "eps_gamma" not in d["auto"], d["auto"]                     # `informatives: auto` com `normalitza` de neudet
+    assert d["selectes"] == []                                         # ni per defecte als objectius ni a les informatives
 
 
 def test_la_plantilla_amb_finalitat_espectrometre_rep_l_error_de_font_de_neudet_tal_com_es():
