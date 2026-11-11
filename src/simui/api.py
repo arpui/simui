@@ -389,6 +389,15 @@ def campanya_criteris(body: Dict[str, Any]) -> Dict[str, Any]:
     return CRI.llista(str(body.get("id") or ""), str(body.get("etapa") or ""))
 
 
+def campanya_entre(q: Dict[str, Any]) -> Dict[str, Any]:
+    """§17b i §23 (UI-ENTRE-FRAC): la fracció d'H₂O, la densitat i la fórmula que dona neudet per a l'`entre` triat,
+    abans de desar. Només lectura: no desa res i no calcula cap número (la funció és de neudet)."""
+    def _num(v):
+        s = str(v if v is not None else "").strip()
+        return float(s) if s else None
+    return CF.entre_propietats(str(q.get("entre") or ""), _num(q.get("hr")), _num(q.get("t")))
+
+
 def campanya_pla_verificacio(body: Dict[str, Any]) -> Dict[str, Any]:
     """El pla de verificació a Geant4 (`pla_verificacio` de neudet) i l'ordre que executa Albert. Només lectura: no llança res."""
     from . import campanya_criteris as CRI

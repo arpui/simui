@@ -522,6 +522,26 @@ def entre_info() -> Dict[str, Any]:
             "defecte": "buit"}
 
 
+def entre_propietats(entre: str, hr: Optional[float] = None, t: Optional[float] = None) -> Dict[str, Any]:
+    """§17b i §23 del contracte (UI-ENTRE-FRAC): la fracció d'H₂O en massa, la densitat i la fórmula **abans de desar**.
+    Les dona neudet (`neudet.disseny.entre.propietats_entre`), que és la mateixa funció que escriu el bloc `entre` del
+    `campanya_ui.json` i la que construeix el material a Geant4. La UI no calcula res ni en fa còpia: si neudet dona
+    error (HR que falta, T fora de la fórmula de Magnus, HR/T amb `aire`), es torna el seu text tal qual."""
+    try:
+        DES._neudet()
+        from neudet.disseny.entre import propietats_entre
+    except DES.DesignError as exc:
+        return {"ok": False, "font": None, "error": f"neudet no és present: {exc}"}
+    except ImportError as exc:
+        return {"ok": False, "font": None,
+                "error": f"aquest neudet no té `propietats_entre` (ENTRE-PROP, 2026-11-10): {exc}"}
+    try:
+        p = propietats_entre(entre, humitat_relativa_pct=hr, temperatura_C=t)
+    except (ValueError, TypeError) as exc:
+        return {"ok": False, "font": "neudet.disseny.entre.propietats_entre()", "error": str(exc)}
+    return dict(p, ok=True, font="neudet.disseny.entre.propietats_entre()")
+
+
 def _fitxa():
     """`neudet.disseny.fitxa` (registre i regla de validació de neudet), o None si no hi és."""
     try:

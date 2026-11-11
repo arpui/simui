@@ -86,6 +86,77 @@ def test_el_yaml_porta_entre_i_humitat_a_domini():
     assert "entre: aire_humit" in y and "humitat_relativa_pct: 50" in y and "temperatura_C: 20" in y
 
 
+# ── UI-ENTRE-FRAC (contracte §17b i §23, aprovat pel coordinador 2026-11-11) ────────────────────────────────────────────
+
+def test_el_que_la_ui_ensenya_abans_de_desar_es_el_que_dona_neudet_i_el_que_van_al_manifest():
+    """Bessó: `propietats_entre` (el que pinta la UI) i `composicio` (el bloc `entre` del `campanya_ui.json`) són el
+    mateix número, exacte. Els valors de referència són els del banc ENTRE-MAT (contracte §17b)."""
+    _neudet()
+    from neudet.disseny import entre as NE
+    for hr, t, fraccio, rho in ((50.0, 20.0, 7.1931e-3, 1.19955e-3), (100.0, 30.0, 2.6424e-2, 1.14663e-3)):
+        p = CF.entre_propietats("aire_humit", hr, t)
+        assert p["ok"] is True and p["font"] == "neudet.disseny.entre.propietats_entre()"
+        assert {k: v for k, v in p.items() if k not in ("ok", "font")} == NE.propietats_entre("aire_humit", hr, t)
+        comp = NE.composicio({"entre": "aire_humit", "humitat_relativa_pct": hr, "temperatura_C": t})
+        assert p["fraccio_h2o_massa"] == comp["fraccio_h2o"] and p["rho_gcm3"] == comp["rho_gcm3"]
+        assert p["sha_mf"] == comp["sha_mf"]
+        assert p["fraccio_h2o_massa"] == pytest.approx(fraccio, rel=1e-5)
+        assert p["rho_gcm3"] == pytest.approx(rho, rel=1e-5)
+        assert p["formules"]["fraccio_h2o"] and p["valors"]["e_s_hPa"] > 0        # la fórmula ve amb els valors posats (§15)
+
+
+def test_buit_i_aire_sense_valors_implícits():
+    """§17b: amb `buit` no hi ha medi ⇒ cap número (null, no 0) i cap bloc al manifest; amb `aire`, fracció 0 i ρ de G4_AIR."""
+    _neudet()
+    b = CF.entre_propietats("buit")
+    assert b["ok"] is True and b["fraccio_h2o_massa"] is None and b["rho_gcm3"] is None and b["material_g4"] is None
+    a = CF.entre_propietats("aire")
+    assert a["ok"] is True and a["fraccio_h2o_massa"] == 0.0 and a["rho_gcm3"] > 0
+    assert a["humitat_relativa_pct"] is None and a["temperatura_C"] is None
+
+
+def test_l_error_el_diu_neudet_i_la_ui_no_reinterpreta():
+    """§6 de COORDINACIO («res en silenci»): HR que falta, T fora de la fórmula de Magnus o HR/T amb `aire` → el text
+    de neudet, paraula per paraula. La UI no n'afegeix cap ni en treu."""
+    _neudet()
+    from neudet.disseny import entre as NE
+    for args in (("aire_humit", 50.0, None), ("aire", None, 20.0), ("aire_humit", 150.0, 20.0)):
+        p = CF.entre_propietats(*args)
+        assert p["ok"] is False and p["error"]
+        with pytest.raises(ValueError) as e:
+            NE.propietats_entre(*args)
+        assert p["error"] == str(e.value), args
+
+
+def test_l_endpoint_entre_passa_el_payload_sense_tocar_lo():
+    from simui import api
+    p = api.campanya_entre({"entre": "aire_humit", "hr": "50", "t": "20"})
+    assert p["ok"] is True and p["fraccio_h2o_massa"] == CF.entre_propietats("aire_humit", 50.0, 20.0)["fraccio_h2o_massa"]
+    assert api.campanya_entre({"entre": "aire_humit"})["ok"] is False      # falta HR: la UI ho dirà amb el text de neudet
+    assert api.campanya_entre({"entre": "buit", "hr": "", "t": ""})["fraccio_h2o_massa"] is None
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node")
+def test_el_panell_pinta_els_numeros_de_neudet_i_no_en_calcula_cap():
+    """Executa amb node el que pinta la pàgina, amb el payload real de neudet: els números i la fórmula són els que venen;
+    amb `buit` no pinta res; amb error, el text de neudet. I la pàgina no té cap constant de la fórmula de Magnus."""
+    _neudet()
+    for k in ("6.1078", "17.27", "8.314", "273.15"):
+        assert k not in INDEX, f"la pàgina té la constant {k}: la fracció la calcula neudet (§17b)"
+    func = INDEX.split("function cEntrePropHtml(p){")[1].split("function cEntrePropCarrega()")[0]
+    dades = [CF.entre_propietats("aire_humit", 50.0, 20.0), CF.entre_propietats("buit"),
+             CF.entre_propietats("aire_humit", 50.0, None)]
+    js = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
+          "function cEntrePropHtml(p){" + func + "\n"
+          "console.log(JSON.stringify(%s.map(cEntrePropHtml)));" % json.dumps(dades))
+    h = json.loads(subprocess.run(["node", "-e", js], capture_output=True, text=True).stdout)
+    p = dades[0]
+    assert str(p["fraccio_h2o_massa"]) in h[0] and str(p["rho_gcm3"]) in h[0]
+    assert p["formules"]["fraccio_h2o"] in h[0] and p["sha_mf"] in h[0]
+    assert h[1] == ""                                                      # buit: cap número, cap bloc
+    assert dades[2]["error"] in h[2] and "neudet diu" in h[2]              # l'error és el text de neudet
+
+
 def test_la_ui_mostra_el_selector_i_els_camps_nomes_amb_la_font_a_fora():
     assert "function cEntreHtml" in INDEX and "cFontAvis(d" in INDEX.split("function cEntreHtml")[1].split("function cEntreCanvi")[0]
     assert "domini.humitat_relativa_pct" in INDEX and "domini.temperatura_C" in INDEX and "'aire_humit': 'aire humit'" not in INDEX

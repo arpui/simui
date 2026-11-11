@@ -1529,7 +1529,36 @@ function cEntreHtml(d){
         ${cLab(`temperatura (°C, ${tt.min}…${tt.max})`, cNumIn('domini.temperatura_C', d.temperatura_C, {min: tt.min, max: tt.max}))}</div>
        <div class="hint">Valors per defecte del formulari: HR ${hr.defecte} %, ${tt.defecte} °C (Albert, 2026-11-09; contracte UI §17). Rangs: ${escD(tt.font)}.</div>` : '';
   return `<div id="c-entre" data-entre>${cLab('entre la font i el bloc', sel)}${hum}
-    <div class="hint">Valors de <code>domini.entre</code>: ${escD(E.font_valids)}. La fracció d'H₂O (massa) i la densitat de l'aire les calcula neudet: surten a la campanya desada, tal com les dona.</div></div>`;
+    <div data-entre-prop></div>
+    <div class="hint">Valors de <code>domini.entre</code>: ${escD(E.font_valids)}. La fracció d'H₂O (massa) i la densitat les dona neudet, amb la fórmula i els valors; és el mateix número que anirà al <code>campanya_ui.json</code> (contracte §17b i §23).</div></div>`;
+}
+// UI-ENTRE-FRAC (§17b/§23): què es mourà, ABANS de desar. La UI no calcula res: pinta el que dona
+// `/api/campanya/entre` (`propietats_entre` de neudet); si neudet dona error, es mostra el seu text.
+function cEntrePropHtml(p){
+  if(!p) return '';
+  if(p.ok === false) return `<div class="panel warn" data-entre-prop-valor><b>neudet diu:</b> ${escD(p.error || 'sense resposta')}</div>`;
+  if(p.entre === 'buit') return '';                          // §17b: cap medi ⇒ cap número i cap bloc al manifest
+  const n = x => x === null || x === undefined ? 'neudet no ho dona' : escD(x);
+  const fo = p.formules || {};
+  const fr = k => fo[k] ? `<div class="hint"><code>${escD(fo[k])}</code></div>` : '';
+  const notes = [p.nota, p.nota_dispersio, p.nota_sala].filter(Boolean);
+  return `<div class="panel" data-entre-prop-valor><b>Què hi haurà entre la font i el bloc:</b> fracció d'H₂O en massa <b>${n(p.fraccio_h2o_massa)}</b>
+    · ρ <b>${n(p.rho_gcm3)}</b> g/cm³${p.material_g4 ? ` · material G4 <code>${escD(p.material_g4)}</code>` : ''}
+    ${p.sha_mf ? `<span class="src">constants del MaterialFactory.cc (${escD(p.sha_mf)})</span>` : ''}
+    ${fr('fraccio_h2o')}${fr('rho')}${fr('magnus')}${fr('fraccio_molar')}
+    ${notes.map(x => `<div class="hint">${escD(x)} <span class="src">(neudet)</span></div>`).join('')}</div>`;
+}
+function cEntrePropCarrega(){
+  const el = document.querySelector('[data-entre-prop]'); if(!el) return;
+  const d = CP.f && CP.f.domini, E = CP.schema.font.entre; if(!d) return;
+  const ent = d.entre ?? E.defecte;
+  if(ent === E.defecte){ el.innerHTML = ''; return; }        // buid: neudet no dona res
+  const q = new URLSearchParams({entre: ent});
+  if(d.humitat_relativa_pct !== undefined && d.humitat_relativa_pct !== null) q.set('hr', d.humitat_relativa_pct);
+  if(d.temperatura_C !== undefined && d.temperatura_C !== null) q.set('t', d.temperatura_C);
+  fetch('/api/campanya/entre?' + q).then(r => r.json())
+    .then(p => { if((CP.f.domini.entre ?? E.defecte) === ent) el.innerHTML = cEntrePropHtml(p); })
+    .catch(() => { el.innerHTML = '<div class="panel warn" data-entre-prop-valor>neudet no respon</div>'; });
 }
 function cEntreCanvi(v){                                            // §17: amb aire_humit, HR i T amb el valor per defecte; si no, no hi poden ser
   const d = CP.f.domini, E = CP.schema.font.entre;
@@ -1621,6 +1650,7 @@ function cPintaForm(){
   const y = window.scrollY;
   Q('#c-form').innerHTML = cFormHtml();
   cCongela();
+  cEntrePropCarrega();                                                      // §17b/§23: fracció d'H2O i ρ, de neudet
   window.scrollTo(0, y);
 }
 // Congelat: res del formulari no es pot tocar, ni es pot desar; l'explicació del flux sobra.
@@ -1808,7 +1838,8 @@ function cEdita(el, change){
   if(p === 'domini.diagnostic'){ if(!v){ delete CP.f.domini.diagnostic; if(CP.f.avaluacio) delete CP.f.avaluacio.ckpts; } }      // DIAG-UI: sense diagnòstic no hi ha ckpts alternatius
   if(p.startsWith('avaluacio.ckpts.') && CP.f.avaluacio && CP.f.avaluacio.ckpts && !Object.keys(CP.f.avaluacio.ckpts).length) delete CP.f.avaluacio.ckpts;
   const mt = /^(etapes\.[^.]+\.tongades\.\d+)\./.exec(p); if(mt) cSyncInv(cGetS(CP.f, mt[1]));
-  if(p === 'domini.entre') cEntreCanvi(v);
+  if(p === 'domini.entre'){ cEntreCanvi(v); cEntrePropCarrega(); }          // §17b/§23: el que dona neudet, en directe
+  if(p === 'domini.humitat_relativa_pct' || p === 'domini.temperatura_C') cEntrePropCarrega();
   if(p.startsWith('domini.font')) CP.fontMoguda = true;              // §19: una font moguda per l'usuari no es recalcula
   if(/^domini\.bloc\.mides_cm\./.test(p) && !CP.fontMoguda && CP.f.domini.font.tipus === 'iso'){
     const m = CP.f.domini.bloc.mides_cm;

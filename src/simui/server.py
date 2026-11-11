@@ -97,6 +97,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/campanya/pla_verificacio":          # només lectura (GET): el pla de Geant4; no llança res
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.campanya_pla_verificacio, {"id": q.get("id", ""), "etapa": q.get("etapa", "")})
+        elif path == "/api/campanya/entre":                    # només lectura (GET): fracció d'H₂O i ρ de neudet (§17b/§23)
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            self._tracta(api.campanya_entre, q)
         elif path == "/api/campanya/fitxer":
             self._fitxer_campanya(parse_qs(url.query))
         else:
