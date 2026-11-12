@@ -24,7 +24,10 @@ quan arribi CAMP-2:
 - `definicio`: `{"yaml": "campanya.yaml", "md": "DEFINICIO.md" | null}`
 - `certificacio`: `"comprova.json"` | null
 - `etapes`: llista de `{nom, dir, motor, candidats, resultats_tub, meta, figures, n_candidats, n_csv,
-  citable, motius, verifica}`. `candidats`, `resultats_tub`, `meta` i `figures/*` són camins relatius a
+  citable, motius, verifica}`. UI-X06: `anterior` (boolean, `true` si neudet ha apartat l'etapa:
+  la prova és el camp, mai el nom de la carpeta), `aturada` (objecte de neudet amb `text`, `motiu`,
+  `geant4`, `citable`…) i `intents_anteriors` (llista de noms d'etapes apartades d'aquesta).
+  Sense el camp, `anterior` és `null` (= no es pot saber), mai `false` per defecte. `candidats`, `resultats_tub`, `meta` i `figures/*` són camins relatius a
   la carpeta de la campanya. `motor` és el de `resultats_tub.json`; sense ell, el de `meta.json`
   (`args.argv` amb `--xarxa X` → `xarxa X`; `script` = `verifica_g4.py` → `geant4`). `n_candidats` són
   els del `resultats_tub.json` (els que tenen tubs); `n_csv` són totes les files del csv (les descartades
@@ -494,6 +497,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
         return ({"nom": e["nom"], "motor": e.get("motor"), "verifica": None, "n_candidats": 0, "n_csv": 0, "citable": False,
                  "motius": [], "figures": [], "fitxers": {"dir": None, "candidats": None, "resultats_tub": None, "meta": None},
                  "columnes": [], "energies_MeV": None, "candidats": [], "executada": False,
+                 "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+                 "intents_anteriors": e.get("intents_anteriors"),
                  "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None, "resposta": None}, [])
     csvp = _dins(d, e["candidats"], e["nom"])
     if not csvp.is_file():
@@ -513,6 +518,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "n_candidats": e.get("n_candidats"), "n_csv": e.get("n_csv"), "citable": bool(e.get("citable")),
              "motius": list(e.get("motius") or []), "figures": list(e.get("figures") or []),
              "fitxers": fit, "columnes": header,
+             "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+             "intents_anteriors": e.get("intents_anteriors"),
              "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
              "resposta": _resposta(d, e),
              "energies_MeV": list(doc["energies_MeV"]) if doc is not None else None,

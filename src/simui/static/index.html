@@ -2310,14 +2310,18 @@ function kCert(v){
 function kEtapa(e){
   if(e.executada === false)
     return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kPla(e)}</article>`;
+  const apart = e.anterior === true;   // UI-X06: mana el camp `anterior` de neudet, mai el nom de la carpeta
   const eix = KC.v.pareto.eixos;
   const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
-    e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null]
+    e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null,
+    Array.isArray(e.intents_anteriors) && e.intents_anteriors.length ? `${e.intents_anteriors.length} intents anteriors apartats` : null]
     .filter(Boolean).join(' · ');
   return `<article class="card" style="margin-bottom:14px">
     <header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span>` +
-    (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>') +
+    (apart ? '<span class="tag t-no">intent anterior (no citable)</span>'
+           : (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>')) +
     `<span class="meta">${escD(meta)}</span></header>
+    ${apart && e.aturada && e.aturada.text ? `<ul class="msgs"><li>${escD(e.aturada.text)}</li></ul>` : ''}
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
     ${kPla(e)}
     ${kResposta(e)}
