@@ -321,6 +321,23 @@ def test_results_x06_te_s0_i_s0_g4_sense_avis_counterupc(url):
     assert all(e["warnings"] == [] and e["status"] == "ok" for e in body["entries"])
 
 
+def test_el_mateix_hash_en_dues_campanyes_no_es_fon(url):
+    """`for_design(hash)` no és únic per hash: el mateix disseny pot ser a dues campanyes (cas real:
+    `e353c45beb5f` és a `c0_2t0611` **i** a `c0b_2t0611`, amb `S1` a cadascuna). La UI no n'amaga ni en
+    fusiona cap: cada entrada porta `campanya` i el selector d'etapes es clau pel **camí**, amb la campanya
+    escrita a l'etiqueta (defecte registrat a COORDINACIO §5, 2026-11-12)."""
+    _neudet_o_skip()
+    status, body = _json(_get(url, "/api/results?hash=e353c45beb5f"))
+    assert status == 200
+    e = body["entries"]
+    assert len({(x["campanya"], x["etapa"]) for x in e}) == len(e) >= 5      # no se'n fusiona cap
+    assert {x["campanya"] for x in e} >= {"c0_2t0611", "c0b_2t0611"}          # les dues campanyes, present
+    assert len({x["path"] for x in e}) == len(e)                              # clau del selector = camí, no etapa
+    pagina = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
+    for text in ('value="${escD(e.path)}"', "escD(e.campanya)} · ", "escD(e.etapa)} ("):
+        assert text in pagina, text                                          # la llista diu de quina campanya és
+
+
 def test_results_amb_energia_pinta_el_xy_per_eps(url):
     root = _neudet_o_skip()
     from urllib.parse import urlencode
