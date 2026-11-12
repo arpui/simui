@@ -8,10 +8,12 @@ Què es fixa
 - La vista passa `anterior`, `aturada` i `intents_anteriors` tal com venen; si el camp no hi és,
   `anterior` és `null` (= no es pot saber), mai `false` per defecte.
 - Tria d'Albert (2026-11-12, «Marca-les»): les etapes apartades **no s'amaguen**.
-- Divergència escrita: el manifest de `c0b_2t0611` posa `citable: true` a nivell d'etapa en les dues
-  apartades (`S1_anterior_2026-11-08`, amb `aturada.citable: false`, i `S1_anterior_2026-11-08_2`, amb
-  `aturada: null`). La vista no reescriu el que diu neudet; és la pàgina qui no les marca mai com a
-  citables. Si neudet corregeix el manifest, la prova de la divergència ho dirà.
+- **Dos eixos, separats a la pantalla** (coordinador 2026-11-12: a neudet `citable` = provenança neta
+  (`provenance.is_clean`), no «fa servei com a resultat»; `anterior` = apartat com a intent). El manifest
+  de `c0b_2t0611` ho mostra de veritat: les dues apartades porten `citable: true` (`S1_anterior_2026-11-08`,
+  a més amb `aturada.citable: false`, i `S1_anterior_2026-11-08_2`, amb `aturada: null`). La pàgina les
+  retola «intent anterior (apartat; no l'useu com a resultat)» i, a part, diu la provenança de neudet.
+  La vista no reescriu res: cap dada d'ells es toca.
 - El motiu que es llegeix sota l'etapa apartada és el text de neudet (`aturada.text`), no un de propi.
 Sense neudet (o sense node) els tests es salten.
 """
@@ -34,7 +36,7 @@ from simui import campanya_vista as V  # noqa: E402
 INDEX = (ROOT / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
 CAMP = "c0b_2t0611"                       # l'única campanya real amb etapes apartades
 APARTADES = {"S1_anterior_2026-11-08", "S1_anterior_2026-11-08_2"}
-RETOLADOR = "intent anterior (no citable)"
+RETOLADOR = "intent anterior (apartat; no l’useu com a resultat)"
 
 # `kEtapa` crida els altres retoladors d'una etapa; aquí només ens interessa la capçalera i els motius.
 BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
@@ -88,9 +90,9 @@ def test_la_vista_passa_el_camp_sense_inventar_res(dades):
     assert mv["S1_anterior_2026-11-08_2"]["aturada"] is None          # no n'hi havia: no se'n inventa cap
 
 
-def test_la_divergencia_de_citable_queda_escrita(dades):
-    """neudet diu `citable: true` per a una etapa apartada; la vista ho manté (és la dada d'ells) i la pàgina
-    és qui no la pinta com a citable. Si neudet ho corregeix, aquesta prova es torna vermella i ho diu."""
+def test_els_dos_eixos_de_neudet_queden_escrits(dades):
+    """neudet diu `citable: true` (provenança) per a una etapa apartada (`anterior: true`): no és un defecte
+    d'ells, són dos eixos. La vista ho manté tal qual; la pàgina els pinta per separat."""
     man, v = dades
     mv, mne = _per_nom(v["etapes"]), _per_nom(man["etapes"])
     for nom in APARTADES:
@@ -106,9 +108,10 @@ def test_la_pagina_no_dedueix_res_del_nom_de_la_carpeta():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="cal node")
-def test_kEtapa_marca_sempre_les_apartades_i_mai_com_a_citables(dades):
-    """Amb les etapes reals de la campanya: tota `anterior: true` surt amb el retolador, sense etiqueta
-    verda ni la de «no citable» a seces, i amb el motiu de neudet; les altres es pinten com sempre."""
+def test_kEtapa_separa_l_intent_anterior_de_la_provenanca(dades):
+    """Amb les etapes reals de la campanya: tota `anterior: true` surt amb el retolador d'intent apartat,
+    sense etiqueta verda ni «no citable» a seces, amb el motiu de neudet, i amb la provenança (`citable`
+    d'ells) en una etiqueta a part. Les altres es pinten com sempre."""
     man, v = dades
     h = _pinta(v["etapes"])
     assert set(h) == APARTADES | {"S1", "S1_g4"}
@@ -117,9 +120,12 @@ def test_kEtapa_marca_sempre_les_apartades_i_mai_com_a_citables(dades):
         assert RETOLADOR in cap, f"{nom} surt sense el retolador"
         for etiqueta in ('class="tag t-ok">citable<', 'class="tag t-no">no citable<'):
             assert etiqueta not in cap, f"{nom} surt marcada amb {etiqueta}"
+        assert "provenança: citable" in cap                               # l'altre eix, a part
         assert "null" not in cap and "undefined" not in cap
     assert RETOLADOR not in h["S1"] and RETOLADOR not in h["S1_g4"]
-    assert 'class="tag t-ok">citable<' in h["S1"]                     # l'etapa bona continua citable
+    for nom in ("S1", "S1_g4"):
+        assert "provenança:" not in h[nom].split("</header>")[0]          # la provenança extra, només a les apartades
+    assert 'class="tag t-ok">citable<' in h["S1"]                         # l'etapa bona continua citable
     assert "2 intents anteriors apartats" in h["S1"]
     assert _per_nom(man["etapes"])["S1_anterior_2026-11-08"]["aturada"]["text"] in h["S1_anterior_2026-11-08"]
 

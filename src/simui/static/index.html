@@ -2028,7 +2028,15 @@ function cPintaCert(c){
 // Després de desar: el que neudet ha trobat malament, en vermell (no es perd entre la resta). Errors = camps que falten i
 // elements prohibits (o no validats si atura); descartats = candidats invàlids per etapa, amb el motiu i quants.
 // AFINA-N: si el cost passa del límit, neudet porta `opcions_cost` (2–3 opcions amb el seu cost, en paraules). El format és seu: es mostra tal com ve.
-function cCostHtml(opc){
+// Ve en dues formes seves: la llista d'opcions d'una etapa (`peticio.cost.opcions_cost`) i el diccionari per etapa a l'arrel del
+// `comprova.json` (`comprova_campanya.py`: `{etapa: [opcions]}`). Les dues es mostren; la de l'arrel, una per etapa amb la clau de neudet.
+function cCostBlocks(opc){
+  if(Array.isArray(opc)) return cCostHtml(opc);
+  if(opc && typeof opc === 'object')
+    return Object.entries(opc).filter(([, v]) => Array.isArray(v) && v.length).map(([et, v]) => cCostHtml(v, et)).join('');
+  return '';
+}
+function cCostHtml(opc, etapa){
   if(!Array.isArray(opc) || !opc.length) return '';
   // §11b: cada opció és {camp, valor, per_que: gpu|disc, gpu_h, disc_gb, porta_disc_gb, cpu_g4_h, durada_h, en_paraules}. Es mostra la frase de neudet i els números tal com vénen; un camp que no hi és (o null) no s'escriu.
   const num = [['gpu_h', 'h GPU'], ['disc_gb', 'GB de disc'], ['porta_disc_gb', 'GB de disc a tenir lliure (porta)'], ['cpu_g4_h', 'h CPU Geant4'], ['durada_h', 'h de durada']];
@@ -2040,7 +2048,7 @@ function cCostHtml(opc){
     if(!cap && !o.en_paraules && !n) return Object.entries(o).map(([k, v]) => `<b>${escD(k)}</b>: ${escD(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ');
     return [cap, o.en_paraules ? escD(o.en_paraules) : '', n ? `<span class="hint">${n}</span>` : ''].filter(Boolean).join(' — ');
   };
-  return `<div class="panel bad" data-cost-gran><b>Massa gran per a un tanteig.</b> neudet proposa aquestes opcions, amb el seu cost <span class="hint">(és un avís, no bloqueja res; la UI no n'aplica cap: si en tries una, canvia-la tu al formulari)</span>:<ul class="msgs">${opc.map(o => `<li>${txt(o)}</li>`).join('')}</ul></div>`;
+  return `<div class="panel bad" data-cost-gran><b>Massa gran per a un tanteig${etapa ? ` (etapa ${escD(etapa)})` : ''}.</b> neudet proposa aquestes opcions, amb el seu cost <span class="hint">(és un avís, no bloqueja res; la UI no n'aplica cap: si en tries una, canvia-la tu al formulari)</span>:<ul class="msgs">${opc.map(o => `<li>${txt(o)}</li>`).join('')}</ul></div>`;
 }
 // Després de desar, neudet encara no ha respost: avís ben visible i refresc sol cada 30 s fins que la campanya deixa de ser «proposta».
 function cEsperaStop(){ if(CP.esp){ clearInterval(CP.esp.t); CP.esp = null; } }
@@ -2065,7 +2073,7 @@ function cEspera(id){
 function cAvisosDesa(c){
   if(!c) return '';
   const out = [];
-  if(c.opcions_cost && c.opcions_cost.length) out.push(cCostHtml(c.opcions_cost));
+  const cgCost = cCostBlocks(c.opcions_cost); if(cgCost) out.push(cgCost);
   if(Array.isArray(c.avisos_en_paraules) && c.avisos_en_paraules.length) out.push('<b>Avisos de neudet:</b><ul class="msgs">' + c.avisos_en_paraules.map(t => `<li>${escD(t)}</li>`).join('') + '</ul>');
   if(c.camps_falten) out.push(`<b>Falten camps de la fitxa:</b><pre class="pre">${escD(c.camps_falten)}</pre>`);
   const oav = ((c.objectius || {}).avisos || []).filter(a => a.nivell !== 'info');       // OBJ: un sol canal, grups que falten…
@@ -2305,7 +2313,8 @@ function kCert(v){
   const c = v.certificacio;
   if(!c || !c.disponible) return `<div class="panel warn">Certificació no disponible: ${escD((c && c.motiu) || '')}</div>`;
   const etapes = Object.entries(c.etapes || {}).map(([k, x]) => `${escD(k)}: ${x.valids} vàlids, ${x.invalids} invàlids`).join(' · ');
-  return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cPintaCert(c);
+  // AFINA-N (4): l'avís de cost també a la pàgina de la campanya — el `comprova.json` ja el porta (per etapa).
+  return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cCostBlocks(c.opcions_cost) + cPintaCert(c);
 }
 function kEtapa(e){
   if(e.executada === false)
@@ -2318,7 +2327,8 @@ function kEtapa(e){
     .filter(Boolean).join(' · ');
   return `<article class="card" style="margin-bottom:14px">
     <header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span>` +
-    (apart ? '<span class="tag t-no">intent anterior (no citable)</span>'
+    (apart ? '<span class="tag t-no">intent anterior (apartat; no l’useu com a resultat)</span>' +
+            (typeof e.citable === 'boolean' ? `<span class="tag t-nt" title="el camp \`citable\` de neudet és la provenança de les dades d’aquesta etapa, no si el resultat fa servei">provenança: ${e.citable ? 'citable' : 'no citable'}</span>` : '')
            : (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>')) +
     `<span class="meta">${escD(meta)}</span></header>
     ${apart && e.aturada && e.aturada.text ? `<ul class="msgs"><li>${escD(e.aturada.text)}</li></ul>` : ''}
@@ -2935,7 +2945,7 @@ async function nzCampanya(id){
     const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
     cCarrega(r.form, `Proposta de neudet <code>${escD(id)}</code> (estat: proposta). «Desa la proposta» la torna a escriure: només una proposta es pot sobreescriure.` +
       `<div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${id}\` proposta`)}</pre>` +
-      (r.resum_text ? `<details class="fold"><summary>Què entén neudet que farà (resum de l'última desada)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.resum_text)}</div></details>` : '') + cCostHtml(r.opcions_cost));
+      (r.resum_text ? `<details class="fold"><summary>Què entén neudet que farà (resum de l'última desada)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.resum_text)}</div></details>` : '') + cCostBlocks(r.opcions_cost));
     cEspera(id);                                                  // una proposta que encara no s'ha interpretat: s'espera la resposta de neudet
     NZ.sel = {k: 'form', id};
     return nzVeu();
