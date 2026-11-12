@@ -1,0 +1,18 @@
+# Fragments del `campanya.yaml` de `c0_2a0611` TAL COM EREN A LA CÒPIA
+# `~/projects/wt/neudet_UI-COST/disseny/campanyes/c0_2a0611/` (×10 sobre el valor original) per passar el
+# llindar de 12 h de GPU. Les dades reals de neudet no es van tocar; la còpia ja és esborrada.
+
+avaluacio:
+  motor: xarxa
+  xarxa: B1
+  mode: continu
+  det_canal: np
+  n_cribratge: 2000000      # original: 200000
+  n_final: 20000000         # original: 2000000
+  lot: 500000
+  geom_vect: true
+
+# I dins de `etapes: S1:` (original: `n_inicial: 200000, n_final: 2000000`):
+    cerca: {tipus: halving, n_inicial: 2000000, n_final: 20000000, fraccio: 0.1, min_finalistes: 8}
+
+# Amb això neudet dona GPU 34,27 h (abans 5,26 h) i `opcions_cost` ple → vege `resultat.md`.

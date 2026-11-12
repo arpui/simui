@@ -1,0 +1,46 @@
+{
+  "nota": "Copiada del `comprova.json` que va generar neudet a la còpia de feina `~/projects/wt/neudet_UI-COST/disseny/campanyes/c0_2a0611` el 2026-11-12 (`scripts/disseny/comprova_campanya.py --json`), amb el `campanya.yaml` de la còpia pujat ×10. NO és una dada de les campanyes reals de neudet: aquest cost no existeix a `disseny/campanyes/*`. La `nota` és del planificador de simui.",
+  "campanya": "c0_2a0611",
+  "etapa": "S1",
+  "cost": {
+    "gpu_h": 34.27,
+    "durada_h": 34.7,
+    "geant4_disc_gb": 2.24,
+    "disc_lliure_gb": 74.9,
+    "llindar": "LLINDAR_GPU_H = 12.0 (neudet `src/neudet/disseny/resum_peticio.py`)"
+  },
+  "forma_a_l_arrel_del_comprova_json": "diccionari per etapa: {\"S1\": [opcions]} (no llista)",
+  "opcions_cost": {
+    "S1": [
+      {
+        "camp": "mostres",
+        "valor": 140,
+        "per_que": "gpu",
+        "gpu_h": 11.66,
+        "disc_gb": 2.24,
+        "porta_disc_gb": 3.36,
+        "cpu_g4_h": 5.8,
+        "durada_h": 12.1,
+        "en_paraules": "Avaluar només 140 candidats a l'atzar dels 413 vàlids (`mostres: 140`): GPU 11.7 h en lloc de 34.3 h; durada prevista 12.1 h."
+      },
+      {
+        "camp": "mostres+cerca.n_inicial",
+        "valor": {
+          "mostres": 190,
+          "n_inicial": 1000000
+        },
+        "per_que": "gpu",
+        "gpu_h": 11.87,
+        "disc_gb": 2.24,
+        "porta_disc_gb": 3.36,
+        "cpu_g4_h": 5.8,
+        "durada_h": 12.3,
+        "en_paraules": "Avaluar 190 candidats a l'atzar i el cribratge a la meitat de primaris (`mostres: 190`, `cerca.n_inicial: 1.000.000`): GPU 11.9 h en lloc de 34.3 h; durada prevista 12.3 h."
+      }
+    ]
+  },
+  "candidats_de_l_informe": {
+    "valids": 413,
+    "invalids": 87
+  }
+}
