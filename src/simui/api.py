@@ -324,6 +324,12 @@ def campanya_defaults() -> Dict[str, Any]:
     return CF.defaults()
 
 
+def campanya_escenari(nom: str) -> Dict[str, Any]:
+    """Un escenari §24 que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`) per omplir la taula de cossos.
+    Només lectura: la llista i els errors que donaria ja són a `/api/campanya/schema` (`escenaris`)."""
+    return CF.escenari_cossos(nom)
+
+
 def campanya_yaml(body: Dict[str, Any]) -> Dict[str, Any]:
     """El yaml del formulari, en viu i per a «Descarrega»: no escriu res. Desar és `campanya_desa` (a neudet)."""
     if body.get("desa"):

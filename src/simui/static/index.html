@@ -96,6 +96,7 @@ border-radius:4px;font-size:11.5px;line-height:1.4;overflow:auto;max-height:340p
 @media (max-width:1100px){.dgrid,.cmp{grid-template-columns:1fr}}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 .tblwrap{overflow:auto;max-width:100%;margin:8px 0}
+table.tbl.tbl-cossos{min-width:1180px}   // §24: la taula de cossos té 9 columnes; sense mínim les cabries queden il·legibles (el marc ja fa scroll)
 table.tbl{border-collapse:collapse;font-size:12px;background:#fff}
 table.tbl th,table.tbl td{border:1px solid var(--line);padding:3px 6px;text-align:left;white-space:nowrap}
 table.tbl th{background:var(--panel);font-weight:700}
@@ -135,7 +136,7 @@ svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
 .kgraf .gm line{stroke:var(--bad);stroke-width:1.4;stroke-dasharray:5 3}.kgraf .gm line.gh{stroke:transparent;stroke-width:14;stroke-dasharray:none}
 .kgraf .gmc circle,.kgraf .gmr rect{fill:var(--bad);stroke:#fff}.kgraf .gm text{fill:var(--bad);font-weight:700}
 .lg{display:inline-flex;align-items:center;gap:3px;margin-right:10px}.lg .gn{fill:#b9b4aa;stroke:#8d887e}.lg .gf{fill:#fff;stroke:var(--accent);stroke-width:1.8}.lg .gf.gr{fill:var(--accent)}.lg .gw{fill:#e0a526;stroke:var(--ink)}
-.v3d-svg{width:300px;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:grab;touch-action:none;user-select:none}
+.v3d-svg{width:100%;max-width:420px;aspect-ratio:1/1;height:auto;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:grab;touch-action:none;user-select:none}
 .v3d-svg:active{cursor:grabbing}
 .blocbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}
@@ -1067,7 +1068,7 @@ const cColor = (V, tipus) => { const i = (V.ordre || []).indexOf(tipus); return 
 // Per cada tongada, una combinació: amb recursos, a l'atzar (llavor CP.llavor); sense, la primera de cada ventall.
 // Una posició (x, y, z d'un punt; r i φ d'un anell) pot ser un valor, una llista o un rang: l'exemple en tria un valor.
 function cTubsVista(){
-  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80];
+  const d = CP.f.domini, m = cBlocExt(d).m;
   const out = {punts: [], cercles: [], ordre: [], exemple: false, nota: ''};
   const first = (v, def) => { const a = cAtrVals(v); return a.length ? a[0] : def; };
   const tongs = cTongs();
@@ -1186,6 +1187,37 @@ function cExempleHtml(V){
   return `<div class="panel bad" data-exemple-rebutjat><b>neudet rebutja aquest exemple:</b><ul class="msgs">${r.res.violacions.map(v => `<li>${escD(v.motiu)}</li>`).join('')}</ul>
     <span class="hint">Els tubs rebutjats són en vermell, numerats com al dibuix de dalt. «una altra» en prova un altre.</span></div>`;
 }
+// ── la forma del bloc i els cossos (contracte §22 i §24): el que dibuixen les quatre vistes ──
+// COSSOS-DEF-BEGIN: funcions pures (les executa node al test bessó de §22/§24; no toquen el DOM ni `CP`)
+// absent = `cub` (§22). Amb `cilindre` l'extensió és 2·radi × 2·radi × alzada i la planta és un cercle (§6 D).
+// Si falta una llargada obligatòria no se n'inventa cap: `sense` avisa que el dibuix no és la geometria escrita.
+function cBlocExt(d){
+  const b = (d && d.bloc) || {};
+  if(b.forma === 'cilindre'){
+    const r = Number(b.radi_cm) || 0, a = Number(b.alzada_cm) || 0;
+    return {forma: 'cilindre', radi: r, alzada: a, m: [2 * r || 30, 2 * r || 30, a || 80], sense: !(r > 0 && a > 0)};
+  }
+  const m = b.mides_cm || [30, 30, 80];
+  return {forma: 'cub', radi: 0, alzada: 0, m, sense: !(Array.isArray(m) && m.length === 3 && m.every(x => Number(x) > 0))};
+}
+// El color és del material (§6 D: «contorns amb el material al costat»); és una tria de dibuix, no una dada.
+const COL_MATERIAL = {Pb: '#6e6e6e', PE: '#3f7fbf', aire: '#9aa7b0', buit: '#c9cfd6', SST: '#8a6db1', SSTaisi316: '#6d8fb1'};
+const cColMat = m => COL_MATERIAL[m] || '#8a8a8a';
+// L'escena dels cossos: cada cos amb la forma i les mides del yaml, i si el transporta el motor (§24: per defecte fals).
+function cCossosEscena(d){
+  return ((d && d.cossos) || []).map((c, i) => ({
+    nom: c.nom || `cos ${i + 1}`, material: c.material || '', forma: c.forma || '',
+    pos: [0, 1, 2].map(k => Number((c.pos_cm || [])[k]) || 0), eix: c.eix || 'z',
+    radi: Number(c.radi_cm) || Number(c.radi_base_cm) || 0, alzada: Number(c.alzada_cm) || 0,
+    dx: Number(c.dx_cm) || 0, dy: Number(c.dy_cm) || 0, dz: Number(c.dz_cm) || 0,
+    punt: [0, 1, 2].map(k => Number((c.punt_cm || [])[k]) || 0), normal: [0, 1, 2].map(k => Number((c.normal || [])[k]) || 0),
+    transport: c.transport === true, regio: !!c.regio, sensemides: false}));
+}
+const cCosMal = c => !c.forma || (c.forma === 'box' && !(c.dx > 0 && c.dy > 0 && c.dz > 0)) ||
+  (c.forma === 'cilindre' && !(c.radi > 0 && c.alzada > 0)) || (c.forma === 'esfera' && !(c.radi > 0)) ||
+  (c.forma === 'con' && !(c.radi > 0 && c.alzada > 0)) || (c.forma === 'semiespai' && !c.normal.some(x => x));
+// COSSOS-DEF-END
+
 function cBlocSvg(id = 'c-bloc'){
   const d = CP.f.domini, V = cTubsVista();
   const tubs = V.punts.filter(p => !p.tenue);
@@ -1197,12 +1229,16 @@ function cBlocSvg(id = 'c-bloc'){
   const aps = V.ordre.filter(t => V.punts.some(p => p.tipus === t));
   const nomsDe = t => [...new Set(V.punts.filter(p => p.tipus === t && p.nom).map(p => p.nom))];
   const leg = aps.map(t => `<span class="leg"><i style="background:${cColor(V, t)}"></i>${escD(t)}${nomsDe(t).length ? ` <span class="hint">(${nomsDe(t).map(escD).join(', ')})</span>` : ''} <span class="hint">${(m => m ? `Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm · gas ${m.llargada_activa_cm} cm` : 'sense mides')(cMidesTub(t))}</span></span>`).join('');
+  const E = cBlocExt(d), cossos = cCossosEscena(d);
+  const legCos = cossos.map(c => `<span class="leg"><i style="background:${cColMat(c.material)}"></i>${escD(c.nom)} <span class="hint">${escD(c.material || 'sense material')} · ${escD(c.forma || 'sense forma')}${c.regio ? ' · regio' : ''} · ${c.transport ? 'al motor' : 'només Geant4'}</span></span>`).join('');
+  const avisBloc = E.sense ? `<div class="panel warn">El bloc és ${E.forma === 'cilindre' ? 'cilíndric però encara no hi ha `radi_cm` i `alzada_cm` escrites' : 'de forma cub i encara no hi ha les tres mides escrites'}: el dibuix és orientatiu, no és la teva geometria (§22: aquestes mides no tenen valor per defecte).</div>` : '';
   return `<div class="tres"><div>${cBlocXY(id, V, D)}</div><div>${cBlocLateral(id + '-xz', 'xz', V, D)}</div><div>${cBlocLateral(id + '-yz', 'yz', V, D)}</div><div>${v3dHtml(id + '-3d', cEscena(V))}</div></div>
     <div class="bar blocbar">${V.exemple ? `<span class="hint"><b>Exemple a l'atzar</b> dels recursos pels llocs (respecta els fixats): no és cap candidat.</span> <button type="button" class="ghost" data-act="altra">una altra</button>` : ''}
       <span class="hint">Les tres vistes, a la mateixa escala (1 cm = ${cG(D.k)} px).</span>
+      <span class="hint">${E.forma === 'cilindre' ? `bloc cilíndric Ø ${cG(2 * E.radi)} × ${cG(E.alzada)} cm` : `bloc cub ${E.m.map(x => cG(Number(x) || 0)).join(' × ')} cm`} <span class="hint">(forma: ${escD(E.forma)}${E.forma === 'cub' ? ' — per defecte de neudet, el camp no escrit' : ''})</span></span>
       <span class="hint">${iso ? `font a (${[0, 1, 2].map(i => Number(pos[i]) || 0).join(', ')}) cm` : 'font de feix'}</span>
       ${iso && !CP.congelat ? `<button type="button" class="ghost${CP.movFont ? ' on' : ''}" data-act="movfont">${CP.movFont ? 'deixa de moure la font' : 'mou la font'}</button>` : ''}</div>
-    ${leg ? `<div class="legend">${leg}</div>` : ''}${cExempleHtml(V)}`;
+    ${avisBloc}${leg ? `<div class="legend">${leg}</div>` : ''}${legCos ? `<div class="legend">${legCos}</div>` : ''}${cExempleHtml(V)}`;
 }
 // ── Visor 3D isomètric (VISTA-3D): una escena {bloc, forat, font, tubs[]} en cm (centre del bloc a l'origen), sense llibreries ──
 // Cada tub és un cilindre a mida real (el volum que ocupa) amb el gas actiu a dins. Es gira arrossegant; el doble clic restableix.
@@ -1218,40 +1254,77 @@ function v3dCil(c, eix, lo, hi, R, n = 14){
   return [anell(lo), anell(hi)];
 }
 function v3dSvg(esc, st){
-  const [bx, by, bz] = esc.bloc, faces = [], K = (() => {
+  const [bx, by, bz] = esc.bloc, faces = [], cilBloc = esc.forma === 'cilindre' && esc.radi > 0 && esc.alzada > 0, K = (() => {
     let r = Math.hypot(bx, by, bz) / 2;
     esc.tubs.forEach(t => { r = Math.max(r, Math.hypot(t.x, t.y, t.z) + Math.max(-t.zlo, t.zhi)); });
+    (esc.cossos || []).forEach(c => { r = Math.max(r, Math.hypot(c.pos[0], c.pos[1], c.pos[2]) + Math.max(c.radi, c.alzada, c.dx, c.dy, c.dz, 1)); });
     return 138 / r; })();
   const P = p => { const q = v3dProj(p, st); return [q[0] * K, -q[1] * K, q[2]]; };
-  const poli = (pts, fill, op, stroke, sw) => { const q = pts.map(P); faces.push({q, d: q.reduce((s, a) => s + a[2], 0) / q.length, fill, op, stroke, sw}); };
-  const cilindre = (c, eix, lo, hi, R, fill, op, stroke, sw) => {
+  const poli = (pts, fill, op, stroke, sw, dash) => { const q = pts.map(P); faces.push({q, d: q.reduce((s, a) => s + a[2], 0) / q.length, fill, op, stroke, sw, dash}); };
+  const cilindre = (c, eix, lo, hi, R, fill, op, stroke, sw, dash) => {
     const [A, B] = v3dCil(c, eix, lo, hi, R), n = A.length;
-    for(let k = 0; k < n; k++) poli([A[k], A[(k + 1) % n], B[(k + 1) % n], B[k]], fill, op, stroke, sw);
-    poli(A, fill, op, stroke, sw); poli(B, fill, op, stroke, sw);
+    for(let k = 0; k < n; k++) poli([A[k], A[(k + 1) % n], B[(k + 1) % n], B[k]], fill, op, stroke, sw, dash);
+    poli(A, fill, op, stroke, sw, dash); poli(B, fill, op, stroke, sw, dash);
   };
+  const alllarg = (c, eix, t) => eix === 'x' ? [c[0] + t, c[1], c[2]] : eix === 'y' ? [c[0], c[1] + t, c[2]] : [c[0], c[1], c[2] + t];
+  const caresCaixa = [[-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1], [-1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1],
+    [-1, -1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1], [1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1],
+    [-1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1], [-1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1]];
+  const caixaCos = (c, hx, hy, hz, fill, op, stroke, sw, dash) => caresCaixa.forEach(q => poli(
+    [0, 1, 2, 3].map(k => [c[0] + q[3 * k] * hx, c[1] + q[3 * k + 1] * hy, c[2] + q[3 * k + 2] * hz]), fill, op, stroke, sw, dash));
+  const bola = (c, R, fill, op, stroke, sw) => { const q = P(c); faces.push({circ: [q[0], q[1], R * K], d: q[2], fill, op, stroke, sw}); };
+  const con = (c, eix, R, h, fill, op, stroke, sw, dash) => {
+    const [A] = v3dCil(c, eix, 0, 0, R), apex = alllarg(c, eix, h);
+    for(let k = 0; k < A.length; k++) poli([A[k], A[(k + 1) % A.length], apex], fill, op, stroke, sw, dash);
+    poli(A, fill, op, stroke, sw, dash);
+  };
+  const semiespai = (p, n, L, fill, op, stroke, sw) => {
+    const m = Math.hypot(n[0], n[1], n[2]); if(!(m > 0)) return;
+    const a = n.map(x => x / m), cr = (x, y) => [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
+    const k = Math.abs(a[0]) < Math.abs(a[1]) ? (Math.abs(a[0]) < Math.abs(a[2]) ? 0 : 2) : (Math.abs(a[1]) < Math.abs(a[2]) ? 1 : 2);
+    const w = [0, 0, 0]; w[k] = 1;
+    const u = cr(a, w), v = cr(a, u), nu = Math.hypot(u[0], u[1], u[2]) || 1, nv = Math.hypot(v[0], v[1], v[2]) || 1;
+    const canton = (s, t) => [0, 1, 2].map(i => p[i] + s * L * u[i] / nu + t * L * v[i] / nv);
+    poli([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => canton(s, t)), fill, op, stroke, sw, '4 3');
+    faces.push({lin: [P(p), P([p[0] + a[0] * L * 0.55, p[1] + a[1] * L * 0.55, p[2] + a[2] * L * 0.55])], d: P(p)[2], fill: 'none', op: 0, stroke, sw});
+  };
+  if(cilBloc) cilindre([0, 0, 0], 'z', -esc.alzada / 2, esc.alzada / 2, esc.radi, '#f4f4f4', 0.5, '#4d4d4d', 0.8);
   esc.tubs.forEach(t => {
     const c = [t.x, t.y, t.z], op = t.tenue ? 0.1 : 0.28;
     cilindre(c, t.eix || 'z', t.zlo, t.zhi, t.R, t.color, op, t.color, 0.4);
     if(t.real !== false && t.La > 0 && t.Rg > 0) cilindre(c, t.eix || 'z', t.za - t.La / 2, t.za + t.La / 2, t.Rg, t.color, t.tenue ? 0.2 : 0.7, t.color, 0.2);
+  });
+  // §24: un cos `transport: false` (el per defecte) es dibuixa amb el contorn de ratlles: només el munta Geant4.
+  (esc.cossos || []).forEach(c => {
+    const col = c.color || cColMat(c.material), op = 0.34, dash = c.transport ? undefined : '4 3';
+    if(c.forma === 'box' && c.dx > 0 && c.dy > 0 && c.dz > 0) caixaCos(c.pos, c.dx, c.dy, c.dz, col, op, col, 0.7, dash);
+    if(c.forma === 'cilindre' && c.radi > 0 && c.alzada > 0) cilindre(c.pos, c.eix, 0, c.alzada, c.radi, col, op, col, 0.7, dash);
+    if(c.forma === 'esfera' && c.radi > 0) bola(c.pos, c.radi, col, op, col, 0.7);
+    if(c.forma === 'con' && c.radi > 0 && c.alzada > 0) con(c.pos, c.eix, c.radi, c.alzada, col, op, col, 0.7, dash);
+    if(c.forma === 'semiespai' && c.normal.some(x => x)) semiespai(c.punt, c.normal, Math.max(bx, by, bz) / 2 * 0.9, col, 0.12, col, 0.7);
   });
   faces.sort((a, b) => b.d - a.d);
   const sv = (x, y, z) => P([x, y, z]), lin = (a, b, st2) => `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" ${st2}/>`;
   const cantonades = []; for(const x of [-1, 1]) for(const y of [-1, 1]) for(const z of [-1, 1]) cantonades.push(sv(x * bx / 2, y * by / 2, z * bz / 2));
   const idx = (x, y, z) => ((x > 0) << 2) | ((y > 0) << 1) | (z > 0), arestes = [];
   for(let i = 0; i < 8; i++) for(const b of [1, 2, 4]) if(!(i & b)) arestes.push([i, i | b]);
-  const caixa = arestes.map(([i, j]) => lin(cantonades[i], cantonades[j], 'stroke="#4d4d4d" stroke-width="1"')).join('');
+  const caixa = cilBloc ? '' : arestes.map(([i, j]) => lin(cantonades[i], cantonades[j], 'stroke="#4d4d4d" stroke-width="1"')).join('');
   const forat = esc.forat > 0 ? [-1, 1].map(s => `<polyline fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3 3" points="${v3dCil([0, 0, 0], 'z', s * bz / 2, s * bz / 2, esc.forat, 40)[0].map(p => P(p).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`).join('') : '';
   const font = esc.font ? (q => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4" fill="#c00000"/><text x="${(q[0] + 6).toFixed(1)}" y="${(q[1] - 5).toFixed(1)}" font-size="10" fill="#c00000">F</text>`)(sv(...esc.font)) : '';
   const eixos = [['x', [1, 0, 0], '#b5541c'], ['y', [0, 1, 0], '#2e7d32'], ['z', [0, 0, 1], '#1f5f99']].map(([n, d, col]) => {
     const q = v3dProj(d, st), x = -128 + q[0] * 24, y = 128 - q[1] * 24;
     return `${lin([-128, 128], [x, y], `stroke="${col}" stroke-width="1.5"`)}<text x="${(x + (q[0] >= 0 ? 3 : -9)).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="10" fill="${col}">${n}</text>`; }).join('');
-  const peces = faces.map(f => `<polygon points="${f.q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`).join('');
+  const peces = faces.map(f => f.circ ? `<circle cx="${f.circ[0].toFixed(1)}" cy="${f.circ[1].toFixed(1)}" r="${f.circ[2].toFixed(1)}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`
+    : f.lin ? `<line x1="${f.lin[0][0].toFixed(1)}" y1="${f.lin[0][1].toFixed(1)}" x2="${f.lin[1][0].toFixed(1)}" y2="${f.lin[1][1].toFixed(1)}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`
+    : `<polygon points="${f.q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"${f.dash ? ` stroke-dasharray="${f.dash}"` : ''}/>`).join('');
   return `${caixa}${forat}${peces}${font}${eixos}`;
 }
 function v3dHtml(id, esc){
   const st = V3D[id] = Object.assign(V3D[id] || {...V3D_INI}, {esc});
+  const ns = (esc.cossos || []).filter(c => c.transport).length, nn = (esc.cossos || []).length - ns;
   return `<div class="v3d"><svg id="${id}" class="v3d-svg" viewBox="-160 -160 320 320" aria-label="vista 3D">${v3dSvg(esc, st)}</svg>
-    <div class="hint">3D, cada tub a mida real (cilindre clar: el que ocupa; fosc: el gas actiu). Arrossega per girar; doble clic per restablir.</div></div>`;
+    <div class="hint">3D, cada tub a mida real (cilindre clar: el que ocupa; fosc: el gas actiu). Arrossega per girar; doble clic per restablir.</div>
+    ${ns + nn ? `<div class="hint">Cossos (§24): <b>${ns}</b> amb contorn sòlit = <b>al motor</b> (transport: true); <b>${nn}</b> amb contorn de ratlles = <b>només a Geant4</b> (§22: amb «mon.transport» absent o false, el motor no els transporta).${(esc.cossos || []).some(c => c.forma === 'semiespai') ? ' Un semiespai es dibuixa per la seva pla límit (és infinit).' : ''}${(esc.cossos || []).some(c => c.regio) ? ' «regio» no es dibuixa: és una expressió booleana de semiespais.' : ''}</div>` : ''}</div>`;
 }
 document.addEventListener('pointerdown', e => {
   const s = e.target.closest && e.target.closest('svg.v3d-svg'), st = s && V3D[s.id];
@@ -1268,8 +1341,9 @@ document.addEventListener('dblclick', e => {
 });
 // L'escena del formulari: els mateixos tubs que dibuixen les vistes planes (V), amb les mides del catàleg de neudet.
 function cEscena(V){
-  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], pos = d.font.pos_cm || [0, 0, 0];
-  return {bloc: m.map(Number), forat: Number(d.bloc.forat_cm) || 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
+  const d = CP.f.domini, E = cBlocExt(d), pos = d.font.pos_cm || [0, 0, 0];
+  return {bloc: E.m.map(Number), forma: E.forma, radi: E.radi, alzada: E.alzada, cossos: cCossosEscena(d),
+    forat: Number(d.bloc.forat_cm) || 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
     tubs: V.punts.map(p => { const q = cDimTub(p.tipus), mm = cMidesTub(p.tipus);
       return {index: p.num, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColP(V, p), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
 }
@@ -1277,12 +1351,18 @@ function cEscena(V){
 // Les tres vistes a la MATEIXA escala (px per cm), per poder-les comparar: les extensions (cm, centrades a 0) de cada una es calculen
 // aquí i la mida de cada dibuix en píxels és extensió × k. `mc` és el marge per a les cotes (text de 11 px, en cm).
 function cVistaDims(V){
-  const d = CP.f.domini, m = d.bloc.mides_cm || [30, 30, 80], hx = m[0] / 2, hy = m[1] / 2, hz = m[2] / 2;
+  const d = CP.f.domini, m = cBlocExt(d).m, hx = m[0] / 2, hy = m[1] / 2, hz = m[2] / 2;
   const cap = 3 * Math.max(hx, hy, hz);
   let xy = Math.max(hx, hy), wxz = hx, wyz = hy, h = hz;
   V.punts.forEach(p => {
     const q = cDimTub(p.tipus), e = Math.max(-q.zlo, q.zhi);
     const ex = Math.abs(p.x) + (p.eix === 'x' ? e : q.R), ey = Math.abs(p.y) + (p.eix === 'y' ? e : q.R), ez = Math.abs(p.z || 0) + (p.eix === 'z' ? e : q.R);
+    xy = Math.max(xy, Math.min(ex, cap), Math.min(ey, cap)); wxz = Math.max(wxz, Math.min(ex, cap)); wyz = Math.max(wyz, Math.min(ey, cap)); h = Math.max(h, Math.min(ez, cap));
+  });
+  cCossosEscena(d).forEach(c => {                                                     // §24: els cossos també amplien el dibuix
+    const ex = Math.abs(c.pos[0]) + Math.max(c.dx, c.eix === 'x' ? c.alzada : c.radi),
+          ey = Math.abs(c.pos[1]) + Math.max(c.dy, c.eix === 'y' ? c.alzada : c.radi),
+          ez = Math.abs(c.pos[2]) + Math.max(c.dz, c.eix === 'z' ? c.alzada : c.radi);
     xy = Math.max(xy, Math.min(ex, cap), Math.min(ey, cap)); wxz = Math.max(wxz, Math.min(ex, cap)); wyz = Math.max(wyz, Math.min(ey, cap)); h = Math.max(h, Math.min(ez, cap));
   });
   const gran = Math.max(xy, wxz, wyz, h) * 1.15, k = Math.min(6, 300 / (2 * gran)), mc = 34 / k;      // el més gran fa ~300 px
@@ -1297,6 +1377,30 @@ function cCota(x1, y1, x2, y2, txt, D, vertical){
   return `<g stroke="#555" stroke-width="${sw}" fill="#444" font-size="${D.fs}" pointer-events="none"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>${marques}<g stroke="none">${text}</g></g>`;
 }
 const cG = x => +(+x).toFixed(2);
+// Un cos de §24 a la vista lateral (pla h, z): secció real de la forma. `h` és l'eix horitzontal del dibuix.
+// `transport: false` (el per defecte) = contorn de ratlles: només Geant4 (§22). Un semiespai no té secció finita: no es dibuixa.
+function cCosPlan(c, h, sw, k){
+  const col = cColMat(c.material), op = 0.3, est = `stroke="${col}" stroke-width="${sw}"${c.transport ? '' : ` stroke-dasharray="${5 / k} ${5 / k}"`}`;
+  const f = `fill="${col}" fill-opacity="${op}" ${est}`;
+  const al = c.pos[h === 'x' ? 0 : 1], z = c.pos[2];
+  if(c.forma === 'box' && c.dx > 0 && c.dy > 0 && c.dz > 0){
+    const hx = h === 'x' ? c.dx : c.dy;
+    return `<rect x="${al - hx}" y="${-(z + c.dz)}" width="${2 * hx}" height="${2 * c.dz}" ${f}/>`;
+  }
+  if(c.forma === 'cilindre' && c.radi > 0 && c.alzada > 0){
+    if(c.eix === 'z') return `<rect x="${al - c.radi}" y="${-(z + c.alzada)}" width="${2 * c.radi}" height="${c.alzada}" ${f}/>`;
+    if(c.eix === h) return `<rect x="${al}" y="${-(z + c.radi)}" width="${c.alzada}" height="${2 * c.radi}" ${f}/>`;
+    return `<circle cx="${al}" cy="${-z}" r="${c.radi}" ${f}/>`;                       // l'eix va cap dins del paper
+  }
+  if(c.forma === 'esfera' && c.radi > 0) return `<circle cx="${al}" cy="${-z}" r="${c.radi}" ${f}/>`;
+  if(c.forma === 'con' && c.radi > 0 && c.alzada > 0){
+    if(c.eix === 'z') return `<polygon points="${al - c.radi},${-z} ${al + c.radi},${-z} ${al},${-(z + c.alzada)}" ${f}/>`;
+    if(c.eix === h) return `<polygon points="${al},${-(z + c.radi)} ${al},${-(z - c.radi)} ${al + c.alzada},${-z}" ${f}/>`;
+    return `<circle cx="${al}" cy="${-z}" r="${c.radi}" ${f}/>`;
+  }
+  return '';
+}
+
 // Vista lateral (VISTA-UI): el bloc, el forat, la font i cada tub amb la seva llargada total i la zona activa (mides del catàleg de
 // neudet; sense mides, un tub orientatiu). Un tub vertical és un rectangle; un d'horitzontal, un rectangle si és al pla i un cercle si no.
 function cBlocLateral(id, pla, V0, D0){
@@ -1317,11 +1421,13 @@ function cBlocLateral(id, pla, V0, D0){
   }).join('');
   const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
+  const cosos = cCossosEscena(d).map(c => cCosPlan(c, h, sw, D.k)).join('');
   const cotes = cCota(-hh, hz + D.mc * 0.45, hh, hz + D.mc * 0.45, `${cG(2 * hh)} cm`, D, false) + cCota(hh + D.mc * 0.45, -hz, hh + D.mc * 0.45, hz, `${cG(2 * hz)} cm`, D, true);
   const sense = V.punts.some(p => !dim(p).real) ? ' Un tub sense mides al catàleg es dibuixa orientatiu.' : '';
+  const cosNoms = cCossosEscena(d).filter(c => c.nom).map(c => `${escD(c.nom)} (${escD(c.material || 'sense material')}, ${escD(c.forma || 'sense forma')})`).join(' · ');
   return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" style="width:${Math.round(2 * W * D.k)}px;max-width:100%;height:auto" aria-label="vista lateral ${pla}">
-    <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${tubs}${font}${cotes}</svg>
-    <div class="hint">Lateral (${h}, z), a escala: cada tub sencer (clar: el que ha de cabre) i amb el gas actiu (fosc); font en vermell.${sense}</div>`;
+    <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${cosos}${tubs}${font}${cotes}</svg>
+    <div class="hint">Lateral (${h}, z), a escala: cada tub sencer (clar: el que ha de cabre) i amb el gas actiu (fosc); font en vermell.${sense}${cosNoms ? ' Cossos en secció: ' + cosNoms + '; contorn de ratlles = només Geant4 (§22).' : ''}</div>`;
 }
 function cBlocXY(id = 'c-bloc', V0, D0){
   const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hx = m[0] / 2, hy = m[1] / 2, L = D.xy, sw = 1.2 / D.k;
@@ -1339,9 +1445,19 @@ function cBlocXY(id = 'c-bloc', V0, D0){
     return `<g${dr}>${forma}${num}</g>`;
   }).join('');
   const cotes = cCota(-hx, hy + D.mc * 0.45, hx, hy + D.mc * 0.45, `${cG(m[0])} cm`, D, false) + cCota(hx + D.mc * 0.45, -hy, hx + D.mc * 0.45, hy, `${cG(m[1])} cm`, D, true);
+  const E = cBlocExt(d);
+  const fon = E.forma === 'cilindre' ? `<circle r="${E.radi || hx}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>`
+    : `<rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>`;
+  const cososXY = cCossosEscena(d).map(c => {
+    const col = cColMat(c.material), op = c.transport ? 0.45 : 0.25, st = c.transport ? '' : ` stroke-dasharray="${5 / D.k} ${5 / D.k}"`;
+    if(c.forma === 'box' && c.dx > 0 && c.dy > 0) return `<rect x="${c.pos[0] - c.dx}" y="${-(c.pos[1] + c.dy)}" width="${2 * c.dx}" height="${2 * c.dy}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`;
+    if((c.forma === 'cilindre' || c.forma === 'esfera' || c.forma === 'con') && c.radi > 0) return `<circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.radi}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`;
+    return '';
+  }).join('');
+  const nomCosos = cCossosEscena(d).filter(c => c.nom).map(c => `${escD(c.nom)} (${escD(c.material || 'sense material')}${c.transport ? ', al motor' : ', només Geant4'})`).join(' · ');
   return `<svg id="${id}" viewBox="${-L} ${-L} ${2 * L} ${2 * L}" class="bloc${CP.movFont ? ' mou' : ''}" style="width:${Math.round(2 * L * D.k)}px;max-width:100%;height:auto" aria-label="bloc, font i tubs">
-    <rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${cercles}${tubs}${font}${cotes}</svg>
-    <div class="hint">Vista de dalt (x, y), a escala, del bloc de ${m[0]} × ${m[1]} cm: la font en vermell${V.punts.length ? ', els tubs amb el color del seu tipus' : ''}. Orientativa: no valida res (ho fa «Comprova»). ${escD(V.nota)}</div>`;
+    ${fon}${cososXY}${forat}${cercles}${tubs}${font}${cotes}</svg>
+    <div class="hint">Vista de dalt (x, y), a escala, del bloc ${E.forma === 'cilindre' ? `cilíndric de Ø ${cG(2 * E.radi)} cm` : `de ${m[0]} × ${m[1]} cm`}: la font en vermell${V.punts.length ? ', els tubs amb el color del seu tipus' : ''}. Orientativa: no valida res (ho fa «Comprova»). ${escD(V.nota)}${nomCosos ? ` Cossos: ${nomCosos}.` : ''}</div>`;
 }
 
 // OBJ (contracte §14): el bloc «Objectius», numerat: 1 Finalitat · 2 Què decideix · 3 Què s'informa · 4 Com es tria ·
@@ -1587,6 +1703,50 @@ function cFontHtml(d){
   return `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(c + ' (cm)', cNumIn('domini.font.pos_cm.' + i, pos[i]))).join('')}</div>`;
 }
 
+// ── §22 i §24: «forma del bloc i cossos» al formulari ──
+// Cap fila ni camp per defecte: la UI no n'inventa cap i no n'emplenja cap (regla 1 de §24).
+const cSelForma = (p, v, S) => `<select data-p="${escD(p)}" data-t="ostr" data-s><option value="">—</option>${S.formes.map(o =>
+  `<option value="${escD(o.valor)}" ${o.valor === v ? 'selected' : ''}>${escD(o.valor)}</option>`).join('')}${
+  v && !S.formes.some(o => o.valor === v) ? `<option value="${escD(v)}" selected>${escD(v)} (no és a §24)</option>` : ''}</select>`;
+// Les mides que demana la forma triada (§24): `dx_cm`… number, `eix` x|y|z, `punt_cm`/`normal` tres números.
+function cCosMides(p, c, S){
+  const f = c.forma, camps = (S.mides || {})[f] || [];
+  return camps.map(k => {
+    if(k === 'eix') return `<select data-p="${escD(p + '.eix')}" data-t="str">${S.eixos.map(e => `<option value="${e}" ${(c.eix || 'z') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>`;
+    if(k === 'punt_cm' || k === 'normal') return `${k} [x, y, z]: ${[0, 1, 2].map(j => cNumIn(`${p}.${k}.${j}`, (c[k] || [])[j])).join('')}`;
+    return cNumIn(`${p}.${k}`, c[k], {min: 0, ph: k});
+  }).join(' ');
+}
+function cCossosHtml(d){
+  const S = CP.schema.cossos || {}, cs = d.cossos || [], ES = CP.schema.escenaris || {}, es = ES.escenaris || [];
+  const fil = (c, i) => {
+    const p = `domini.cossos.${i}`;
+    return `<tr><td>${cIn(p + '.nom', c.nom, 'ostr', 'nom')}</td><td>${cIn(p + '.material', c.material, 'ostr', 'Pb')}</td>
+      <td>${cSelForma(p + '.forma', c.forma, S)}</td><td>${[0, 1, 2].map(j => cNumIn(`${p}.pos_cm.${j}`, (c.pos_cm || [])[j])).join('')}</td>
+      <td>${cCosMides(p, c, S)}</td><td>${cNumIn(p + '.' + S.densitat, c[S.densitat], {min: 0})}</td>
+      <td><label class="chk"><input type="checkbox" data-p="${p}.transport" data-t="bool" ${c.transport === true ? 'checked' : ''}></label></td>
+      <td>${cIn(p + '.regio', c.regio, 'ostr', '(+x) & (-y) - a')}</td>
+      <td><button type="button" class="ghost" data-act="cos-" data-i="${i}">treu</button></td></tr>`;
+  };
+  return `<h2>Cossos <span class="hint">(domini.cossos · contracte §24; §22: absent = cap cos)</span></h2>
+    ${cs.length ? `<div class="tblwrap"><table class="tbl tbl-cossos"><thead><tr><th>nom</th><th>material</th><th>forma</th><th>pos_cm [x, y, z]</th>
+        <th>mides (cm) segons la forma</th><th>${escD(S.densitat || 'densitat_gcm3')}</th><th>transport<br><span class="hint">al motor</span></th><th>regio</th><th></th></tr></thead>
+      <tbody>${cs.map(fil).join('')}</tbody></table></div>`
+      : `<div class="hint">Ara no hi ha cap cos: <b>absent = cap cos</b>. La UI no n'afegeix cap per defecte ni n'emplenja cap camp (§24 regla 1); prem «+ afegeix un cos» i escriu-lo tu.</div>`}
+    <div class="row"><button type="button" class="ghost" data-act="cos+">+ afegeix un cos</button>
+      <label class="chk"><input type="checkbox" data-p="domini.mon.transport" data-t="bool" ${d.mon && d.mon.transport === true ? 'checked' : ''}> el món fora del bloc el transporta el motor (<code>domini.mon.transport</code>)</label></div>
+    ${ES.disponible ? `<div class="panel" data-cossos-escenaris><b>Escenaris §24 que simphy ja té</b> <span class="hint">(${escD(ES.carpeta || '')}): és dada de simphy; la UI la llegeix i no en copia res. «carrega» posa els seus cossos a la taula de dalt (no és cap valor per defecte: és una acció teva).</span>
+      ${(es || []).map(e => `<div class="row"><span><b>${escD(e.nom)}</b> — ${e.n_cossos === null ? 'sense llista de cossos' : e.n_cossos + ' cossos'}${e.vocabulari ? ' · vocabulari ' + escD(e.vocabulari) : ''}${(e.errors || []).length ? ` · <b>les regles de §24 d'aquí no l'accepten:</b> ${escD(e.errors[0])}` : ' · les regles de §24 d\'aquí l\'accepten'}</span>
+        <button type="button" class="ghost" data-act="cos-esc" data-nom="${escD(e.nom)}"${e.error || CP.escPend ? ' disabled' : ''}>${CP.escPend === e.nom ? 'carregant…' : 'carrega a la taula'}</button>
+        ${e.error ? `<span class="hint">${escD(e.error)}</span>` : ''}${e.què ? `<span class="hint">${escD(e.què)}</span>` : ''}${e.pendent ? `<span class="hint">pendent: ${escD(e.pendent)}</span>` : ''}</div>`).join('')}
+      ${CP.escDes ? `<div class="hint">Taula omplerta des de <code>${escD(CP.escDes.arxiu)}</code> (${CP.escDes.n} cossos${CP.escDes.vocabulari ? ', vocabulari ' + escD(CP.escDes.vocabulari) : ''}). ${CP.escErr ? '<b>' + escD(CP.escErr) + '</b>' : 'Els camps que l\'escenari no porta s\'han escrit a mà; la UI no n\'ha emplenja cap.'}</div>` : ''}</div>`
+      : `<div class="hint">Els escenaris §24 de simphy no són accessibles: ${escD(ES.motiu || '')}</div>`}
+    <div class="panel${S.neudet && S.neudet.validat ? '' : ' warn'}" data-cossos-neudet><b>${escD((S.neudet || {}).text || S.avis_neudet || 'neudet encara no valida aquests camps')}</b> <span class="hint">(${escD(S.font || '')})</span></div>
+    ${cs.length ? `<div class="panel warn">${escD(S.avis_transport || '')}</div>` : ''}
+    <div class="panel">${(S.estat_piom || []).map(p => `<div><b>${escD(p.pota)}:</b> ${escD(p.text)} <span class="hint">(${escD(p.font)})</span></div>`).join('')}</div>
+    <div class="hint">${escD(S.materials_nota || '')} ${escD(S.nota_densitat || '')}</div>`;
+}
+
 function cFormHtml(){
   const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, S = CP.schema;
   return `
@@ -1600,8 +1760,15 @@ function cFormHtml(){
   <h2>Domini</h2>
   <div class="row">${cLab('material (neudet: PE; no hi ha llista de materials al codi)', cRO(d.bloc.material))}
     ${cLab('densitat (g/cm³): sense registre de validació (CAMP-1)', cRO(d.bloc.densitat_gcm3))}</div>
-  <div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, d.bloc.mides_cm[i], {min: 0}))).join('')}</div>
-  ${cLab('forat central (cm; 0 = sense)', cNumIn('domini.bloc.forat_cm', d.bloc.forat_cm, {min: 0}))}
+  <div class="row">${cLab(`forma del bloc (${escD(S.bloc.defecte)} per defecte: amb «${escD(S.bloc.defecte)}» el camp no s'escriu, §22)`,
+    cSel('domini.bloc.forma', S.bloc.formes, d.bloc.forma ?? S.bloc.defecte, 'str', 'data-s'))}</div>
+  ${d.bloc.forma === 'cilindre'
+    ? `<div class="row3">${cLab('radi (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.radi_cm', d.bloc.radi_cm, {min: 0, ph: 'radi_cm'}))}
+       ${cLab('alzada (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.alzada_cm', d.bloc.alzada_cm, {min: 0, ph: 'alzada_cm'}))}<span></span></div>`
+    : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, (d.bloc.mides_cm || [null, null, null])[i], {min: 0}))).join('')}</div>`}
+  ${cLab('forat central (cm; 0 = sense; no canvia amb la forma, §22)', cNumIn('domini.bloc.forat_cm', d.bloc.forat_cm, {min: 0}))}
+  ${d.bloc.forma === 'cilindre' ? `<div class="panel${S.bloc.neudet && S.bloc.neudet.validat ? '' : ' warn'}" data-bloc-neudet><b>${escD(S.bloc.avis_neudet)}</b> — ${escD(S.bloc.nota)}</div>` : ''}
+  ${cCossosHtml(d)}
 
   <h2>Font</h2>
   ${cLab('tipus (neudet: iso o feix)', cSel('domini.font.tipus', S.font.tipus, d.font.tipus, 'str', 'data-s'))}
@@ -1841,11 +2008,14 @@ function cEdita(el, change){
   if(p === 'domini.entre'){ cEntreCanvi(v); cEntrePropCarrega(); }          // §17b/§23: el que dona neudet, en directe
   if(p === 'domini.humitat_relativa_pct' || p === 'domini.temperatura_C') cEntrePropCarrega();
   if(p.startsWith('domini.font')) CP.fontMoguda = true;              // §19: una font moguda per l'usuari no es recalcula
-  if(/^domini\.bloc\.mides_cm\./.test(p) && !CP.fontMoguda && CP.f.domini.font.tipus === 'iso'){
-    const m = CP.f.domini.bloc.mides_cm;
-    if(m.length === 3 && m.every(x => Number(x) > 0)){ CP.f.domini.font = cFontDefecte(m, CP.schema.font.defecte.cara_cm); cPintaForm(); }   // §19: segueix el bloc
+  if(p === 'domini.bloc.forma'){                                          // §22: «cub» = camp absent
+    const b = CP.f.domini.bloc;
+    if(v === CP.schema.bloc.defecte) delete b.forma;
+    if(b.forma === 'cilindre') delete b.mides_cm; else { delete b.radi_cm; delete b.alzada_cm; }   // §24 regla 1: un camp que no toca, absent
   }
-  if(p.startsWith('domini.bloc') || p.startsWith('domini.font') || p.startsWith('etapes.')) cRedibuixa();
+  if(/^domini\.(mon|cossos\.\d+)\.transport$/.test(p) && v === false) delete cGetS(CP.f, p.slice(0, -'.transport'.length));   // §24: absent = false
+  if(/^domini\.bloc\.(mides_cm\.|radi_cm$|alzada_cm$|forma$)/.test(p)) cSegueixBloc();            // §19 i §6 E
+  if(p.startsWith('domini.bloc') || p.startsWith('domini.cossos') || p === 'domini.mon.transport' || p.startsWith('domini.font') || p.startsWith('etapes.')) cRedibuixa();
   if(p === 'domini.tipus_tub.0'){ const m = Q('#c-tubmarca'); if(m) m.textContent = cTubMarca(v); }
   if(change && el.hasAttribute('data-s')) cPintaForm();
   cYaml();
@@ -1968,7 +2138,11 @@ function cAccio(act, ds){
     const noms = cInvNoms(t.inventari); let k = 0; while(noms.includes(cLletra(k))) k++;
     t.inventari.push({nom: cLletra(k), tipus: tub0, quantitat: 1, cd: {fraction: 0}}); cSyncInv(t);
   }
-  if(act === 'fontfora'){ cAplicaFontDefecte(CP.f.domini); }         // §19: «posa-la a fora (per defecte)»
+  if(act === 'fontfora'){ if(!cAplicaFontDefecte(CP.f.domini)) cErr('per posar la font a fora calen les mides del bloc: amb forma: cilindre, `radi_cm` i `alzada_cm` escrites (§22: no tenen valor per defecte).'); }   // §19 i §6 E
+  if(act === 'cos+')(CP.f.domini.cossos = CP.f.domini.cossos || []).push({});   // §24: la fila nova és buida, cap valor per defecte
+  if(act === 'cos-')(CP.f.domini.cossos || []).splice(+ds.i, 1);
+  if((act === 'cos+' || act === 'cos-') && !(CP.f.domini.cossos || []).length) delete CP.f.domini.cossos;   // §24: l'absència és cap cos
+  if(act === 'cos-esc'){ CP.escPend = ds.nom; cPintaForm(); cCarregaEscenari(ds.nom); return; }             // §24: l'escenari ve de simphy, no d'aquí
   if(act === 'rec-'){ const t = cGetS(CP.f, ds.p); cSyncInv(t); t.inventari.splice(+ds.i, 1); cSyncInv(t); }
   if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
   if(act === 'nl-') cArr(ds.p).splice(+ds.i, 1);
@@ -1985,21 +2159,68 @@ function cAccio(act, ds){
   cPintaForm(); cYaml();
 }
 
+// §24: un escenari que simphy ja té com a dada (data/mcgen/escenarios) a la taula de cossos. Substitueix la taula
+// sencera — és una acció explícita, no un valor per defecte — i diu d'on ve. El veredicte de neudet no és aquí (§24 hi falta).
+async function cCarregaEscenari(nom){
+  let r;
+  try{ r = await api('/api/campanya/escenari?nom=' + encodeURIComponent(nom)); }
+  catch(e){ r = {error: e.message}; }
+  CP.escPend = null;
+  if(r.error) CP.escErr = r.error;
+  else{
+    CP.f.domini.cossos = r.cossos || [];
+    if(r.mon_transport === true)(CP.f.domini.mon = CP.f.domini.mon || {}).transport = true;
+    else if(CP.f.domini.mon) delete CP.f.domini.mon.transport;
+    CP.escDes = {nom: r.nom, arxiu: r.arxiu, vocabulari: r.vocabulari, n: (r.cossos || []).length};
+    CP.escErr = (r.errors || []).length ? r.errors.join(' · ') : null;
+  }
+  cPintaForm(); cYaml();
+}
+
 // La plantilla de neudet (c04_draft) porta un `que:` seu («com c01 S3»): una proposta nova no l'hereta, i el planificador no el llegeix com la pregunta.
 function cSenseQue(d){ Object.values(d.etapes || {}).forEach(e => { delete e.que; }); }
 // §19 (contracte UI): font per defecte d'una campanya nova = iso, sobre l'eix, a `cara_cm` de la cara z− del bloc; entre = buit.
 // FONT-DEF-BEGIN (funcions pures: el test les executa amb node)
 function cFontDefecte(mides, cara){ const z = -(Number(mides[2]) / 2 + cara); return {tipus: 'iso', pos_cm: [0, 0, z]}; }
+// §6 E de `cilindre_i_plom.md`: amb `forma: cilindre` el recalcul és −(alzada_cm/2 + cara_cm), no el de les 8 cantonades.
+function cFontDefecteBloc(bloc, cara){
+  return cFontDefecte(bloc.forma === 'cilindre' ? [0, 0, Number(bloc.alzada_cm)] : bloc.mides_cm, cara);
+}
+// La font per defecte segueix el bloc (§19) amb les dues formes; si l'usuari l'ha moguda, no es toca, i si al bloc li
+// falta una llargada obligatòria no se n'inventa cap (§22: `radi_cm` i `alzada_cm` no tenen valor per defecte).
+function cSegueixBloc(){
+  const b = (CP.f && CP.f.domini && CP.f.domini.bloc) || {};
+  if(cBlocOk(b) && !CP.fontMoguda && CP.f.domini.font && CP.f.domini.font.tipus === 'iso'){
+    CP.f.domini.font = cFontDefecteBloc(b, CP.schema.font.defecte.cara_cm); cPintaForm();
+  }
+}
 function cFontAvis(dom, tol){                       // 'dins' | 'cara' | null (neudet, FONT-A/B, és qui jutja; això només avisa)
-  const f = dom.font || {}, m = (dom.bloc || {}).mides_cm, p = f.pos_cm;
-  if(f.tipus !== 'iso' || !Array.isArray(m) || !Array.isArray(p) || m.length !== 3 || p.length !== 3) return null;
-  const d = p.map((v, i) => Math.abs(Number(v)) - Number(m[i]) / 2);
+  const f = dom.font || {}, b = dom.bloc || {}, p = f.pos_cm;
+  if(f.tipus !== 'iso' || !Array.isArray(p) || p.length !== 3) return null;
+  let d;
+  if(b.forma === 'cilindre'){                                        // §22: la distància és a la cara cilíndrica i a les dues bases
+    const r = Number(b.radi_cm), a = Number(b.alzada_cm);
+    if(!(r > 0) || !(a > 0)) return null;                            // §22: sense `radi_cm`/`alzada_cm` no hi ha bloc per comparar (no n'inventem cap)
+    d = [Math.hypot(Number(p[0]), Number(p[1])) - r, Math.abs(Number(p[2])) - a / 2];
+  }
+  else{
+    const m = b.mides_cm;
+    if(!Array.isArray(m) || m.length !== 3) return null;
+    d = p.map((v, i) => Math.abs(Number(v)) - Number(m[i]) / 2);
+  }
   if(d.every(x => x < -tol)) return 'dins';
   if(d.every(x => x <= tol)) return 'cara';
   return null;
 }
 // FONT-DEF-END
-function cAplicaFontDefecte(d){ d.font = cFontDefecte(d.bloc.mides_cm, CP.schema.font.defecte.cara_cm); d.entre = CP.schema.font.defecte.entre; CP.fontMoguda = false; }
+// §6 E: sense les mides del bloc no se n'inventa cap — la font es queda on és i la UI ho diu.
+const cBlocOk = b => b.forma === 'cilindre' ? (Number(b.radi_cm) > 0 && Number(b.alzada_cm) > 0)
+  : (Array.isArray(b.mides_cm) && b.mides_cm.length === 3 && b.mides_cm.every(x => Number(x) > 0));
+function cAplicaFontDefecte(d){
+  if(!cBlocOk(d.bloc || {})) return false;
+  d.font = cFontDefecteBloc(d.bloc, CP.schema.font.defecte.cara_cm); d.entre = CP.schema.font.defecte.entre; CP.fontMoguda = false;
+  return true;
+}
 async function cInit(){
   if(CP.f) return;
   const [s, d] = await Promise.all([api('/api/campanya/schema'), api('/api/campanya/defaults')]);
