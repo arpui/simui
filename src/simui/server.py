@@ -74,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_schema)
         elif path == "/api/campanya/defaults":
             self._tracta(api.campanya_defaults)
-        elif path == "/api/campanya/escenari":                # un escenari §24 de simphy per omplir la taula (només lectura)
+        elif path == "/api/campanya/escenari":                # un escenari de simphy per omplir la taula (només lectura; si és de §24, rebot §25)
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.campanya_escenari, q.get("nom", ""))
         elif path == "/api/results":

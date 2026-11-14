@@ -1,54 +1,33 @@
 # Esborrany generat per simphy («Definició de campanya», C1). La validesa dels candidats
 # la dona neudet: Campanya(dir).candidats(etapa). Vegeu docs/site/contractes/simphy_ui.md §4.
-id: ui_cossos_demo
+id: ui_cossos_25
 fitxa: 1
 draft: true
-estat: jutjada
-creada: 2026-10-26
+estat: proposta
+creada: 2026-11-14
 domini:
-  bloc: {material: PE, forma: cilindre, radi_cm: 25, alzada_cm: 80, forat_cm: 0, densitat_gcm3: 0.95}
+  bloc: {material: PE, forat_cm: 0, densitat_gcm3: 0.95, forma: cilindre, radi_cm: 25, alzada_cm: 80}
   font:
     tipus: iso
-    pos_cm: [0, 0, -65]
-  energies_MeV: [0.001, 0.003, 0.01, 0.03, 0.1, 0.25, 0.5, 1.0, 2.0, 3.5, 5.0]
-  restriccions: {n_tubs: 8, marge_bloc_cm: 1.0, sep_min_cm: 0.1, r_min_font_cm: 0.5, linia_feix: null}
+    pos_cm: [0, 0, -55]
+  energies_MeV: [0.001, 0.003, 0.01, 0.03, 0.1, 0.25, 0.5, 1, 2, 3.5, 5]
+  restriccions: {n_tubs: 8, marge_bloc_cm: 1, sep_min_cm: 0.1, r_min_font_cm: 0.5, linia_feix: null}
+  entre: buit
   cossos:
-  - nom: bloc_pe
-    material: PE
-    forma: cilindre
-    pos_cm: [0, 0, 0]
-    radi_cm: 25
-    alzada_cm: 80
-    eix: z
-    regio: bloc_pe - tub_a - tub_b
-    densitat_gcm3: 0.95
-    transport: true
   - nom: plom_lateral
     material: Pb
-    forma: box
-    pos_cm: [30, 0, 0]
-    dx_cm: 5
-    dy_cm: 30
-    dz_cm: 30
-    densitat_gcm3: 11.34
-    transport: false
-  - nom: tub_a
-    material: He3
-    forma: cilindre
-    pos_cm: [-8, 0, 0]
-    radi_cm: 1.27
-    alzada_cm: 68
-    eix: z
-    transport: true
-  - nom: tub_b
-    material: He3
-    forma: cilindre
-    pos_cm: [8, 0, 0]
-    radi_cm: 1.27
-    alzada_cm: 68
-    eix: z
-    transport: true
-  mon: {transport: true}
+    forma: caixa
+    pos_cm: [40, 0, 0]
+    mides_cm: [10, 60, 60]
+    densitat_gcm3: 11.35
+  - nom: colimador
+    material: Pb
+    forma: tub
+    pos_cm: [0, 0, -45]
+    radi_int_cm: 3
+    radi_ext_cm: 6
+    alzada_cm: 10
+    densitat_gcm3: 11.35
 avaluacio:
   motor: xarxa
   xarxa: B1
@@ -62,26 +41,31 @@ avaluacio:
   - [0, 1.56]
   - [1, 1]
 objectius:
-  metriques: [eps_mitja, cv, rang, eps_min]
-  energies_MeV: totes
-  pareto_k_sigma: 2
-  pesos: letargia
-  pareto:
+  finalitat: comptador
+  objectius:
   - [eps_mitja, max]
   - [cv, min]
+  informatives: auto
+  preferencia:
+    maxim: eps_mitja
+    sobre: cv
+    c: [0.1, 0.15, 0.2, 0.3]
+  restriccions: []
+  pesos: letargia
+  energies_MeV: totes
+  pareto_k_sigma: 2
 verificacio: {quants: 3, n_per_energia: 1000000, porta: 'per tub i energia: |xarxa/G4 − 1| ≤ max(3 %, 2σ)', hits: all}
 etapes:
   S1:
-    que: dos anells, k tubs a r1 i 8−k a r2 (exterior girat mig pas), com c01 S3
     tongades:
     - nom: anells
       posicions:
         font: anells
         anells:
-        - r: {de: 3.0, a: 9.0, pas: 1.0}
+        - r: {de: 3, a: 9, pas: 1}
           n: {de: 0, a: 8}
           phi: 0
-        - r: {de: 6.0, a: 12.5, pas: 1.0}
+        - r: {de: 6, a: 12.5, pas: 1}
           n: {de: 0, a: 8}
           phi: mig_pas
         ordenats: true

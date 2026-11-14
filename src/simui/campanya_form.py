@@ -553,33 +553,43 @@ def entre_propietats(entre: str, hr: Optional[float] = None, t: Optional[float] 
     return dict(p, ok=True, font="neudet.disseny.entre.propietats_entre()")
 
 
-# ── forma del bloc i cossos (contracte §22 v1.19 i §24 v1.21, 2026-11-12) ──────────────────
-# El vocabulari el fixa el coordinador; a neudet els camps encara no hi són (files `CIL-F-A012` → `CIL-F-A3`
-# i `PLOM-F-B01`). La UI no els inventa ni els descarta: els pinta, els valida per contracte i ho diu en paraules.
+# ── forma del bloc i cossos (contracte §22 v1.19 i §25 v1.22, 2026-11-12) ──────────────────
+# §25 és la correcció que el coordinador fa al seu propi §24, i és el vocabulari que HI HA a
+# `neudet/disseny/cossos.py`. Des de la fila `COSSOS-YAML` de neudet (2026-11-13) `fitxa.py` també valida
+# `domini.cossos` al `campanya.yaml`: la UI no els inventa ni els descarta — els pinta, els valida per
+# contracte i ho diu en paraules; el veredicte complet (materials, ρ únic del Pb) el dona «Comprova».
 FORMA_BLOC = ("cub", "cilindre")
 FORMA_BLOC_DEFECTE = "cub"                    # §22: absent = `cub`; els yaml vells no el porten i els hashos no canvien
 FORMA_BLOC_TEXT = {"cub": "cub (caixa: `mides_cm`)", "cilindre": "cilindre (`radi_cm` + `alzada_cm`)"}
 
-FORMES_COS = ("box", "cilindre", "esfera", "con", "semiespai")             # §24: llista tancada
-MIDES_COS: Dict[str, Tuple[str, ...]] = {                                  # les mides que demana cada forma (§24)
-    "box": ("dx_cm", "dy_cm", "dz_cm"),
-    "cilindre": ("radi_cm", "alzada_cm", "eix"),
-    "esfera": ("radi_cm",),
-    "con": ("radi_base_cm", "alzada_cm", "eix"),
-    "semiespai": ("punt_cm", "normal"),
+#: §25: `forma` és `caixa | cilindre | tub` — el que hi ha a `neudet/disseny/cossos.py::FORMES_COS`
+FORMES_COS = ("caixa", "cilindre", "tub")
+#: §25: declarades al contracte, **encara no acceptades per neudet**: qualsevol ús rebota en paraules
+FORMES_RESERVADES = ("esfera", "con", "semiespai")
+#: §25: camps RESERVATS (`eix` avui només z; `regio` i `transport` esperen `PLOM-F-B2`): usar-los rebota
+CAMPS_RESERVATS = ("eix", "regio", "transport")
+MIDES_COS: Dict[str, Tuple[str, ...]] = {                                  # les mides que demana cada forma (§25)
+    "caixa": ("mides_cm",),                                                # costats TOTALS, com la primera línia del `.dat`
+    "cilindre": ("radi_cm", "alzada_cm"),
+    "tub": ("radi_int_cm", "radi_ext_cm", "alzada_cm"),                    # colimador: cilindre buidat
 }
-EIX_COS = ("x", "y", "z")
-LLARGADES_COS = tuple({c for m in MIDES_COS.values() for c in m if c.endswith("_cm")})
+#: §25 (v1.22) tret: les semides del §24 no hi són; tenir semides i totals al mateix contracte era un parany
+SEMIDES_FORA = ("dx_cm", "dy_cm", "dz_cm")
 MIDES_COS_TOTES = tuple(dict.fromkeys(c for m in MIDES_COS.values() for c in m))
-COS_OBLIGATORIS = ("nom", "material", "forma", "pos_cm")
-COS_OPCIONALS = ("regio", "transport")
-#: §6 B de `cilindre_i_plom.md` la fa obligatòria; la taula de §24 no la llista → la UI l'accepta i no l'emplenja
-COS_DENSITAT = "densitat_gcm3"
-COSSOS_CONTRACTE = ("contracte `simphy_ui.md` §24 (v1.21, 2026-11-12) i §22: el vocabulari el fixa el coordinador; "
-                    "a neudet els camps encara no hi són (files `CIL-F-A012` / `PLOM-F-B01`)")
+COS_DENSITAT = "densitat_gcm3"                                             # §25: obligatòria (cap valor implícit)
+COS_OBLIGATORIS = ("nom", "material", "forma", "pos_cm", COS_DENSITAT)
+COS_OPCIONALS: Tuple[str, ...] = ()                                        # §25: no n'hi ha cap d'acceptat
+COSSOS_CONTRACTE = ("contracte `simphy_ui.md` §25 (v1.22, 2026-11-12: corregeix el §24) i §22; és el vocabulari de "
+                    "`neudet/disseny/cossos.py` (sidecar Geant4). Què en fa neudet al `campanya.yaml` AVUI ho diu el "
+                    "rètol de dalt, llegit del seu codi (`fitxa.py`), no copiat aquí")
+COSSOS_CANVI_24 = ("§25 (v1.22) corregeix el §24 (v1.21): `box` → `caixa`; `dx_cm`/`dy_cm`/`dz_cm` (semides) → "
+                   "`mides_cm` amb els costats TOTALS; `pos_cm` = **centre per a totes les formes** (ja no «base per "
+                   "cilindre/con»); i `eix`, `regio`, `transport`, `esfera`, `con` i `semiespai` queden RESERVATS — "
+                   "si un yaml els porta, reboten en paraules, mai en silenci.")
 AVIS_NEUDET_CAMPS = "neudet encara no valida aquests camps"
-AVIS_COSSOS_MOTOR = ("§22 i §24: mentre `domini.mon.transport` sigui absent o `false`, els cossos fora del bloc no els "
-                     "transporta el motor de la xarxa: el que es mesura allà és a Geant4 (`verificacio.g4_cossos`).")
+AVIS_COSSOS_MOTOR = ("§22 i §25: `transport` per cos és RESERVAT (fila `PLOM-F-B2`). Mentre `domini.mon.transport` "
+                     "sigui absent o `false`, el motor de la xarxa no transporta els cossos: el que es mesura fora "
+                     "del bloc és a Geant4 (`verificacio.g4_cossos`).")
 #: l'estat del Pb en les dues potes que mana §6 B (no és un veredicte de neudet: és el contracte, i ho diu)
 ESTAT_PIOM = (
     {"pota": "Geant4", "text": "vàlid ara (`verificacio.g4_cossos: true`): l'app munta els cossos; ε citable només de Geant4.",
@@ -617,60 +627,66 @@ def _errors_bloc(bloc: Dict[str, Any], ruta: str = "domini.bloc") -> List[str]:
 
 
 def _errors_cossos(cossos: Any, ruta: str = "domini.cossos") -> List[str]:
-    """§24: llista explícita de cossos — absent = cap cos, **cap fila ni valor implícit**. Cada mida necessària és un
-    camp explícit; un camp que no toca, absent. Falta un obligatori → la UI ho diu i no desa (§6 B)."""
+    """§25: llista explícita de cossos — absent = cap cos, **cap fila ni valor implícit**. Segueix l'ordre del
+    `violacions_cossos` de neudet (`disseny/cossos.py`): primer els camps i formes **reservats** (es refusen en
+    paraules, mai s'ignoren), després els obligatoris, després les mides de la forma, i l'aritmètica (mides > 0,
+    `radi_int < radi_ext`, `pos_cm` centre) només si abans no s'ha dit res — com a neudet: un typo no pot donar un
+    cos amb les mides equivocades i la tanda seguiria. El veredicte del **registre** (material, el ρ ÚNIC del Pb a
+    `materials.py`) és de neudet: «Comprova» el torna tal com és; aquí no se'n copia cap número."""
     if cossos is None:
         return []
     if not isinstance(cossos, list):
-        return [f"{ruta}: una llista de cossos; absent = cap cos (§24)"]
+        return [f"{ruta}: ha de ser una llista de cossos (o absent = cap cos) (§25)"]
     e: List[str] = []
-    vists: List[str] = []
+    noms: List[str] = []
     for i, c in enumerate(cossos):
         r = f"{ruta}[{i}]"
         if not isinstance(c, dict):
-            e.append(f"{r}: un cos és un diccionari amb {', '.join(COS_OBLIGATORIS)} i les mides de la seva forma (§24)")
+            e.append(f"{r}: cada cos ha de ser un objecte amb {', '.join(COS_OBLIGATORIS)} i les mides de la seva forma (§25)")
             continue
-        for k in COS_OBLIGATORIS:
-            if c.get(k) in (None, ""):
-                e.append(f"{r}.{k}: obligatori i sense valor per defecte (§24)")
-        nom = c.get("nom")
-        if isinstance(nom, str) and nom:
-            if nom in vists:
-                e.append(f"{r}.nom: «{nom}» es repeteix; `nom` és la id del cos (§24)")
-            vists.append(nom)
-        if c.get("material") not in (None, "") and not isinstance(c.get("material"), str):
-            e.append(f"{r}.material: el nom del material (catàleg de simnet; §24)")
-        if COS_DENSITAT in c and not _pos(c.get(COS_DENSITAT)):
-            e.append(f"{r}.{COS_DENSITAT}: un número > 0 (g/cm³), sense valor implícit (§6 B)")
-        if "regio" in c and c["regio"] is not None and not isinstance(c["regio"], str):
-            e.append(f"{r}.regio: una expressió booleana de semiespais, p. ex. \"(+x) & (-y) - cilindre_a\" (§24)")
-        if "transport" in c and not isinstance(c["transport"], bool):
-            e.append(f"{r}.transport: cert o fals; per defecte fals (§24: el motor no el transporta)")
-        if not _llista_de(c.get("pos_cm"), _num, 3):
-            e.append(f"{r}.pos_cm: [x, y, z] en cm — el centre del cos, la base al llarg d'`eix` per al cilindre i el con (§24)")
+        e_r: List[str] = []
         f = c.get("forma")
-        if f not in FORMES_COS:
-            if c.get("forma") not in (None, ""):
-                e.append(f"{r}.forma: cal {' o '.join(FORMES_COS)} (§24)")
-            continue
-        per_a = MIDES_COS[f]
-        for k in per_a:
-            v = c.get(k)
-            if v in (None, ""):
-                e.append(f"{r}.{k}: obligatori amb forma: {f} i sense valor per defecte (§24)")
-            elif k.endswith("_cm") and not isinstance(v, (list, tuple)) and not _pos(v):
-                e.append(f"{r}.{k}: un número > 0 (cm) amb forma: {f} (§24)")
-            elif k == "eix" and v not in EIX_COS:
-                e.append(f"{r}.eix: {' o '.join(EIX_COS)} amb forma: {f} (§24)")
-            elif k in ("punt_cm", "normal") and not _llista_de(v, _num, 3):
-                e.append(f"{r}.{k}: tres números (§24)")
-        if f == "semiespai" and _llista_de(c.get("normal"), _num, 3) and not any(c["normal"]):
-            e.append(f"{r}.normal: un vector de semiespai no pot ser (0, 0, 0) (§24)")
-        for k in sorted(set(c) - set(COS_OBLIGATORIS) - set(COS_OPCIONALS) - {COS_DENSITAT} - set(per_a)):
-            if k in MIDES_COS_TOTES:
-                e.append(f"{r}.{k}: no toca amb forma: {f} (§24: un camp que no toca, absent)")
-            else:
-                e.append(f"{r}.{k}: no és un camp de `domini.cossos` (§24: {', '.join(COS_OBLIGATORIS + COS_OPCIONALS)})")
+        # 1 · camps reservats: refusats en paraules, mai ignorats (§25)
+        for k in CAMPS_RESERVATS:
+            if k in c:
+                e_r.append(f"{r}.{k}: camp reservat — encara no acceptat per neudet (§25); no s'ignora en silenci")
+        # 2 · forma reservada: el motiu del §25 abans que un genèric «no és vàlida»
+        if f in FORMES_RESERVADES:
+            e_r.append(f"{r}.forma: «{f}» — forma reservada, encara no acceptada per neudet (§25)")
+        # 3 · obligatoris: cap valor implícit (els textos buits del formulari compten com a absent)
+        for k in COS_OBLIGATORIS:
+            if c.get(k) in ((None, "") if k in ("nom", "material", "forma") else (None,)):
+                e_r.append(f"{r}.{k}: obligatori, cap valor implícit (§25)")
+        # 4 · mides segons la forma; un camp d'una altra forma (o una semides del §24) es rebota
+        if f in FORMES_COS:
+            claus = MIDES_COS[f]
+            permeses = set(COS_OBLIGATORIS) | set(claus) | set(CAMPS_RESERVATS)   # les reservades ja són a (1)
+            altres = sorted(k for k in c if k not in permeses)
+            if altres:
+                e_r.append(f"{r}: porta {', '.join('`%s`' % a for a in altres)}, que no és un camp de la forma: {f} "
+                           f"(un typo donaria un cos amb les mides equivocades i la tanda seguiria) (§25)")
+            for k in claus:
+                if c.get(k) in (None, ""):
+                    e_r.append(f"{r}.{k}: obligatori amb forma: {f}, cap valor implícit (§25)")
+        elif f not in (None, "") and f not in FORMES_RESERVADES:
+            e_r.append(f"{r}.forma: «{f}» no és vàlida (cal {' | '.join(FORMES_COS)}; reservats: "
+                       f"{' | '.join(FORMES_RESERVADES)} — §25)")
+        # 5 · aritmètica només si (1)-(4) no han dit res: com el `Cos` de neudet, però sense el registre (ρ del Pb)
+        if not e_r and f in FORMES_COS:
+            if not _llista_de(c.get("pos_cm"), _num, 3):
+                e_r.append(f"{r}.pos_cm: [x, y, z] en cm — el centre del cos per a totes les formes (§25)")
+            mides = list(c.get("mides_cm")) if f == "caixa" else [c.get(k) for k in MIDES_COS[f]]
+            if len(mides) != (3 if f == "caixa" else len(MIDES_COS[f])) or not all(_pos(v) for v in mides):
+                e_r.append(f"{r}: les mides han de ser números > 0 (§25: cap valor implícit)")
+            if f == "tub" and _num(c.get("radi_int_cm")) and _num(c.get("radi_ext_cm")) and c["radi_int_cm"] >= c["radi_ext_cm"]:
+                e_r.append(f"{r}: tub amb radi_int_cm {c['radi_int_cm']} ≥ radi_ext_cm {c['radi_ext_cm']} "
+                           "(un tub és un cilindre buidat) (§25)")
+        e += e_r
+        if isinstance(c.get("nom"), str) and c["nom"]:
+            noms.append(c["nom"])
+    dup = sorted({n for n in noms if noms.count(n) > 1})
+    if dup:
+        e.append(f"{ruta}: nom de cos repetit: {', '.join(dup)} (el nom és el volum Geant4 `cos_<nom>`) (§25)")
     return e
 
 
@@ -688,10 +704,10 @@ def font_defecte_bloc(bloc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def estat_geometria_neudet() -> Dict[str, Any]:
-    """Què fa neudet, AVUI, amb els camps de §22 i §24 — llegit del seu codi, no decidit aquí.
-    `fitxa.py` valida `domini.bloc.forma` (CIL-F-A012, 2026-11-12); `domini.cossos` del yaml encara no se'l
-    llegeix: el que existeix a neudet és l'estructura interna del sidecar de Geant4 (`disseny/cossos.py`,
-    PLOM F-B0), amb el seu vocabulari. La divergència entre §24 i aquest vocabulari queda escrita aquí."""
+    """Què fa neudet, AVUI, amb els camps de §22 i §25 — llegit del seu codi, no decidit aquí.
+    `fitxa.py` valida `domini.bloc.forma` (CIL-F-A012, 2026-11-12) i, des de la fila `COSSOS-YAML`
+    (2026-11-13), també `domini.cossos` amb `violacions_cossos` de `disseny/cossos.py` (PLOM F-B0).
+    Es llegeix el fitxer cada cop: si neudet es mou, el rètol de la UI es mou amb ell."""
     out: Dict[str, Any] = {"bloc": {}, "cossos": {}}
     try:
         text = _neudet_path(FITXA_PY).read_text(encoding="utf-8").splitlines()
@@ -718,33 +734,40 @@ def estat_geometria_neudet() -> Dict[str, Any]:
         pass
     out["cossos"] = {"validat": lin_c is not None, "on": f"{FITXA_PY}:{lin_c}" if lin_c else None,
                      "sidecar": costat,
-                     "text": (f"neudet valida `domini.cossos` ({FITXA_PY}:{lin_c})" if lin_c else
+                     "text": (f"neudet valida `domini.cossos` ({FITXA_PY}:{lin_c}) amb el vocabulari de §25 "
+                              f"(`disseny/cossos.py`: {'|'.join(costat['formes']) if costat else ''}); el veredicte "
+                              f"complet — materials i el ρ únic del Pb — el dona «Comprova» tal com surt de neudet"
+                              if lin_c else
                               AVIS_NEUDET_CAMPS + ": neudet no llegeix `domini.cossos` del campanya.yaml"
                               + (f"; el que té és el vocabulari intern del sidecar de Geant4 ({costat['on']}: "
                                  f"{'|'.join(costat['formes'])} amb {', '.join(sorted({m for v in costat['mides'].values() for m in v}))}, "
-                                 f"materials {'|'.join(costat['materials'])}). La divergència amb §24 la tanca el coordinador."
+                                 f"materials {'|'.join(costat['materials'])})."
                                  if costat else ""))}
     return out
 
 
 def cosos_info(neudet: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """El vocabulari de §24, per al formulari i el visor. Són les paraules del contracte, no dades de neudet:
-    per això cada bloc porta on està escrit i què falta (`neudet` és el que fa neudet avui — `estat_geometria_neudet`)."""
+    """El vocabulari de §25, per al formulari i el visor. Són les paraules del contracte, no dades de neudet:
+    per això cada bloc porta on està escrit i què fa neudet avui (`neudet` — `estat_geometria_neudet`, llegit
+    del seu codi). `materials` és la llista tancada del registre de neudet: la llegeix live, no la copia aquí."""
     return {"formes": [{"valor": f, "text": f} for f in FORMES_COS],
+            "formes_reservades": list(FORMES_RESERVADES), "camps_reservats": list(CAMPS_RESERVATS),
+            "semides_fora": list(SEMIDES_FORA), "canvi_25": COSSOS_CANVI_24,
             "mides": {f: list(MIDES_COS[f]) for f in FORMES_COS},
             "obligatoris": list(COS_OBLIGATORIS), "opcionals": list(COS_OPCIONALS), "densitat": COS_DENSITAT,
-            "eixos": list(EIX_COS), "transport_defecte": False, "defecte_files": 0,
-            "materials": None,
-            "materials_nota": "§24: `material` és del catàleg de simnet (PE, Pb, aire, buit, SST…). neudet encara no "
-                              "publica la llista tancada dels cossos (proposta §2.6 `domini.materials_cossos`): la UI no la inventa.",
+            "defecte_files": 0, "pos_cm": "centre del cos, per a totes les formes (§25)",
+            "materials": ((neudet or {}).get("sidecar") or {}).get("materials"),
+            "materials_nota": "§25: el registre de materials per a cossos és de neudet (`materials.py::PB_MATERIALS_COSSOS`) "
+                              "i avui només hi és el Pb; un material nou és canvi de registre i passa pel coordinador. "
+                              "La llista del costat ve del codi de neudet; la UI no la inventa.",
             "estat_piom": list(ESTAT_PIOM), "avis_transport": AVIS_COSSOS_MOTOR,
             "neudet": neudet or {}, "avis_neudet": (neudet or {}).get("text") or AVIS_NEUDET_CAMPS,
             "font": COSSOS_CONTRACTE,
-            "nota_densitat": "§6 B de `cilindre_i_plom.md` fa `densitat_gcm3` obligatòria i la taula de §24 no la llista: "
-                             "la UI l'accepta i no l'emplenja; el veredicte el dona neudet a `CIL-F-B01`."}
+            "nota_densitat": "§25: `densitat_gcm3` és obligatòria (cap valor implícit); amb Pb, neudet i l'app Geant4 "
+                             "exigeixen el ρ ÚNIC del registre — «Comprova» torna el seu missatge tal com és."}
 
 
-#: on simphy guarda els escenaris de §24 com a dada (a l'arrel de simphy, no aquí)
+#: on simphy guarda els escenaris com a dada (a l'arrel de simphy, no aquí); els vells són de §24
 ESCENARIS_SIMPHY = ("data", "mcgen", "escenarios")
 
 
@@ -760,9 +783,10 @@ def _carpeta_escenaris() -> Optional[Path]:
 
 
 def escenaris_simphy() -> Dict[str, Any]:
-    """Els escenaris §24 que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`): la UI els llegeix, no els
+    """Els escenaris que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`): la UI els llegeix, no els
     copia ni els inventa. Són el camí que tanca el cercle taula →yaml→ escenari → Geant4. Cada un porta els errors
-    que donaria amb les regles de §24 d'aquí (el veredicte de neudet no és aquest: §24 encara no hi és)."""
+    que donaria amb les regles de §25: si l'escenari és de §24 (porta `eix`/`regio`/`transport` o semides), **rebot
+    en paraules** — el divergent queda escrit, no corregit: la dada és de simphy i no s'escriu des d'aquí."""
     d = _carpeta_escenaris()
     if d is None:
         return {"disponible": False, "escenaris": [],
@@ -783,8 +807,8 @@ def escenaris_simphy() -> Dict[str, Any]:
 
 
 def escenari_cossos(nom: str) -> Dict[str, Any]:
-    """Un escenari de simphy passat a la taula `domini.cossos`: només els camps de §24, sense emplenar res.
-    Si l'escenari no compleix les regles, es diu quins errors donaria (no es corregeix)."""
+    """Un escenari de simphy passat a la taula `domini.cossos`: els camps tal com són, sense emplenar ni corregir res.
+    Si l'escenari no compleix §25, es diu quins errors donaria (la UI no l'arregla: la divergència queda escrita)."""
     d = _carpeta_escenaris()
     if d is None:
         raise DES.DesignError("no es troba `data/mcgen/escenarios` a l'arrel de simphy: comprova `SIMPHY_ROOT` "
@@ -799,7 +823,7 @@ def escenari_cossos(nom: str) -> Dict[str, Any]:
         return {"nom": e.get("nom") or p.stem, "arxiu": str(p), "vocabulari": e.get("vocabulari"),
                 "què": e.get("_què"), "pendent": e.get("_pendent"), "cossos": mes,
                 "mon_transport": (mon or {}).get("transport") if isinstance(mon, dict) else None,
-                "camps_fora_de_24": sorted({k for c in mes for k in c if k not in claus}),
+                "camps_fora": sorted({k for c in mes for k in c if k not in claus}),
                 "errors": _errors_cossos(mes)}
     raise DES.DesignError(f"l'escenari «{nom}» no és a {d}: la UI no inventa escenaris "
                           "(`escenaris_simphy()` en llista els que hi ha)")
@@ -1202,7 +1226,7 @@ def schema() -> Dict[str, Any]:
             validat = estat == "validat"
         tubs.append({"nom": nom, "alies": e.get("alies"), "validat": validat, "estat": estat,
                      "motiu": motiu, "mides": _mides_tub(e)})
-    eg = estat_geometria_neudet()                         # §22/§24: què valida neudet avui, llegit del seu codi
+    eg = estat_geometria_neudet()                         # §22/§25: què valida neudet avui, llegit del seu codi
     _linia(CANDIDAT_PY, FONT_LINIA, "feix")
     _linia(CANDIDAT_PY, EIX_DEFECTE_LINIA, 'eix')
     _linia(CANDIDAT_PY, CD_FRACCIO_LINIA, "cd_fraction fora de")
@@ -1298,11 +1322,11 @@ def _errors_domini(dom: Dict[str, Any]) -> List[str]:
     if not isinstance(dom.get("bloc"), dict):
         e.append("domini.bloc: falta el bloc (material, la forma amb les seves mides, forat_cm, densitat_gcm3)")
     e += _errors_bloc(bloc)                     # §22: forma del bloc (absent = cub) i les seves mides
-    e += _errors_cossos(dom.get("cossos"))      # §24: la llista explícita de cossos (absent = cap cos)
+    e += _errors_cossos(dom.get("cossos"))      # §25: la llista explícita de cossos (absent = cap cos)
     mon = dom.get("mon")
     if mon is not None:
         if not isinstance(mon, dict):
-            e.append("domini.mon: un diccionari (`transport`: cert o fals; §22 i §24)")
+            e.append("domini.mon: un diccionari (`transport`: cert o fals; §22 i §25)")
         elif "transport" in mon and not isinstance(mon["transport"], bool):
             e.append("domini.mon.transport: cert o fals; fals = els cossos fora del bloc no els transporta el motor (§22)")
     font = dom.get("font") if isinstance(dom.get("font"), dict) else {}

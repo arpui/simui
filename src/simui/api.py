@@ -325,7 +325,7 @@ def campanya_defaults() -> Dict[str, Any]:
 
 
 def campanya_escenari(nom: str) -> Dict[str, Any]:
-    """Un escenari §24 que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`) per omplir la taula de cossos.
+    """Un escenari que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`) per omplir la taula de cossos.
     Només lectura: la llista i els errors que donaria ja són a `/api/campanya/schema` (`escenaris`)."""
     return CF.escenari_cossos(nom)
 
