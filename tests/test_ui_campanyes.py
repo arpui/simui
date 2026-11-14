@@ -75,12 +75,16 @@ def test_llista_inclou_c04_com_a_provisional(url):
     assert c04["manifest"] is True and c04["provisional"] is False          # neudet 711addf: ja hi és
 
 
-def test_vista_de_c04_ve_del_manifest_i_te_les_dues_etapes(url):
+def test_vista_de_c04_ve_del_manifest_i_te_el_cens_de_no_declarades(url):
+    """v1.27 (§13c): `etapes[]` és el que declara el yaml (`S1`, sense execució) i les dues etapes que han
+    corregut són a `etapes_no_declarades`. El que es servia abans —`S1_draft` dins d'`etapes`— era justament
+    el que la nova clau volia deixar de dir (vegeu tests/test_etiq_no_decl.py)."""
     code, _, body = _get(url, "/api/campanya/vista?id=c04_draft")
     v = json.loads(body)
     assert code == 200
     assert v["provisional"] is False                                     # campanya_ui.json de neudet
-    assert [e["nom"] for e in v["etapes"]] == ["S1_draft", "S1_draft_g4"]
+    assert [e["nom"] for e in v["etapes"]] == ["S1"] and v["etapes"][0]["executada"] is False
+    assert [e["nom"] for e in v["etapes_no_declarades"]] == ["S1_draft", "S1_draft_g4"]
     assert v["pareto"]["eixos"][0] == {"metrica": "eps_mitja", "sentit": "max"}
     assert v["judici"]
 

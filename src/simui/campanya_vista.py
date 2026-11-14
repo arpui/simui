@@ -33,6 +33,13 @@ quan arribi CAMP-2:
   els del `resultats_tub.json` (els que tenen tubs); `n_csv` són totes les files del csv (les descartades
   a la cribratge hi són). `verifica` és el nom de l'etapa de xarxa que verifica una `_g4` (el mateix
   nom sense `_g4`), o null.
+- `etapes_no_declarades` (contracte **v1.27**, §13c; neudet `ec36a2d`): cens de nivell superior — directoris
+  d'`etapes/` amb `candidats.csv` que no són ni l'etapa declarada al yaml, ni la seva germana `_g4`, ni un
+  apartat d'aquestes (les corregudes a mà: `S0_v2`, `S1_draft`…). **Mai dins `etapes`.** Porta `nom`,
+  `candidats` (traduït de `candidats_csv`, §6b), `dir`, `n_candidats` (files del csv), `anterior: null` i, si
+  n'hi ha, `motiu_aturada` (el text de neudet). El criteri el decideix **neudet** (`_al_flux`, que la UI carrega
+  de NEUDET_ROOT, no el reimplementa); la pàgina els retola «etapa no declarada al yaml» — cap número ni
+  predecessor endevinat pel nom.
 - `export`: `"export"` | null
 - `etapes[].pla` (text de la secció de l'etapa del `PLA.md`) i `etapes[].resposta` (camí de
   `etapes/<e>/resposta.md`) són opcionals (RESP-E de neudet); sense `resposta`, es busca `<dir>/resposta.md`.
@@ -265,6 +272,43 @@ def _report(campanya_id: str) -> List[str]:
 
 # ── manifest ────────────────────────────────────────────────────────────────
 
+_MAN_NEUDET: List[Any] = []
+
+
+def _manifest_neudet():
+    """El `scripts/disseny/manifest_campanya.py` de neudet (el qui escriu `campanya_ui.json`), carregat de
+    NEUDET_ROOT per ruta com fan els seus propis tests (`neudet/tests/test_v127_no_decl.py:15`). De aquí surt
+    el **criteri** de què va a `etapes[]` i què al cens `etapes_no_declarades` (`_al_flux`, contracte **v1.27**,
+    §13c; neudet `ec36a2d`) i el que afegeix una etapa declarada sense execució (CONF-PLA): la UI **no
+    reimplementa cap dels dos**. Un neudet que no hi sigui o que no hi tingui `_al_flux` peta dient on buscar-lo."""
+    if not _MAN_NEUDET:
+        f = neudet_root() / "scripts" / "disseny" / "manifest_campanya.py"
+        if not f.is_file():
+            raise CampanyaError(f"no hi ha el criteri d'etapes no declarades (contracte v1.27): neudet no té {f}")
+        import importlib.util
+        esp = importlib.util.spec_from_file_location("neudet_manifest_campanya", f)
+        mod = importlib.util.module_from_spec(esp)
+        esp.loader.exec_module(mod)             # només imports i sys.path: main() queda sota __main__
+        if not hasattr(mod, "_al_flux"):
+            raise CampanyaError(f"{f}: no hi ha `_al_flux` — cal un `pull` de neudet a ≥ `ec36a2d` (contracte v1.27)")
+        _MAN_NEUDET.append(mod)
+    return _MAN_NEUDET[0]
+
+
+def _declarada_sense_execucio(mn, d: Path, etapes_dir: Path, nom: str, pla_text: Optional[str]) -> Dict[str, Any]:
+    """CONF-PLA com el fa neudet (`manifest_campanya.py:176-179`): una etapa declarada al yaml **sense execució
+    pròpia** surt a `etapes` amb `executada: false` i els camins a null. Cal des que v1.27 exclou les variants del
+    flux: si no, la pàgina d'una campanya com `c04_draft` es quedaria sense dir res de l'etapa declarada. El text
+    del PLA, l'`aturada` i els intents apartats són els d'ells (cridats aquí), no res calculat per la UI."""
+    from neudet.disseny.revisio import seccio_pla
+    return {"nom": nom, "motor": "xarxa", "etapa_pla": nom, "executada": False,
+            "pla": seccio_pla(pla_text, nom) if pla_text else None, "resposta": None,
+            "candidats": None, "resultats_tub": None, "meta": None, "figures": [],
+            "n_candidats": 0, "n_csv": 0, "citable": False, "verifica": None,
+            "anterior": False, "aturada": mn._json_aturada(etapes_dir / nom),
+            "intents_anteriors": mn._apartats(etapes_dir, nom)}
+
+
 def _etapa_provisional(d: Path, e: Path) -> Dict[str, Any]:
     """Una etapa de `etapes/*` (amb `candidats.csv`), com la faria neudet (CAMP-2 §6)."""
     motius: List[str] = []
@@ -305,14 +349,34 @@ def manifest_provisional(dir_: PathLike) -> Dict[str, Any]:
     d = Path(dir_)
     y = _yaml(d / "campanya.yaml")
     etapes_dir = d / "etapes"
-    etapes = [_etapa_provisional(d, e) for e in sorted(etapes_dir.iterdir())
-              if e.is_dir() and (e / "candidats.csv").is_file()] if etapes_dir.is_dir() else []
+    declarades = y.get("etapes") or {}
+    mn = _manifest_neudet()                         # el criteri (v1.27) i CONF-PLA són d'ells: no se'n copia cap regla
+    etapes: List[Dict[str, Any]] = []
+    no_decl: List[Dict[str, Any]] = []
+    if etapes_dir.is_dir():
+        for e in sorted(etapes_dir.iterdir()):
+            if not (e.is_dir() and (e / "candidats.csv").is_file()):
+                continue
+            if mn._al_flux(e.name, declarades):
+                etapes.append(_etapa_provisional(d, e))
+            else:
+                c = _etapa_provisional(d, e)            # les dades són les mateixes; el que canvia és on va
+                c["anterior"] = None                    # v1.27: mai `false`, i cap predecessor endevinat pel nom
+                no_decl.append(c)
+    # CONF-PLA com a neudet: els apartats no compten com a execució (`APARTAT` i `_base` són els d'ells)
+    from neudet.disseny.confirmacio import APARTAT
+    pla = (d / "PLA.md").read_text(encoding="utf-8") if (d / "PLA.md").is_file() else None
+    corregides = {mn._base(e["nom"], declarades) for e in etapes if not APARTAT.search(e["nom"])}
+    for nom in (declarades if pla else {}):      # com a ells (`manifest_campanya.py:171`): CONF-PLA necessita PLA.md
+        if nom not in corregides:
+            etapes.append(_declarada_sense_execucio(mn, d, etapes_dir, nom, pla))
     return {
         "provisional": True,
         "motiu": MOTIU_PROVISIONAL,
         "definicio": {"yaml": "campanya.yaml", "md": "DEFINICIO.md" if (d / "DEFINICIO.md").is_file() else None},
         "certificacio": "comprova.json" if (d / "comprova.json").is_file() else None,
         "etapes": etapes,
+        "etapes_no_declarades": no_decl,            # v1.27: mai dins `etapes`
         "export": "export" if (d / "export").is_dir() else None,
         "judici": _judici(d / "PLA.md") if (d / "PLA.md").is_file() else None,
         "report": _report(d.name),
@@ -352,11 +416,32 @@ def manifest(dir_: PathLike) -> Dict[str, Any]:
     return doc
 
 
+def _de_6b_entrada(e: Dict[str, Any], f: Path) -> Dict[str, Any]:
+    """Una entrada `_etapa` de neudet → la de la vista. Des del decret `7585843` el cens i el flux tenen la
+    **mateixa forma** (ells construeixen l'entrada del cens amb la mateixa `_etapa()`:
+    `scripts/disseny/manifest_campanya.py:165-169`), per això les dues passen per aquí."""
+    e = dict(e)
+    if "candidats_csv" in e:
+        csv = e.pop("candidats_csv")
+        e["candidats"] = csv
+        e.setdefault("dir", str(PurePosixPath(csv).parent) if csv else None)
+    if "verificada_per" in e:
+        e["verifica"] = e.pop("verificada_per")
+    fig = e.get("figures")
+    if isinstance(fig, str):                          # §6b: la carpeta; la vista vol els fitxers
+        fd = f.parent / fig
+        e["figures"] = sorted(str(PurePosixPath(fig) / p.name) for p in fd.iterdir()
+                              if p.is_file() and p.suffix.lower() in (".png", ".svg", ".jpg", ".jpeg")) \
+            if fd.is_dir() else []
+    return e
+
+
 def _de_6b(doc: Dict[str, Any], f: Path) -> Dict[str, Any]:
     """Les claus definitives del manifest (contracte §6b, neudet 711addf) → les de la vista. El fitxer de
     neudet mana; aquí només es tradueix (correspondència escrita al §6b):
     `candidats_csv` → `candidats`, `verificada_per` → `verifica`, `dir` = la carpeta de `candidats_csv`,
-    `definicio.{campanya_yaml, definicio}` → `definicio.{yaml, md}`, `report.{md, pdf}` → llista, `flux` es manté."""
+    `definicio.{campanya_yaml, definicio}` → `definicio.{yaml, md}`, `report.{md, pdf}` → llista, `flux` es manté.
+    La traducció s'aplica igual a `etapes[]` i a `etapes_no_declarades` (v1.27 + decret `7585843`)."""
     if not isinstance(doc, dict):
         raise CampanyaError(f"{f}: l'arrel ha de ser un objecte")
     out = dict(doc)
@@ -365,21 +450,15 @@ def _de_6b(doc: Dict[str, Any], f: Path) -> Dict[str, Any]:
     for i, e in enumerate(doc.get("etapes") or []):
         if not isinstance(e, dict):
             raise CampanyaError(f"{f}: etapes[{i}] ha de ser un objecte")
-        e = dict(e)
-        if "candidats_csv" in e:
-            csv = e.pop("candidats_csv")
-            e["candidats"] = csv
-            e.setdefault("dir", str(PurePosixPath(csv).parent) if csv else None)
-        if "verificada_per" in e:
-            e["verifica"] = e.pop("verificada_per")
-        fig = e.get("figures")
-        if isinstance(fig, str):                          # §6b: la carpeta; la vista vol els fitxers
-            fd = f.parent / fig
-            e["figures"] = sorted(str(PurePosixPath(fig) / p.name) for p in fd.iterdir()
-                                  if p.is_file() and p.suffix.lower() in (".png", ".svg", ".jpg", ".jpeg")) \
-                if fd.is_dir() else []
-        etapes.append(e)
+        etapes.append(_de_6b_entrada(e, f))
     out["etapes"] = etapes
+    cens = []
+    for i, c in enumerate(doc.get("etapes_no_declarades") or []):       # v1.27: la mateixa traducció dins del cens
+        if not isinstance(c, dict):
+            raise CampanyaError(f"{f}: etapes_no_declarades[{i}] ha de ser un objecte")
+        cens.append(_de_6b_entrada(c, f))
+    if "etapes_no_declarades" in doc:
+        out["etapes_no_declarades"] = cens
     dfn = doc.get("definicio")
     if isinstance(dfn, dict) and "campanya_yaml" in dfn:
         out["definicio"] = {"yaml": dfn.get("campanya_yaml"), "md": dfn.get("definicio")}
@@ -499,7 +578,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
                  "columnes": [], "energies_MeV": None, "candidats": [], "executada": False,
                  "anterior": e.get("anterior"), "aturada": e.get("aturada"),
                  "intents_anteriors": e.get("intents_anteriors"),
-                 "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None, "resposta": None}, [])
+                 "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
+                 "resposta": _resposta(d, e)}, [])      # CONF-PLA: neudet diu null; si en dona una, se'n serveix el text
     csvp = _dins(d, e["candidats"], e["nom"])
     if not csvp.is_file():
         raise CampanyaError(f"{e['nom']}: el manifest diu {e['candidats']} i no hi és")
@@ -519,6 +599,7 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "motius": list(e.get("motius") or []), "figures": list(e.get("figures") or []),
              "fitxers": fit, "columnes": header,
              "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+             "motiu_aturada": e.get("motiu_aturada"),            # v1.27: el text de neudet per a una no declarada
              "intents_anteriors": e.get("intents_anteriors"),
              "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
              "resposta": _resposta(d, e),
@@ -604,7 +685,13 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         ev, header = _etapa_vista(d, e, avisos)
         etapes.append(ev)
         columnes.extend(c for c in header if c not in columnes)
-    _encaixa_g4(etapes, avisos)
+    #: El cens de no declarades (v1.27) es tracta com una etapa —les dades són les mateixes—; el que diu la
+    #: pàgina és que no són l'execució de res declarat al yaml. No entren a les columnes de Pareto.
+    no_decl: List[Dict[str, Any]] = []
+    for c in (m.get("etapes_no_declarades") or []):
+        cv, _h = _etapa_vista(d, c, avisos)
+        no_decl.append(cv)
+    _encaixa_g4(etapes + no_decl, avisos)      # els bessons `_g4` s'encaixen encara que siguin al cens
     eixos, motiu_p = _eixos(y, columnes)
     metriques = [x for x in ((y.get("objectius") or {}).get("metriques") or []) if isinstance(x, str)]
     return {
@@ -620,6 +707,9 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "metriques": metriques,
         "formules_metriques": formules_metriques(),                  # FORM-UI: la fórmula de cada mètrica, de neudet
         "etapes": etapes,
+        #: v1.27 (§13c): el cens d'etapes no declarades (de neudet o del provisional), amb les seves dades.
+        #: La pàgina els retola «etapa no declarada al yaml»; aquí no se'n calcula ni se'n reordena res.
+        "etapes_no_declarades": no_decl,
         "judici": m["judici"],
         "entre": m.get("entre") if isinstance(m.get("entre"), dict) else None,    # ENTRE-UI (§17): tal com ho dona neudet (campanya_ui.json)
         "interpretacio": m.get("interpretacio") if isinstance(m.get("interpretacio"), str) else None,   # CONF-PLA: PLA.md des d'«interpretada»
