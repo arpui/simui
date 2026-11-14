@@ -184,9 +184,12 @@ def _la_llista_la_ui(id_: str) -> bool:
 
 def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
     """Sobre els 30 manifests reals de neudet (`6559acd` els va regenerar), el nostre provisional diu el
-    mateix flux i el mateix cens que ells. El cens no és buit a 9 (mesurat 2026-11-14); de les 9, la UI en
-    llista 2 —`dir_de` mira `disseny/campanyes` i prou, i les altres set són a `disseny/certificacio` i a
-    `disseny/experiments`. Que la UI les llisti és una altra fila, no aquesta."""
+    mateix flux i el mateix cens que ells. El cens no és buit a 10 (tornat a mesurar 2026-11-14 a les 16:15:
+    `cert_lnd_252285_E12_fin` s'hi ha afegit amb la represa PARET-Q2, que ha creat `S0_pq2_p2_amb`/`_sense` com
+    a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 10, la UI en llista 2 —`dir_de` mira
+    `disseny/campanyes` i prou, i les altres vuit són a `disseny/certificacio` i a `disseny/experiments`.
+    Que la UI les llisti és una altra fila, no aquesta. Llista congelada = dada viscuda: si neudet corre,
+    aquesta xifra es mou i el test ho diu; el que no es mou és que les dues parts coincideixen cama a cama."""
     nd = _neudet()
     ds = sorted(f.parent for f in nd.glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
     assert len(ds) >= 30, f"només hi ha {len(ds)} manifests: neudet s'ha de remoure (6559acd)"
@@ -201,7 +204,8 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
             amb_cens.append(man["id"])
     assert sorted(amb_cens) == [
         "c04_draft", "c0_2anells",
-        "cert_lnd_252248", "cert_lnd_252250", "cert_lnd_252285_E", "cert_lnd_252285_E12_sol_fin",
+        "cert_lnd_252248", "cert_lnd_252250", "cert_lnd_252285_E",
+        "cert_lnd_252285_E12_fin", "cert_lnd_252285_E12_sol_fin",
         "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "x06_banc_pe_lnd252285",
     ], f"el cens ha canviat d'abast: {sorted(amb_cens)}. Cal reexplicar la fila: dues de les que la UI llista tenen un significat nou."
     assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells"], \
