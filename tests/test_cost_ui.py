@@ -80,7 +80,7 @@ def test_cap_lloc_llegeix_el_diccionari_com_si_fos_una_llista():
 def test_l_avís_de_cost_es_veu_també_a_la_pàgina_de_la_campanya():
     """UI-AFINA (4) volia veure'l; fins ara només sortia després de desar. La certificació de la campanya
     (`kCert`) és on hi ha el `comprova.json`: l'avís s'hi pinta igual, amb les opcions de neudet."""
-    kcert = INDEX.split("function kCert(v){")[1].split("function kEtapa(e){")[0]
+    kcert = INDEX.split("function kCert(v){")[1].split("function kEtapa(e, noDecl){")[0]
     assert "cCostBlocks(c.opcions_cost)" in kcert
 
 

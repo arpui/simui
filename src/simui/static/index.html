@@ -2444,7 +2444,8 @@ function kPinta(){
   out.push('<h2>Certificació</h2>' + kCert(v));
   if(basica) out.push('<div class="panel">Sense manifest: els resultats per etapa, el judici i el report s\'hi afegeixen quan neudet publiqui la campanya.</div>');
   else {
-    out.push('<h2>Etapes</h2>' + (v.etapes.map(kEtapa).join('') || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
+    out.push('<h2>Etapes</h2>' + (v.etapes.map(e => kEtapa(e)).join('') || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
+    out.push(kSeccioNoDecl(v, e => kEtapa(e, true)));
     out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
     out.push('<h2>Report</h2>' + kReport(v));
   }
@@ -2531,17 +2532,37 @@ function kCert(v){
   // AFINA-N (4): l'avís de cost també a la pàgina de la campanya — el `comprova.json` ja el porta (per etapa).
   return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cCostBlocks(c.opcions_cost) + cPintaCert(c);
 }
-function kEtapa(e){
+// ── UI-ETIQ-NO-DECL (contracte v1.27 §13c + decret `7585843`): neudet llista a `etapes_no_declarades` els directoris
+// d'`etapes/` amb `candidats.csv` que no és l'execució d'una etapa declarada (ni la germana `_g4`, ni un apartat).
+// A la pàgina es pinten a part i retolats, i mai nodreixen el Pareto. El bloc d'aquí sota és pur: el bessó de
+// `tests/test_etiq_no_decl.py` el talla amb aquests marcadors i el corre amb node sobre la vista real de neudet.
+// NO-DECL-DEF-BEGIN
+const RETOL_NO_DECL = 'etapa no declarada al yaml';
+const kNoDecl = v => v.etapes_no_declarades || [];
+// Mana el manifest: el cens no s'endevina pel nom de la carpeta i les seves entrades no van a les columnes de Pareto.
+const kVaAlPareto = (v, noDecl) => !noDecl && !!v.pareto.eixos;
+const kSeccioNoDecl = (v, pinta) => {
+  const c = kNoDecl(v);
+  if(!c.length) return '';
+  return '<h2>Etapes no declarades al yaml</h2><div class="panel">Són directoris d’<code>etapes/</code> amb ' +
+    '<code>candidats.csv</code> que neudet no compta com l’execució de cap etapa declarada al <code>campanya.yaml</code> ' +
+    '(ni la seva germana <code>_g4</code>, ni un intent apartat). Qui els llista és neudet, amb la clau ' +
+    '<code>etapes_no_declarades</code> del manifest: la UI no n’endevina cap pel nom. No nodreixen les columnes de ' +
+    'Pareto: per això els seus candidats no surten al dibuix de cap etapa.</div>' + c.map(pinta).join('');
+};
+// NO-DECL-DEF-END
+function kEtapa(e, noDecl){
   if(e.executada === false)
     return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kPla(e)}</article>`;
   const apart = e.anterior === true;   // UI-X06: mana el camp `anterior` de neudet, mai el nom de la carpeta
-  const eix = KC.v.pareto.eixos;
+  const eix = kVaAlPareto(KC.v, noDecl) ? KC.v.pareto.eixos : null;
   const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
     e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null,
     Array.isArray(e.intents_anteriors) && e.intents_anteriors.length ? `${e.intents_anteriors.length} intents anteriors apartats` : null]
     .filter(Boolean).join(' · ');
   return `<article class="card" style="margin-bottom:14px">
     <header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span>` +
+    (noDecl ? `<span class="tag t-wa">${RETOL_NO_DECL}</span>` : '') +
     (apart ? '<span class="tag t-no">intent anterior (apartat; no l’useu com a resultat)</span>' +
             (typeof e.citable === 'boolean' ? `<span class="tag t-nt" title="el camp \`citable\` de neudet és la provenança de les dades d’aquesta etapa, no si el resultat fa servei">provenança: ${e.citable ? 'citable' : 'no citable'}</span>` : '')
            : (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>')) +
@@ -2554,7 +2575,7 @@ function kEtapa(e){
     <div class="tblw">${kTaula(e)}</div>
     ${kFormMetr(e)}${kFormEtapaHtml(e)}
     ${kReavHtml(e)}
-    ${eix ? kPareto(e, eix) : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`}
+    ${eix ? kPareto(e, eix) : (noDecl ? '' : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`)}
     ${e.figures.length ? kGaleria(e.figures) : ''}
   </article>`;
 }

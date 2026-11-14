@@ -39,16 +39,19 @@ APARTADES = {"S1_anterior_2026-11-08", "S1_anterior_2026-11-08_2"}
 RETOLADOR = "intent anterior (apartat; no l’useu com a resultat)"
 
 # `kEtapa` crida els altres retoladors d'una etapa; aquí només ens interessa la capçalera i els motius.
+# Hi entra també el bloc pur del cens (`NO-DECL-DEF`): `kEtapa` fa servir `kVaAlPareto` i `RETOL_NO_DECL`.
+PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
 BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
           "const KC = {v: {pareto: {eixos: null}, diagnostic: null}}, buits = () => '';"
           "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
-          " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '';"
-          "function kEtapa(e){" + INDEX.split("function kEtapa(e){")[1].split("// El relat de l'etapa")[0])
+          " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '';" + PURE +
+          "function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])
 
 
 def _pinta(etapes):
     """Els HTML que la pàgina produïria per a aquestes etapes, en ordre, executant-ne el `kEtapa` amb node."""
-    r = subprocess.run(["node", "-e", BUIDES + "console.log(JSON.stringify(%s.map(kEtapa)));" % json.dumps(etapes)],
+    # `.map(kEtapa)` passaria l'índex com a `noDecl`: la segona etapa sortiria retolada com a no declarada.
+    r = subprocess.run(["node", "-e", BUIDES + "console.log(JSON.stringify(%s.map(e => kEtapa(e))));" % json.dumps(etapes)],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     return dict(zip([e["nom"] for e in etapes], json.loads(r.stdout)))

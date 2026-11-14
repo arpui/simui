@@ -121,6 +121,19 @@ A la pàgina d'una campanya que no és proposta, cada etapa mostra: el `pla` del
 el `campanya.yaml` amb el mateix formulari de definició, sense editar ni desar (només es pot triar l'etapa), i la certificació
 de neudet al costat. La UI no en calcula res. El resum de la petició (§11b) hi surt quan neudet l'afegeixi al `comprova.json`.
 
+## Etapes no declarades al yaml (UI-ETIQ-NO-DECL, contracte v1.27 §13c)
+Després d'«Etapes», la pàgina pinta una secció a part, **«Etapes no declarades al yaml»**, amb els directoris
+d'`etapes/` que tenen `candidats.csv` i que neudet no compta com l'execució d'una etapa declarada (ni la germana `_g4`
+d'una declarada, ni un intent apartat). Qui els llista és **neudet**: la clau additiva `etapes_no_declarades` del
+`campanya_ui.json`, construïda amb la **mateixa** `_etapa()` que les entrades del flux (decret `7585843`) i aquí
+traduïda pel mateix camí §6b (`campanya_vista._de_6b_entrada`). La UI no n'endevina cap pel nom de la carpeta; amb un
+neudet sense `_al_flux` peta dient on buscar-lo.
+
+Cada targeta del cens porta l'etiqueta «etapa no declarada al yaml» i **no pinta cap bloc de Pareto**: les columnes de
+Pareto es comparen només contra els `candidats.csv` del flux, per decret — fer-hi entrar el cens seria canviar un criteri
+(l'Albert). Per això `c04_draft`, on l'única execució de `S1` és al cens, queda amb `S1` «encara no ha corregut» i els
+candidats a la seva secció: mai fusionats amb el flux.
+
 ## Inventari de tubs (INV-UI, contracte v1.6 §10b)
 Cada tongada de punts, malla o anells tria «Quins tubs hi ha»: **cada anell o punt diu el seu tipus** (com fins ara) o **un inventari de
 tubs disponibles** (`inventari: {tipus: quantitat}`; tots s'hi fan servir, el total és el nombre de tubs). Amb inventari, a cada anell

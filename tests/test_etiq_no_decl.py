@@ -19,6 +19,10 @@ Què es fixa
   (`neudet/scripts/disseny/manifest_campanya.py:165-169`). Aquí es fixa el mirall — el mateix joc de 16 claus,
   com a molt una de més (`motiu_aturada`), `anterior: null` — i que pels dos camins la UI arriba a la **mateixa**
   conclusió (`verifica` i els candidats marcats com a verificats). Si ells tornen a retallar el cens, peta aquí.
+- **La pantalla** (`index.html`): el cens es pinta en una secció a part, «Etapes no declarades al yaml», cada
+  targeta amb l'etiqueta «etapa no declarada al yaml» i sense cap bloc de Pareto. El tros pur (marcadors
+  `NO-DECL-DEF-BEGIN/END`) es corre amb **node** sobre la vista real de neudet i ha de donar el mateix
+  repartiment que el Python; si el JS fusiona el cens amb el flux o se l'inventa, peta aquí.
 - Conseqüència mesurada: a `c04_draft` el que ha corregut de veritat és al cens, així que les columnes de
   Pareto (que es comparen contra els csv del flux) queden sense poder-se comprovar.
 - Un neudet vell (sense `_al_flux`) peta dient on buscar-lo, en lloc de repartir com li sembla.
@@ -312,3 +316,55 @@ def test_una_campanya_sense_etapes_no_declarades_no_inventa_res(tmp_path):
     (d / "campanya.yaml").write_text("id: cz\ndraft: true\netapes:\n  S1: {}\n", encoding="utf-8")
     m = V.manifest_provisional(d)
     assert m["etapes"] == [] and m[CENS] == []
+
+
+# ── la pantalla: secció a part, retol, i el cens no va al Pareto ────────────
+
+INDEX = (SRC / "static" / "index.html").read_text(encoding="utf-8")
+TARGETA = INDEX.split("function kEtapa(e, noDecl){")[1].split("\nfunction ")[0]
+
+
+def test_la_targeta_duna_entrada_del_cens_va_retolada_i_sense_pareto():
+    """§13c/v1.26: l'etiqueta és «etapa no declarada»; i com que el cens no nodreix les columnes de Pareto
+    (decret `7585843`), la seva targeta no pinta cap bloc de Pareto — ni el dibuix ni l'avís de motiu."""
+    assert "'etapa no declarada al yaml'" in INDEX
+    assert '<span class="tag t-wa">${RETOL_NO_DECL}</span>' in TARGETA
+    assert TARGETA.count("kPareto(e, eix)") == 1
+    assert "noDecl ? ''" in TARGETA
+
+
+def test_el_flux_i_el_cens_es_pinten_en_dues_seccions_distintes():
+    assert "out.push(kSeccioNoDecl(v, e => kEtapa(e, true)));" in INDEX
+    # `.map(kEtapa)` passaria l'índex com a `noDecl`: a partir de la segona etapa del flux tot estaria retolat.
+    assert "v.etapes.map(kEtapa)" not in INDEX and "v.etapes.map(e => kEtapa(e))" in INDEX
+
+
+def _campanya_sense_cens():
+    for d in sorted({f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts},
+                    key=lambda p: p.name):
+        if not json.loads((d / "campanya_ui.json").read_text(encoding="utf-8")).get(CENS):
+            return d
+    pytest.skip("cap campanya té el cens buit: cal-ne una per provar que la secció no s'inventa")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
+def test_el_js_del_cens_dona_el_mateix_repartiment_que_el_python(c04):
+    """El tros pur de `index.html` (marcadors `NO-DECL-DEF`) reparteix igual que la vista de Python sobre les
+    mateixes dades reals: el cens surt de la clau de neudet, la secció llista els mateixos noms en el mateix
+    ordre, i cap entrada del cens no va a les columnes de Pareto."""
+    amb, sense = V.vista(c04), V.vista(_campanya_sense_cens())
+    assert amb[CENS] and not sense[CENS]
+    js = (INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0] +
+          "\nconst VS = " + json.dumps([amb, sense]) + ";\n"
+          "console.log(JSON.stringify(VS.map(v => [kNoDecl(v).map(e => e.nom), kVaAlPareto(v, true), "
+          "kVaAlPareto(v, false), kSeccioNoDecl(v, e => '|' + e.nom)])));")
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
+    for v, (noms, al_pareto_cens, al_pareto_flux, seccio) in zip((amb, sense), json.loads(r.stdout)):
+        assert noms == [e["nom"] for e in v[CENS]]
+        assert al_pareto_cens is False
+        assert al_pareto_flux is bool(v["pareto"]["eixos"])
+        if v[CENS]:
+            assert "<h2>Etapes no declarades al yaml</h2>" in seccio
+            assert seccio.endswith(''.join('|' + e["nom"] for e in v[CENS]))
+        else:
+            assert seccio == ''                     # sense cens, cap secció i cap paraula inventada
