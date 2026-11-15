@@ -139,6 +139,10 @@ svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
 .v3d-svg{width:100%;max-width:420px;aspect-ratio:1/1;height:auto;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:grab;touch-action:none;user-select:none}
 .v3d-svg:active{cursor:grabbing}
 .v3d-svg.mou [data-v3d]{cursor:move}
+/* «mou la font i els cossos»: les cares del bloc i dels tubs no s'interposen — un cos incrustat dins del bloc
+   (p. ex. el Pb dins del cilindre PE) queda igualment agafable i la creu apareix damunt seu. */
+.v3d-svg.mou > *:not([data-v3d]){pointer-events:none}
+.v3d-svg.mou polygon[data-v3d]:hover{stroke-opacity:1;fill-opacity:0.6}
 .blocbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}
 .legend .leg i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
@@ -1311,13 +1315,14 @@ function v3dSvg(esc, st){
   // El contorn de ratlles diu on viu el cos: avui neudet només el munta a Geant4 (el `transport` per cos espera `PLOM-F-B2`).
   (esc.cossos || []).forEach((c, i) => {
     own = 'cos:' + i;                                              // les seves cares són el que s'agafa per moure aquest cos
-    const col = c.color || cColMat(c.material), op = 0.34;
+    // `st.agafat` (durant l'arrossegament): el cos seleccionat es ressalta — «ha de quedar clar quin cos he seleccionat» (15-11)
+    const agaf = st.agafat === 'cos:' + i, col = c.color || cColMat(c.material), op = agaf ? 0.62 : 0.34, am = agaf ? 1.5 : 0.7;
     if(c.forma === 'caixa' && c.mides.length === 3 && c.mides.every(x => x > 0))
-      caixaCos(c.pos, c.mides[0] / 2, c.mides[1] / 2, c.mides[2] / 2, col, op, col, 0.7, '4 3');
+      caixaCos(c.pos, c.mides[0] / 2, c.mides[1] / 2, c.mides[2] / 2, col, op, col, am, '4 3');
     if(c.forma === 'cilindre' && c.radi > 0 && c.alzada > 0)
-      cilindre(c.pos, 'z', -c.alzada / 2, c.alzada / 2, c.radi, col, op, col, 0.7, '4 3');
+      cilindre(c.pos, 'z', -c.alzada / 2, c.alzada / 2, c.radi, col, op, col, am, '4 3');
     if(c.forma === 'tub' && c.rint > 0 && c.rext > c.rint && c.alzada > 0){
-      cilindre(c.pos, 'z', -c.alzada / 2, c.alzada / 2, c.rext, col, op, col, 0.7, '4 3');
+      cilindre(c.pos, 'z', -c.alzada / 2, c.alzada / 2, c.rext, col, op, col, am, '4 3');
       cilindre(c.pos, 'z', -c.alzada / 2, c.alzada / 2, c.rint, '#fdfdfd', 0.7, col, 0.5);   // el cilindre de dins: buidat
     }
   });
@@ -1336,7 +1341,13 @@ function v3dSvg(esc, st){
   const peces = faces.map(f => f.circ ? `<circle cx="${f.circ[0].toFixed(1)}" cy="${f.circ[1].toFixed(1)}" r="${f.circ[2].toFixed(1)}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`
     : f.lin ? `<line x1="${f.lin[0][0].toFixed(1)}" y1="${f.lin[0][1].toFixed(1)}" x2="${f.lin[1][0].toFixed(1)}" y2="${f.lin[1][1].toFixed(1)}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"/>`
     : `<polygon points="${f.q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="${f.fill}" fill-opacity="${f.op}" stroke="${f.stroke}" stroke-width="${f.sw}" stroke-opacity="0.6"${f.dash ? ` stroke-dasharray="${f.dash}"` : ''}${f.o ? ` data-v3d="${f.o}"` : ''}/>`).join('');
-  return `${caixa}${forat}${peces}${font}${eixos}`;
+  // Etiqueta de la peça agafada: el seu nom i el `pos_cm` que s'està escrivint — mai un valor inventat, els números de la forma.
+  const etq = st.agafat === 'font' && esc.font
+    ? (q => `<text x="${(q[0] + 12).toFixed(1)}" y="${(q[1] + 16).toFixed(1)}" font-size="11" fill="#c00000" pointer-events="none">font [${esc.font.map(v => v.toFixed(1)).join(', ')}]</text>`)(sv(...esc.font))
+    : st.agafat && st.agafat.indexOf('cos:') === 0 && (esc.cossos || [])[+st.agafat.slice(4)]
+    ? (c => { const q = P(c.pos); return `<text x="${(q[0] + 12).toFixed(1)}" y="${(q[1] - 10).toFixed(1)}" font-size="11" font-weight="bold" fill="#1a3d6d" pointer-events="none">${escD(c.nom)} [${c.pos.map(v => v.toFixed(1)).join(', ')}]</text>`; })(esc.cossos[+st.agafat.slice(4)])
+    : '';
+  return `${caixa}${forat}${peces}${font}${eixos}${etq}`;
 }
 function v3dHtml(id, esc, edit){
   const st = V3D[id] = Object.assign(V3D[id] || {...V3D_INI}, {esc});
@@ -1346,7 +1357,7 @@ function v3dHtml(id, esc, edit){
   const m3 = edit && !CP.congelat;
   return `<div class="v3d"><svg id="${id}" class="v3d-svg${m3 ? (CP.mov3d ? ' mou' : '') : ''}"${m3 ? ' data-v3d-edit="1"' : ''} tabindex="0" viewBox="-160 -160 320 320" aria-label="vista 3D">${v3dSvg(esc, st)}</svg>
     <div class="hint">3D, cada tub a mida real (cilindre clar: el que ocupa; fosc: el gas actiu). Arrossega per girar; roda del ratolí, o <code>+</code>/<code>−</code> amb la vista enfocada (clic abans), per fer zoom; doble clic o <code>0</code> per restablir (també el zoom).</div>
-    ${m3 ? `<div class="bar"><button type="button" class="ghost${CP.mov3d ? ' on' : ''}" data-act="mov3d">${CP.mov3d ? 'deixa de moure a la 3D' : 'mou la font i els cossos a la 3D'}</button>${CP.mov3d ? `<span class="hint">Ara pots agafar la <b>font</b> (el punt vermell) o qualsevol <b>cos</b> amb el ratolí: escriu <code>pos_cm</code> (el centre, §25). <code>⇧</code>+arrossegar el mou en fondària; si comences en un lloc buit, l'escena gira com sempre.</span>` : ''}</div>` : ''}
+    ${m3 ? `<div class="bar"><button type="button" class="ghost${CP.mov3d ? ' on' : ''}" data-act="mov3d">${CP.mov3d ? 'deixa de moure a la 3D' : 'mou la font i els cossos a la 3D'}</button>${CP.mov3d ? `<span class="hint">Ara pots agafar la <b>font</b> (el punt vermell) o qualsevol <b>cos</b> amb el ratolí: escriu <code>pos_cm</code> (el centre, §25). <code>⇧</code>+arrossegar el mou en fondària; el cos agafat es ressalta i se'n mostra el <b>nom</b> i el <code>pos_cm</code> que s'escriu; si comences fora d'una peça, l'escena gira com sempre.</span>` : ''}</div>` : ''}
     ${nc ? `<div class="hint">Cossos (§25): <b>${nc}</b>, tots amb contorn de ratlles = <b>només a Geant4</b> — el motor no transporta res fora del bloc i el «transport» per cos és RESERVAT (fila PLOM-F-B2).${(esc.cossos || []).some(c => cFormesReservades.includes(c.forma)) ? ' Una forma reservada (esfera/con/semiespai) no es dibuixa: §25 la refusa en paraules.' : ''}${(esc.cossos || []).some(c => c.reservats.length) ? ' Un cos amb eix/regio/transport tampoc: reboten a la taula.' : ''}</div>` : ''}</div>`;
 }
 // Arrossegar la font o un cos de la 3D (l'Albert, 14-11: «poder moure els blocs creats i la font… caldria valorar
@@ -1360,22 +1371,30 @@ function v3dArrossega(s, st, o, e){
   if(!Array.isArray(ini) || !isFinite(ini[0])) return;
   const ruta = i >= 0 ? `domini.cossos.${i}.pos_cm` : 'domini.font.pos_cm';
   st.kFix = v3dBBase(esc);                                                    // l'escala es glaça mentre dura l'arrossegament
+  st.agafat = o;                                                              // ressalta la peça agafada fins a soltar (amb la seva etiqueta)
   const r = s.getBoundingClientRect(), es = s.viewBox.baseVal.width / Math.min(r.width, r.height);
   const x0 = e.clientX, y0 = e.clientY;
   const mou = ev => {
-    cSet(CP.f, ruta, v3dPas(ini, (ev.clientX - x0) * es, (ev.clientY - y0) * es, st, v3dEscala(esc, st), ev.shiftKey));
-    if(i < 0) CP.fontMoguda = true;                                           // §19: una font moguda per l'usuari no es recalcula
+    const nou = v3dPas(ini, (ev.clientX - x0) * es, (ev.clientY - y0) * es, st, v3dEscala(esc, st), ev.shiftKey);
+    cSet(CP.f, ruta, nou);
+    if(i < 0){ CP.fontMoguda = true; esc.font = nou.slice(); }                // §19: una font moguda per l'usuari no es recalcula
+    else if(esc.cossos && esc.cossos[i]) esc.cossos[i].pos = nou.slice();
+    s.innerHTML = v3dSvg(esc, st);                                            // la peça es mou en directe dins la 3D (a `s` no el toca cap redeixenç)
     cRedibuixa();
   };
   const fi = () => { document.removeEventListener('pointermove', mou); document.removeEventListener('pointerup', fi);
-    st.kFix = null; cPintaForm(); cYaml(); };
+    st.kFix = null; st.agafat = null; cPintaForm(); cYaml(); };
   document.addEventListener('pointermove', mou); document.addEventListener('pointerup', fi);
+  s.innerHTML = v3dSvg(esc, st);                                              // el ressaltat i l'etiqueta apareixen des de la primera premuda
   e.preventDefault();
 }
 document.addEventListener('pointerdown', e => {
   const s = e.target.closest && e.target.closest('svg.v3d-svg'), st = s && V3D[s.id];
   if(!st) return;
-  const o = e.target.dataset && e.target.dataset.v3d;
+  // `closest` i no `e.target.dataset`: la font és un `<g data-v3d="font">` que embolica cercles i text — prement el
+  // punt vermell, sota el cursor hi ha un `<circle>` sense atribut, i sense pujar l'arbre la font no s'agafaria mai.
+  const g = e.target.closest && e.target.closest('[data-v3d]');
+  const o = g && g.dataset.v3d;
   if(o && (o === 'font' || o.indexOf('cos:') === 0) && s.dataset.v3dEdit && CP.mov3d && !CP.congelat) return v3dArrossega(s, st, o, e);
   const x0 = e.clientX, y0 = e.clientY, a0 = st.az, e0 = st.el;
   const mou = ev => { st.az = a0 + (ev.clientX - x0) * 0.01; st.el = Math.max(-1.5, Math.min(1.5, e0 + (ev.clientY - y0) * 0.01)); s.innerHTML = v3dSvg(st.esc, st); };
@@ -2490,7 +2509,10 @@ Q('#c-form').addEventListener('pointerdown', e => {
   if(!g || !svg || CP.congelat) return;
   const path = g.dataset.drag;
   const mou = ev => {
-    const r = svg.getBoundingClientRect(), L = svg.viewBox.baseVal.width / 2;
+    // `cRedibuixa()` substitueix la vista al primer moviment: si es mesura el node capturat (ja desmuntat) el rectangle
+    // surt a zero i la posició sortia NaN — el tub simplement desapareixia (l'Albert, 15-11). Es busca el node viu.
+    const viu = document.getElementById(svg.id) || svg;
+    const r = viu.getBoundingClientRect(), L = viu.viewBox.baseVal.width / 2;
     const x = (ev.clientX - r.left) / r.width * 2 * L - L, y = -((ev.clientY - r.top) / r.height * 2 * L - L);
     cSet(CP.f, path + '.x', Math.round(x * 10) / 10); cSet(CP.f, path + '.y', Math.round(y * 10) / 10);
     cRedibuixa();

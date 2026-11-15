@@ -202,6 +202,9 @@ def test_la_vista_dels_tubs_cobreix_totes_les_fonts():
         if f != "dat":                                             # un .dat no té posicions al formulari
             assert f"pos.font === '{f}'" in vista, f
     assert "cTubsVista()" in INDEX and "data-drag" in INDEX and "pointerdown" in INDEX
+    # l'Albert, 15-11: arrossegant un tub a la vista plana, `cRedibuixa()` substitueix la vista al primer moviment;
+    # mesurar el node capturat (ja desmuntat) donava rectangle zero → NaN a x, y → el tub desapareixia. Node viu.
+    assert "document.getElementById(svg.id) || svg" in INDEX
 
 
 # ── el visor ────────────────────────────────────────────────────────────────
@@ -605,6 +608,12 @@ def test_a_la_3d_del_formulari_es_peut_moure_la_font_i_cada_cos_sense_moure_res_
     # comença en un lloc buit i l'escena gira com sempre: la mateixa orella, dos camins
     tros = INDEX.split("document.addEventListener('pointerdown'")[1].split("document.addEventListener('dblclick'")[0]
     assert "v3dArrossega(s, st, o, e)" in tros and "st.az = a0 +" in tros
+    # l'Albert, 15-11: la font no s'agafava (l'atribut és al `<g>`, sota el cursor hi ha un cercle) i cap cos dins del
+    # bloc no era agafable (les cares plenes del bloc se l'empassaven): el punter puja l'arbre i el bloc no l'intercepta
+    assert "closest('[data-v3d]')" in INDEX and ".v3d-svg.mou > *:not([data-v3d]){pointer-events:none}" in INDEX
+    # evidència de selecció: el cos agafat es ressalta i se'n mostra el nom i el `pos_cm` que s'escriu, en directe
+    assert "st.agafat = o" in INDEX and "st.agafat = null" in INDEX and "escD(c.nom)} [" in INDEX \
+        and "s.innerHTML = v3dSvg(esc, st)" in INDEX
 
 
 def test_dib2_l_exemple_es_valida_amb_neudet_i_els_rebutjats_surten_en_vermell():
