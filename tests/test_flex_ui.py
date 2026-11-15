@@ -563,10 +563,48 @@ def test_les_tres_vistes_tenen_la_mateixa_escala_i_cotes():
 
 def test_visor_3d_isometric_al_formulari_i_al_full_del_candidat():
     """VISTA-3D: la mateixa escena (cilindres a mida real, gas actiu, font, eixos) al formulari i al full; es gira arrossegant."""
-    for tros in ("function v3dSvg", "function v3dHtml", "function cEscena", "const V3D", "doble clic per restablir"):
+    for tros in ("function v3dSvg", "function v3dHtml", "function cEscena", "const V3D", "per restablir"):
         assert tros in INDEX, tros
-    assert "v3dHtml(id + '-3d', cEscena(V))" in INDEX and "v3dHtml('d-3d-svg', v.escena)" in INDEX and 'id="d-3d"' in INDEX
+    # els mateixos dos llocs, amb una crida diferent: el del formulari és editable (tercer argument), el del full no
+    assert "v3dHtml(id + '-3d', cEscena(V), true)" in INDEX and "v3dHtml('d-3d-svg', v.escena)" in INDEX and 'id="d-3d"' in INDEX
     assert "dEscalaComuna" in INDEX                                                      # el full encongeix les tres vistes amb un sol factor
+
+
+def test_el_visor_3d_es_peut_ampliar_sense_tocar_cap_número():
+    """VISTA-3D (Albert, 2026-11-14): zoom amb la roda del ratolí o `+`/`−` amb la vista enfocada; `0` (o doble clic)
+    ho restableix tot, també el zoom. Només és dibuix: el `yaml` i les cotes no canvien mai per fer zoom."""
+    for tros in ("const v3dZoom", "const V3D_ZOOM", "Math.max(V3D_ZOOM[0], Math.min(V3D_ZOOM[1], z))",
+                 "return 138 / r;", "const v3dEscala = (esc, st) => (st.kFix || v3dBBase(esc)) * (st.z || 1);",
+                                                                                        # l'escala del dibuix, multiplicada pel zoom
+                 "V3D_INI = {az: 0.6, el: 0.45, z: 1}",                              # restablir inclou el zoom
+                 "roda del ratolí", "per fer zoom", "tabindex=\"0\""):               # les tecles, només amb la vista enfocada
+        assert tros in INDEX, tros
+    # la roda no pot desplaçar la pàgina alhora (`passive: false`) i les tecles no han d'escriure als camps del formulari
+    assert "document.addEventListener('wheel'" in INDEX and "{passive: false}" in INDEX
+    tros = INDEX.split("const v3dZoom =")[1].split("// L'escena del formulari")[0]
+    assert "document.addEventListener('keydown'" in tros and "e.key === '+'" in tros and "e.key === '0'" in tros
+    assert not [x for x in ("CP.", "domini.", "CP.f") if x in tros], \
+        "fer zoom és només dibuix: no pot tocar el formulari ni el yaml"
+
+
+def test_a_la_3d_del_formulari_es_peut_moure_la_font_i_cada_cos_sense_moure_res_per_accident():
+    """VISTA-3D (l'Albert, 14-11 nit: «de la 3D vull el complet»): amb «mou la font i els cossos a la 3D» premut, el punter
+    DAMUNT d'una peça l'arrossega i escriu `pos_cm` —el centre per a totes les formes, §25—; `⇧` la mou en fondària.
+    Com «mou la font» a les vistes planes (UI-AFINA: no es mou res per accident), i l'arrossegament només és al visor del
+    formulari: el full del candidat (`#d-3d`) mostra un disseny ja fet i no té cap número que reescriure."""
+    for tros in ('data-act="mov3d"', "mou la font i els cossos a la 3D", 'data-v3d="font"', "own = 'cos:' + i",
+                 "data-v3d-edit", "function v3dArrossega", "<code>⇧</code>+arrossegar"):
+        assert tros in INDEX, tros
+    # l'interruptor com el de les vistes planes: l'arma el botó del visor i es desarma en carregar un formulari
+    assert 'button[data-act="mov3d"]' in INDEX and "CP.mov3d = !CP.mov3d" in INDEX and "CP.mov3d = false" in INDEX
+    # només el visor editable (el del formulari, tercer argument `true`) accepta l'arrossegament
+    assert "s.dataset.v3dEdit && CP.mov3d" in INDEX and "v3dHtml('d-3d-svg', v.escena)" in INDEX
+    assert not [x for x in re.split(r"[`'\"]", INDEX.split("function v3dArrossega")[1].split(
+        "document.addEventListener('pointerdown'")[0]) if x.startswith("domini.") and not x.endswith("pos_cm")], \
+        "arrossegar per la 3D només mou: no toca mides, ni densitat, ni material"
+    # comença en un lloc buit i l'escena gira com sempre: la mateixa orella, dos camins
+    tros = INDEX.split("document.addEventListener('pointerdown'")[1].split("document.addEventListener('dblclick'")[0]
+    assert "v3dArrossega(s, st, o, e)" in tros and "st.az = a0 +" in tros
 
 
 def test_dib2_l_exemple_es_valida_amb_neudet_i_els_rebutjats_surten_en_vermell():

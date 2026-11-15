@@ -142,6 +142,97 @@ def test_els_noms_de_cos_són_únics_perquè_són_el_volum_geant4():
     assert e and "nom de cos repetit: a (el nom és el volum Geant4 `cos_<nom>`)" in e[0]
 
 
+# ── el material d'un cos: DOS registres, tots dos llegits live (cap nom escrit aquí) ────────────────
+# (Albert, 2026-11-14: «el Material a escollir hauria de sortir d'una llista i no posar el nom»; només «els que tenim a
+# la xarxa o projectats a la xarxa», i hi comptà Air, air humit, concrete i buit.)
+
+def test_el_material_dun_cos_es_una_llista_i_no_un_camp_on_escriure():
+    # la llista la munta `cSelMat` amb el registre de cossos de neudet (`S.materials`) i el de la xarxa (`S.materials_xarxa`)
+    assert "cSelMat(p + '.material', c.material, S)" in INDEX
+    assert "cIn(p + '.material'" not in INDEX                       # res de text lliure: el nom no s'escriu a mà
+    assert "MATERIALS-DEF-BEGIN" in INDEX and "MATERIALS-DEF-END" in INDEX
+
+
+def test_el_registre_de_materials_de_la_xarxa_es_llegeix_de_simnet_i_no_se_n_inventa_cap():
+    X = CF.materials_xarxa()
+    if not X["disponible"]:                                        # sense simnet a l'entorn la UI ho diu, no n'inventa cap
+        assert "simnet" in X["motiu"] and "no inventa materials" in X["motiu"]
+        pytest.skip(f"simnet no és a l'entorn: {X['motiu']}")
+    assert X["on"] == "/".join(CF.MATERIALS_XARXA_FITXER)          # la nota de la pantalla cita el fitxer real
+    ids = sorted(m["mat_id"] for m in X["materials"])
+    assert ids == list(range(len(ids)))                            # ids contigus des de 0: és el que porta l'embedding
+    assert len({m["nom"] for m in X["materials"]}) == len(ids)      # un nom, una sola fila
+    noms = {m["nom"] for m in X["materials"]}
+    for n in ("Air", "AirHumid", "Concrete"):                      # els que l'Albert va demanar explícitament
+        assert n in noms, (n, sorted(noms))
+    assert [m["mat_id"] for m in X["materials"] if m["nom"] == "Pb"] == [14]
+    assert X["alias"] and all(v in noms for v in X["alias"].values())   # els àlies apunten a files del mateix registre
+    # `N_GAMMA_MATERIALS` (16 avui) és MENYS que les files (18): ho diu el propi fitxer de simnet — SST (16) i
+    # SSTaisi316 (17) queden fora del rang de les xarxes N=16, que es creen amb `--n-materials 17`. La UI només el pinta.
+    assert isinstance(X["n_de_la_xarxa"], int) and X["n_de_la_xarxa"] <= len(X["materials"])
+    tot = json.dumps(CF.cosos_info())
+    assert "density" not in tot and "11.35" not in tot and "0.94" not in tot
+    # ↑ la ρ de la taula de simnet NO travessa: §25 vol `densitat_gcm3` escrit per qui omple la taula, i l'ÚNIC ρ del Pb
+    # és del registre de neudet («Comprova» el torna tal com és; aquí no se'n copia cap número)
+
+
+def test_el_registre_de_cossos_de_neudet_i_el_de_la_xarxa_són_dos_cosos_distints():
+    _neudet()
+    info = CF.cosos_info(CF.estat_geometria_neudet()["cossos"])
+    assert info["materials"], "neudet no dóna el seu registre de materials de cossos"
+    assert not [n for n in info["materials"] if n.lower() in ("buit", "void", "vacuum")]
+    X = CF.materials_xarxa()
+    if X["disponible"]:
+        xa = {m["nom"] for m in X["materials"]}
+        assert "Pb" in xa and "SST" in xa
+        fora = xa - set(info["materials"])                     # el que la xarxa té i neudet rebutja avui a `domini.cossos`
+        assert {"Air", "AirHumid", "Concrete"} <= fora, sorted(fora)
+        assert not [m["nom"] for m in X["materials"] if m["nom"].lower() in ("buit", "void", "vacuum")]
+    # «buit» no és un material registrat a cap dels dos (la UI no l'inventa): fora del bloc, neudet ja ho tracta com a
+    # fuga (`neudet/src/neudet/disseny/cossos.py`, que cita `motor.py`), i el `mat_id` de la xarxa no l'hi té
+
+
+def test_buit_es_pendent_de_registre_no_un_material_que_la_ui_inventa():
+    """L'Albert (14-11 nit): «poder definir un cos sense material… aquest tub/cilindre s'ha de poder definir com a buit…
+    no cal provar res, només que es pugui fer». §5 de COORDINACIO (v1.28) fixa el registre de cossos a Pb, PE, Air i
+    `buit`, i la fila `COSSOS-MAT` de neudet és qui l'ha de registrar. Per això la UI l'ensenya **marcat com a pendent**
+    (amb on està escrit), no com a registre, i no el declara mai vàlid: el veredicte el dona «Comprova»."""
+    _neudet()
+    info = CF.cosos_info(CF.estat_geometria_neudet()["cossos"])
+    pc = {m["nom"]: m for m in info["materials_contracte"]}
+    assert "buit" in pc, sorted(pc)
+    assert "§5" in pc["buit"]["on"] and "COSSOS-MAT" in pc["buit"]["on"]              # cita d'on ve, no una llista nostra
+    # decisió de la nit del 14-11 (§5, verificat al checkout local de neudet): el buit d'un cos és `Galactic`,
+    # el mateix material del món — cap material nou; i la llista de cossos i la de la xarxa són registres diferents
+    assert "Galactic" in pc["buit"]["on"] and "Galactic" in pc["buit"]["motiu"]
+    assert pc["buit"]["motiu"]
+    # no es repeteix on ja és live: si neudet (o la xarxa) el registra, la llista del contracte es buida sola
+    vius = set(info["materials"] or []) | {m["nom"] for m in (info["materials_xarxa"] or {}).get("materials", [])}
+    assert not (set(pc) & vius), (sorted(pc), sorted(vius))
+    # i la UI no el valida ni l'afegeix a cap yaml: avui `buit` passa per aquí i neudet el rebota en paraules
+    assert CF._errors_cossos([_pb(material="buit")]) == []
+
+
+def test_la_densitat_dun_cos_es_un_camp_lliure_i_lunica_comprovacio_es_que_sigui_positiva():
+    """§5 v1.28 (ordre directa de l'Albert, 14-11: «donat un material el tenim per qualsevol densitat… no estic parlant
+    de certificar aquesta densitat»): `densitat_gcm3` és un paràmetre, no un certificat. La UI en comprova el mateix que
+    el `Cos` de neudet —que sigui un número > 0— i no res més: quin ρ és el bo (avui, amb Pb, el ρ ÚNIC del registre,
+    que l'app Geant4 fa FATAL) ho diuen «Comprova» i l'execució, tal com surt."""
+    _neudet()
+    import importlib
+    NC = importlib.import_module("neudet.disseny.cossos")
+    for rho in (0.94, 11.34, 0.0012):                       # PE, plom fora del pacte, un gas: la UI no els posa ni els treu
+        assert CF._errors_cossos([_pb(densitat_gcm3=rho)]) == [], rho
+    for rho in (0, -2.5, "onze"):
+        e = CF._errors_cossos([_pb(densitat_gcm3=rho)])
+        assert any(CF.COS_DENSITAT in x and "> 0" in x for x in e), (rho, e)
+    # el bessó amb neudet en el cas que avui el separen: el ρ lliure que la UI accepta, neudet (encara) no
+    assert bool(CF._errors_cossos([_pb(densitat_gcm3=0.94)])) is False
+    assert bool(NC.violacions_cossos([_pb(densitat_gcm3=0.94)])) is True
+    assert any("plom amb densitat_gcm3" in x for x in NC.violacions_cossos([_pb(densitat_gcm3=0.94)]))
+    assert bool(CF._errors_cossos([_pb(densitat_gcm3=0)])) == bool(NC.violacions_cossos([_pb(densitat_gcm3=0)]))
+
+
 # ── el que fa neudet AVUI (es llegeix el seu codi; no es copia res) ───────────
 
 def test_neudet_valida_la_forma_del_bloc_a_la_línia_que_diu():
@@ -319,3 +410,118 @@ def test_la_fila_nova_de_la_taula_no_porta_cap_valor():
     # el `transport` només és editable per al món (`domini.mon.transport`); el per cos és RESERVAT: no té input, rebota a la taula
     assert 'domini.cossos.${i}' in INDEX and 'data-p="domini.mon.transport"' in INDEX
     assert not [x for x in INDEX.split('"') if x.startswith("domini.cossos.") and x.endswith(".transport")]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
+def test_el_selector_de_material_pinta_els_dos_registres_i_el_que_no_hi_és():
+    """El mateix `cSelMat` de la pantalla, executat amb node: Pb marcat com a registrat per a cossos, Air marcat com a
+    rebutjat per neudet avui (la UI no l'amaga), `buit` marcat com a material del contracte encara no registrat (§5
+    v1.28) i un valor que no és enlloc pintat tal com és."""
+    src = INDEX.split("// MATERIALS-DEF-BEGIN")[1].split("\n", 1)[1].split("// MATERIALS-DEF-END")[0]
+    S = {"materials": ["Pb"],
+         "materials_xarxa": {"disponible": True, "materials": [{"nom": "PE", "mat_id": 0},
+                                                              {"nom": "Air", "mat_id": 8},
+                                                              {"nom": "Pb", "mat_id": 14}]},
+         "materials_contracte": [{"nom": "buit", "on": "COORDINACIO §5 (v1.28)", "motiu": "cos sense material"}]}
+    js = ("const escD = s => String(s);\n" + src + "\nconst S = " + json.dumps(S) + ";\n"
+          "console.log(JSON.stringify(['', 'Pb', 'Air', 'buit', 'Ametlla'].map(v => "
+          "cSelMat('domini.cossos.0.material', v, S))));")
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
+    buida, pb, air, buit, ametlla = json.loads(r.stdout)
+    assert '<option value="">—</option>' in buida and "selected" not in buida          # cap material per defecte
+    assert 'label="a la xarxa (simnet)"' in pb
+    assert 'value="Pb" selected>Pb · mat_id 14 · registrat per a cossos' in pb          # als dos registres: una sola fila
+    assert pb.count('value="Pb"') == 1
+    assert 'value="Air"' in pb and "neudet el rebutja avui" in pb                      # no s'amaga: es pinta marcat
+    assert 'value="Air" selected' in air and "mat_id 8 · neudet el rebutja avui" in air
+    # «buit» (l'Albert, 14-11: «poder definir un cos sense material»): és al contracte, no al registre d'avui
+    assert 'value="buit" selected' in buit and "decidit al contracte, neudet encara no el registra" in buit
+    assert buit.count('value="buit"') == 1                                             # es pinta una vegada, tal com és
+    assert 'value="Ametlla" selected' in ametlla and "no és al registre de neudet ni a la xarxa" in ametlla
+    # i cau sol, sense tocar la UI, el dia que neudet el registri (`COSSOS-MAT`): la llista live manava abans
+    registrat = subprocess.run(
+        ["node", "-e", "const escD = s => String(s);\n" + src + "\nconsole.log(cSelMat('p', 'buit', " +
+         json.dumps({**S, "materials": ["Pb", "buit"]}) + "));"],
+        capture_output=True, text=True, check=True)
+    assert registrat.stdout.count('value="buit"') == 1
+    assert 'value="buit" selected>buit · registrat per a cossos (neudet)' in registrat.stdout
+    # el que neudet registra i la xarxa no (avui no n'hi ha cap) surt abans del grup, marcat com a registre de neudet
+    alt = subprocess.run(["node", "-e", "const escD = s => String(s);\n" + src +
+                         "\nconsole.log(cSelMat('p', 'Ametlla', {materials: ['Pb', 'Ametlla'], materials_xarxa:"
+                         " {disponible: true, materials: [{nom: 'Pb', mat_id: 14}]}}));"],
+                        capture_output=True, text=True, check=True)
+    assert 'value="Ametlla" selected>Ametlla · registrat per a cossos (neudet)' in alt.stdout
+    assert 'value="Pb" >Pb · mat_id 14 · registrat per a cossos' in alt.stdout          # Pb, a la xarxa, sense seleccionar
+    # sense simnet: l'única llista que ofereix la UI és el registre de neudet (la nota de sota en diu el motiu)
+    sense = subprocess.run(
+        ["node", "-e", "const escD = s => String(s);\n" + src +
+         "\nconsole.log(cSelMat('p', 'Pb', {materials: ['Pb'], materials_xarxa:"
+         " {disponible: false, materials: [], motiu: 'no es troba simnet'}}));"],
+        capture_output=True, text=True, check=True)
+    assert "a la xarxa" not in sense.stdout and "registrat per a cossos (neudet)" in sense.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar l'arrossegament de la 3D")
+def test_arrossegar_a_la_3d_escriu_exactament_el_que_el_dibuix_mostra():
+    """L'arrossegament 3D (l'Albert, 14-11 nit: «de la 3D vull el complet» — la font i cada cos). El bessó executa amb
+    node la part pura del visor i la contrasta amb la seva pròpia projecció `v3dProj`: les tres direccions amb què es
+    mou una peça són exactament les tres direccions del dibuix (dreta, amunt, fondària), i del moviment del ratolí en
+    surten centímetres arrodonits a 0,01 — no un número de ratolí."""
+    src = "function v3dProj" + INDEX.split("function v3dProj")[1].split("// V3D-DRAG-END")[0]  # projecció + escala + direccions + pas
+    assert not [x for x in ("CP.", "document.", "cSet(", "domini.") if x in src], \
+        "la part pura no pot tocar el formulari: és la que s'executa aquí"
+    js = src + """
+const dif = (p, st, b, t) => [0, 1, 2].map(j => v3dProj(p.map((v, i) => v + t * b[i]), st)[j] - v3dProj(p, st)[j]);
+const st = {az: 0.8, el: 0.35}, p = [3.5, -7.25, 1.75], t = 0.01, B = v3dBases(st);
+const les3 = ["dreta", "amunt", "fons"].map(k => [k, dif(p, st, B[k], t).map(v => +v.toFixed(7))]);
+const Z = {az: 0, el: 0};
+const pas = [v3dPas([0, 0, 0], 10, 0, Z, 10, false),      // 10 unitats de viewBox a la dreta, amb 10 u/cm: +1 cm de x
+             v3dPas([0, 0, 0], 0, -20, Z, 10, false),     // estirar cap a dalt: +2 cm de z (el centre, §25)
+             v3dPas([0, 0, 0], 0, 10, Z, 10, true),       // ⇧: per la fondària, +1 cm de y
+             v3dPas([1.5, 0, 0], 5, 0, Z, 7, false),      // 5/7 = 0,714…: s'arrodoneix a 0,01
+             v3dPas([0, 0, 0], 10, 0, Z, 10, false)];     // `ini` no s'ha modificat: la darrera és com la primera
+const esc = {bloc: [30, 30, 30], tubs: [], cossos: [{pos: [0, 0, 0], mides: [10, 10, 10], radi: 0, rext: 0, alzada: 0}]};
+const K = v3dEscala(esc, {}), K2 = v3dEscala(esc, {z: 2}), Kfix = v3dEscala(
+  {bloc: esc.bloc, tubs: [], cossos: [{pos: [900, 0, 0], mides: [10, 10, 10], radi: 0, rext: 0, alzada: 0}]}, {kFix: K});
+console.log(JSON.stringify({les3, pas, K, K2, Kfix}));
+"""
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
+    d = json.loads(r.stdout)
+    # cada direcció desplaça exactament un eix del dibuix: moure pel pla de la vista no és una aproximació
+    for k, esperat in zip(("dreta", "amunt", "fons"), ([0.01, 0.0, 0.0], [0.0, 0.01, 0.0], [0.0, 0.0, 0.01])):
+        got = dict(d["les3"])[k]
+        assert [round(v, 6) for v in got] == esperat, (k, got)
+    assert d["pas"][0] == [1, 0, 0] and d["pas"][1] == [0, 0, 2] and d["pas"][2] == [0, 1, 0], d["pas"]
+    assert d["pas"][3] == [2.21, 0, 0], d["pas"]                       # 1,5 + 5/7 = 2,214… → 2,21 cm
+    assert d["pas"][4] == d["pas"][0], "no pot modificar la posició original"
+    # el zoom només multiplica l'escala, i mentre s'arrossega la mateixa: si no, el dibuix es resumiria sota el dit
+    assert round(d["K2"] / d["K"], 9) == 2 and d["Kfix"] == d["K"], (d["K"], d["K2"], d["Kfix"])
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
+def test_un_cos_amb_material_de_la_xarxa_sense_transport_avisa_que_la_rho_que_escriu_no_es_la_de_la_xarxa():
+    """L'avís «quan un cos tingui material ∈ xarxa i transport NO marcat» ve de la decisió (3) de COORDINACIO §5
+    (contracte v1.28, 14-11 vespre: «xarxa: restrictiva + avís», regla `AVI_MON_PB`) i de §25 (transport per cos
+    RESERVAT; avui els cossos no els transporta el motor, `cossos.py:11-15`). El mateix filtre de la pantalla,
+    executat amb node: són NOMS de cossos, no un càlcul; amb `domini.mon.transport` marcat l'avís cau sol, i un
+    material que no és a la xarxa no l'activa (la UI no inventa ni relacional dades)."""
+    src = INDEX.split("// MATERIALS-DEF-BEGIN")[1].split("\n", 1)[1].split("// MATERIALS-DEF-END")[0]
+    cs = json.dumps([{"nom": "tub_del_buit", "material": "buit"}, {"nom": "moderador", "material": "PE"},
+                     {"nom": "cap_no", "material": "Ametlla"}, {"material": "Pb"}])
+    xa = json.dumps([{"nom": "Pb", "mat_id": 14}, {"nom": "PE", "mat_id": 0}])
+    js = ("const escD = s => String(s);\n" + src + "\nconsole.log(JSON.stringify(["
+          "cCososRhoXarxa(" + cs + ", " + xa + ", false), cCososRhoXarxa(" + cs + ", " + xa + ", true), "
+          "cCososRhoXarxa([], " + xa + ", false), cCososRhoXarxa(" + cs + ", [], false)]));")
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
+    sense, marcada, sense_cs, sense_xa = json.loads(r.stdout)
+    assert sense == ["moderador", "(sense nom)"], sense              # PE i Pb, que SÓN a la xarxa; buit i Ametlla, no
+    assert marcada == [] and sense_cs == [] and sense_xa == []        # amb el motor transportant, o sense dades: res a dir
+    # la frase és la del contracte i surt del servidor: la UI només la pinta quan hi ha cossos afectats
+    assert "cCososRhoXarxa(cs, (S.materials_xarxa || {}).materials" in INDEX and "S.avis_rho_xarxa" in INDEX
+    av = CF.cosos_info()["avis_rho_xarxa"]
+    # àncors REALS (mesurats a COORDINACIO §5 i al contracte): res de fantasma — el 14-11 la coordinació va desdir
+    # una fila `COSSOS-RHO-TRANS`, un «§5 v1.29» i un «§49» que no existeixen; si tornessin a la frase, aquest test
+    # para (cap cita de la UI pot apuntar a una línia que `git log --all --grep` no troba).
+    assert "registre de simnet" in av and "§25" in av and "v1.28" in av
+    for fantasma in ("v1.29", "RHO-TRANS", "§49"):
+        assert fantasma not in av, fantasma
