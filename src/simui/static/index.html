@@ -116,7 +116,7 @@ pre.pre,pre.yamlbox{font-size:12px;line-height:1.35;background:#fff;border:1px s
 pre.yamlbox{max-height:560px;white-space:pre}
 svg.blocl{width:240px;height:240px;background:#fff;border:1px solid var(--line);margin:6px 0}
 svg.bloc{width:240px;height:240px;touch-action:none;background:#fff;border:1px solid var(--line);margin:6px 0;cursor:default}
-svg.bloc.mou{cursor:crosshair;outline:2px solid #c00000}
+svg.bloc.mou, svg.blocl.mou{cursor:crosshair;outline:2px solid #c00000}
 /* Formulari de campanya: els camps no s'estiren a tot l'ample de la pàgina (un número no necessita 900 px) */
 #c-form input[type=number]{max-width:9em}
 #c-form select{max-width:26em}
@@ -1488,27 +1488,30 @@ function cBlocLateral(id, pla, V0, D0){
   const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hz = m[2] / 2, hh = (pla === 'xz' ? m[0] : m[1]) / 2;
   const pos = d.font.pos_cm || [0, 0, 0], h = pla === 'xz' ? 'x' : 'y', W = pla === 'xz' ? D.wxz : D.wyz, H = D.h, sw = 1.2 / D.k;
   const dim = p => cDimTub(p.tipus);
+  // «com en la (x,y) també a les altres projeccions» (l'Albert, 15-11): el tub de `punts` amb x, y fixos s'agafa
+  // també a la lateral i s'escriuen l'eix del pla i z; i els cossos §25 també (escrivim el centre `pos_cm`).
   const tubs = V.punts.map(p => {
     const q = dim(p), c = p[h], z = p.z || 0, col = cColP(V, p), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${p.rebutjat ? sw * 2 : sw}"`;
+    const dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
     if(p.eix === 'z'){
       const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.za - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g><rect x="${c - q.R}" y="${-z - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" ${f}/>${act}</g>`;
+      return `<g${dr}><rect x="${c - q.R}" y="${-z - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" ${f}/>${act}</g>`;
     }
     if(p.eix === h){
       const act = q.La ? `<rect x="${c + q.za - q.La / 2}" y="${-z - q.R}" width="${q.La}" height="${2 * q.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g><rect x="${c + q.zlo}" y="${-z - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" ${f}/>${act}</g>`;
+      return `<g${dr}><rect x="${c + q.zlo}" y="${-z - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" ${f}/>${act}</g>`;
     }
-    return `<circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/>`;
+    return `<g${dr}><circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/></g>`;
   }).join('');
   const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
-  const cosos = cCossosEscena(d).map(c => cCosPlan(c, h, sw, D.k)).join('');
+  const cosos = cCossosEscena(d).map((c, i) => { const s = cCosPlan(c, h, sw, D.k); return s ? `<g data-cos="${i}" style="cursor:grab">${s}</g>` : ''; }).join('');
   const cotes = cCota(-hh, hz + D.mc * 0.45, hh, hz + D.mc * 0.45, `${cG(2 * hh)} cm`, D, false) + cCota(hh + D.mc * 0.45, -hz, hh + D.mc * 0.45, hz, `${cG(2 * hz)} cm`, D, true);
   const sense = V.punts.some(p => !dim(p).real) ? ' Un tub sense mides al catàleg es dibuixa orientatiu.' : '';
   const cosNoms = cCossosEscena(d).filter(c => c.nom).map(c => `${escD(c.nom)} (${escD(c.material || 'sense material')}, ${escD(c.forma || 'sense forma')})`).join(' · ');
-  return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl" style="width:${Math.round(2 * W * D.k)}px;max-width:100%;height:auto" aria-label="vista lateral ${pla}">
+  return `<svg id="${id}" viewBox="${-W} ${-H} ${2 * W} ${2 * H}" class="blocl${CP.movFont ? ' mou' : ''}" style="width:${Math.round(2 * W * D.k)}px;max-width:100%;height:auto" aria-label="vista lateral ${pla}">
     <rect x="${-hh}" y="${-hz}" width="${2 * hh}" height="${2 * hz}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>${forat}${cosos}${tubs}${font}${cotes}</svg>
-    <div class="hint">Lateral (${h}, z), a escala: cada tub sencer (clar: el que ha de cabre) i amb el gas actiu (fosc); font en vermell.${sense}${cosNoms ? ' Cossos en secció: ' + cosNoms + '; contorn de ratlles = només Geant4 (§25).' : ''}</div>`;
+    <div class="hint">Lateral (${h}, z), a escala: cada tub sencer (clar: el que ha de cabre) i amb el gas actiu (fosc); font en vermell. Arrossega un tub o un cos: s'escriuen (${h}, z).${sense}${cosNoms ? ' Cossos en secció: ' + cosNoms + '; contorn de ratlles = només Geant4 (§25).' : ''}</div>`;
 }
 function cBlocXY(id = 'c-bloc', V0, D0){
   const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hx = m[0] / 2, hy = m[1] / 2, L = D.xy, sw = 1.2 / D.k;
@@ -1529,15 +1532,16 @@ function cBlocXY(id = 'c-bloc', V0, D0){
   const E = cBlocExt(d);
   const fon = E.forma === 'cilindre' ? `<circle r="${E.radi || hx}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>`
     : `<rect x="${-hx}" y="${-hy}" width="${2 * hx}" height="${2 * hy}" fill="#f4f4f4" stroke="#4d4d4d" stroke-width="${sw}"/>`;
-  const cososXY = cCossosEscena(d).map(c => {                                                  // §25: caixa (mides totals), cilindre i tub (forat); el cos és sempre de ratlles = només Geant4
+  const cososXY = cCossosEscena(d).map((c, i) => {                                             // §25: caixa (mides totals), cilindre i tub (forat); el cos és sempre de ratlles = només Geant4
     const col = cColMat(c.material), st = ` stroke-dasharray="${5 / D.k} ${5 / D.k}"`, op = 0.25;
-    if(c.forma === 'caixa' && c.mides.length === 3 && c.mides.every(x => x > 0))
-      return `<rect x="${c.pos[0] - c.mides[0] / 2}" y="${-(c.pos[1] + c.mides[1] / 2)}" width="${c.mides[0]}" height="${c.mides[1]}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`;
-    if(c.forma === 'cilindre' && c.radi > 0)
-      return `<circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.radi}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`;
-    if(c.forma === 'tub' && c.rext > c.rint && c.rint > 0)
-      return `<circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.rext}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/><circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.rint}" fill="#fdfdfd" stroke="${col}" stroke-width="${sw}"${st}/>`;
-    return '';
+    const s = c.forma === 'caixa' && c.mides.length === 3 && c.mides.every(x => x > 0)
+      ? `<rect x="${c.pos[0] - c.mides[0] / 2}" y="${-(c.pos[1] + c.mides[1] / 2)}" width="${c.mides[0]}" height="${c.mides[1]}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`
+      : c.forma === 'cilindre' && c.radi > 0
+      ? `<circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.radi}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/>`
+      : c.forma === 'tub' && c.rext > c.rint && c.rint > 0
+      ? `<circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.rext}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="${sw}"${st}/><circle cx="${c.pos[0]}" cy="${-c.pos[1]}" r="${c.rint}" fill="#fdfdfd" stroke="${col}" stroke-width="${sw}"${st}/>`
+      : '';
+    return s ? `<g data-cos="${i}" style="cursor:grab">${s}</g>` : '';                         // agafable per moure'l, com els tubs (l'Albert, 15-11)
   }).join('');
   const nomCosos = cCossosEscena(d).filter(c => c.nom).map(c => `${escD(c.nom)} (${escD(c.material || 'sense material')}, només Geant4)`).join(' · ');
   return `<svg id="${id}" viewBox="${-L} ${-L} ${2 * L} ${2 * L}" class="bloc${CP.movFont ? ' mou' : ''}" style="width:${Math.round(2 * L * D.k)}px;max-width:100%;height:auto" aria-label="bloc, font i tubs">
@@ -2201,10 +2205,15 @@ function cObjComprova(){
 function cClicBloc(svg, e){
   const f = CP.f.domini.font;
   if(f.tipus !== 'iso' || !CP.movFont) return;                       // UI-AFINA: la font no es mou per accident, només amb «mou la font»
-  const r = svg.getBoundingClientRect(), L = svg.viewBox.baseVal.width / 2;
-  const x = (e.clientX - r.left) / r.width * 2 * L - L, y = -((e.clientY - r.top) / r.height * 2 * L - L);
-  const z = (f.pos_cm && f.pos_cm[2]) ?? 0;
-  f.pos_cm = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, z];
+  // Les laterals (l'Albert, 15-11: «si es pot moure com en la (x,y)… ja m'està bé») són el pla (h, z):
+  // el clic escriu l'eix horitzontal del pla i z; la XY, x i y. Cadascuna amb el seu `viewBox` (no són quadrades).
+  const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  const u = (e.clientX - r.left) / r.width * vb.width - vb.width / 2, v = -((e.clientY - r.top) / r.height * vb.height - vb.height / 2);
+  const pla = svg.id === 'c-bloc-xz' ? 0 : svg.id === 'c-bloc-yz' ? 1 : null;   // eix del pla lateral que va a l'horitzontal: 0 = x, 1 = y
+  const p0 = f.pos_cm || [0, 0, 0], r2 = q => Math.round(q * 100) / 100;
+  const p = [0, 1, 2].map(k => Number(p0[k]) || 0);
+  if(pla === null){ p[0] = r2(u); p[1] = r2(v); } else { p[pla] = r2(u); p[2] = r2(v); }
+  f.pos_cm = p;
   CP.fontMoguda = true;
   cPintaForm(); cYaml();
 }
@@ -2497,24 +2506,35 @@ Q('#c-form').addEventListener('click', e => {
   if(bb){ if(bb.dataset.act === 'altra') CP.llavor = (CP.llavor || 1) + 1;
     else if(!CP.congelat){ if(bb.dataset.act === 'mov3d') CP.mov3d = !CP.mov3d; else CP.movFont = !CP.movFont; } return cRedibuixa(); }
   if(CP.congelat) return;
-  const svg = e.target.closest('svg.bloc');
+  const svg = e.target.closest('svg.bloc, svg.blocl');
   if(svg){ if(cArr_ARROSSEGAT){ cArr_ARROSSEGAT = false; return; } return cClicBloc(svg, e); }
   const b = e.target.closest('button[data-act]');
   if(b) cAccio(b.dataset.act, b.dataset);
 });
-// Arrossegar una posició del generador `posicions` sobre la vista: escriu x i y del formulari (arrodonit a 0,1 cm).
+// Arrossegar sobre qualsevol de les tres vistes (l'Albert, 15-11: «si es pot moure com en la (x,y) en les altres
+// projeccions ja m'està bé»): s'escriuen els DOS EIXOS DEL PLA de la vista — XY: x,y; lateral xz: x,z; yz: y,z —
+// arrodonit a 0,1 cm, tant pels tubs de `posicions` (`data-drag`) com pels cossos §25 (`data-cos`, el centre `pos_cm`).
 let cArr_ARROSSEGAT = false;
 Q('#c-form').addEventListener('pointerdown', e => {
-  const g = e.target.closest('g[data-drag]'), svg = e.target.closest('svg.bloc');
+  const g = e.target.closest('g[data-drag], g[data-cos]'), svg = e.target.closest('svg.bloc, svg.blocl');
   if(!g || !svg || CP.congelat) return;
-  const path = g.dataset.drag;
+  const path = g.dataset.drag, cos = g.dataset.cos;
+  const pla = svg.id === 'c-bloc-xz' ? [0, 2] : svg.id === 'c-bloc-yz' ? [1, 2] : [0, 1];       // què són l'horitzontal i la vertical d'aquesta vista
   const mou = ev => {
     // `cRedibuixa()` substitueix la vista al primer moviment: si es mesura el node capturat (ja desmuntat) el rectangle
     // surt a zero i la posició sortia NaN — el tub simplement desapareixia (l'Albert, 15-11). Es busca el node viu.
     const viu = document.getElementById(svg.id) || svg;
-    const r = viu.getBoundingClientRect(), L = viu.viewBox.baseVal.width / 2;
-    const x = (ev.clientX - r.left) / r.width * 2 * L - L, y = -((ev.clientY - r.top) / r.height * 2 * L - L);
-    cSet(CP.f, path + '.x', Math.round(x * 10) / 10); cSet(CP.f, path + '.y', Math.round(y * 10) / 10);
+    const r = viu.getBoundingClientRect(), vb = viu.viewBox.baseVal;                          // la lateral no és quadrada: amplada i alçada pròpies
+    const u = (ev.clientX - r.left) / r.width * vb.width - vb.width / 2, v = -((ev.clientY - r.top) / r.height * vb.height - vb.height / 2);
+    const r1 = q => Math.round(q * 10) / 10;
+    if(cos !== undefined){
+      const c = (CP.f.domini.cossos || [])[+cos] || {}, p = [0, 1, 2].map(k => Number((c.pos_cm || [])[k]) || 0);
+      p[pla[0]] = r1(u); p[pla[1]] = r1(v);
+      cSet(CP.f, 'domini.cossos.' + cos + '.pos_cm', p);
+    } else {
+      const eixH = pla[0] === 0 ? 'x' : pla[0] === 1 ? 'y' : 'z', eixV = pla[1] === 1 ? 'y' : 'z';   // `punts` té els camps pel nom
+      cSet(CP.f, path + '.' + eixH, r1(u)); cSet(CP.f, path + '.' + eixV, r1(v));
+    }
     cRedibuixa();
     cArr_ARROSSEGAT = true;
   };

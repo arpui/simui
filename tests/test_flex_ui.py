@@ -207,6 +207,18 @@ def test_la_vista_dels_tubs_cobreix_totes_les_fonts():
     assert "document.getElementById(svg.id) || svg" in INDEX
 
 
+def test_a_qualsevol_vista_plana_s_agafen_tubs_i_cossos_i_s_escriuen_els_eixos_del_pla():
+    """L'Albert, 15-11: «si es pot moure com en la (x,y) en les altres projeccions ja m'està bé… també els cossos».
+    El drag i el clic a la font cobreixen XY i les laterals; s'escriuen els dos eixos del pla de cada vista
+    (XY: x,y · xz: x,z · yz: y,z), pels tubs de `punts` (`data-drag`) i pels cossos §25 (`data-cos` → `pos_cm`)."""
+    assert "svg.bloc.mou, svg.blocl.mou" in INDEX                              # la lateral també avisa que la font es pot moure
+    assert INDEX.count('data-drag="${escD(p.drag)}"') == 2                     # el tub agafable, a la XY i a cada lateral
+    assert 'data-cos="' in INDEX                                              # el cos §25 agafable a les vistes planes
+    assert "closest('g[data-drag], g[data-cos]')" in INDEX
+    assert INDEX.count("closest('svg.bloc, svg.blocl')") == 2                  # drag i clic a la font, a les tres vistes
+    assert "svg.id === 'c-bloc-xz' ? [0, 2]" in INDEX and "'domini.cossos.' + cos + '.pos_cm'" in INDEX
+
+
 # ── el visor ────────────────────────────────────────────────────────────────
 
 def test_el_visor_llegeix_l_eix_del_sidecar(mix_dat):
