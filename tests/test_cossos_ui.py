@@ -128,7 +128,7 @@ def test_laritmètica_rebota_però_el_registre_de_materials_és_de_neudet():
     assert e and "radi_int_cm 6 ≥ radi_ext_cm 3" in e[0]                          # cilindre buidat, no farcit
     e = CF._errors_cossos([_pb(mides_cm=[10, 0, 2])])
     assert e and "les mides han de ser números > 0" in e[0]
-    assert CF._errors_cossos([_pb(densitat_gcm3=11.34)]) == []                    # el ρ ÚNIC del Pb és del registre de neudet:
+    assert CF._errors_cossos([_pb(densitat_gcm3=11.34)]) == []                    # el veredicte del registre (material, ρ) és de neudet:
     tot = json.dumps(CF.cosos_info())                                             # «Comprova» el torna tal com és; aquí no se'n copia cap número
     assert "11.3" not in tot and "11,3" not in tot
     estat = CF.estat_geometria_neudet()                                           # (test amb neudet present a l'entorn de proves)
@@ -172,8 +172,8 @@ def test_el_registre_de_materials_de_la_xarxa_es_llegeix_de_simnet_i_no_se_n_inv
     assert isinstance(X["n_de_la_xarxa"], int) and X["n_de_la_xarxa"] <= len(X["materials"])
     tot = json.dumps(CF.cosos_info())
     assert "density" not in tot and "11.35" not in tot and "0.94" not in tot
-    # ↑ la ρ de la taula de simnet NO travessa: §25 vol `densitat_gcm3` escrit per qui omple la taula, i l'ÚNIC ρ del Pb
-    # és del registre de neudet («Comprova» el torna tal com és; aquí no se'n copia cap número)
+    # ↑ la ρ de la taula de simnet NO travessa: §25 vol `densitat_gcm3` escrit per qui omple la taula, i des de v1.28
+    # neudet tampoc no la iguala a cap ρ del registre («Comprova» el torna tal com és; aquí no se'n copia cap número)
 
 
 def test_el_registre_de_cossos_de_neudet_i_el_de_la_xarxa_són_dos_cosos_distints():
@@ -185,52 +185,63 @@ def test_el_registre_de_cossos_de_neudet_i_el_de_la_xarxa_són_dos_cosos_distint
     if X["disponible"]:
         xa = {m["nom"] for m in X["materials"]}
         assert "Pb" in xa and "SST" in xa
-        fora = xa - set(info["materials"])                     # el que la xarxa té i neudet rebutja avui a `domini.cossos`
-        assert {"Air", "AirHumid", "Concrete"} <= fora, sorted(fora)
+        fora = xa - set(info["materials"])                     # el que la xarxa té i neudet rebutja a `domini.cossos`
+        assert {"AirHumid", "Concrete"} <= fora, sorted(fora)
+        assert "Air" not in fora                               # des de `COSSOS-MAT` (v1.28), Air és també al registre de cossos
         assert not [m["nom"] for m in X["materials"] if m["nom"].lower() in ("buit", "void", "vacuum")]
-    # «buit» no és un material registrat a cap dels dos (la UI no l'inventa): fora del bloc, neudet ja ho tracta com a
-    # fuga (`neudet/src/neudet/disseny/cossos.py`, que cita `motor.py`), i el `mat_id` de la xarxa no l'hi té
+    # «buit» no és un *nom* de material a cap dels dos registres (la UI no l'inventa): neudet el va registrar amb el nom
+    # de l'app, `Galactic` (v1.28, `COSSOS-MAT`), i la xarxa no hi té `mat_id` — el buit no es transporta (§25)
 
 
-def test_buit_es_pendent_de_registre_no_un_material_que_la_ui_inventa():
+def test_el_buit_ja_es_a_la_llista_com_a_Galactic_i_la_cua_del_contracte_es_buida_sola():
     """L'Albert (14-11 nit): «poder definir un cos sense material… aquest tub/cilindre s'ha de poder definir com a buit…
     no cal provar res, només que es pugui fer». §5 de COORDINACIO (v1.28) fixa el registre de cossos a Pb, PE, Air i
-    `buit`, i la fila `COSSOS-MAT` de neudet és qui l'ha de registrar. Per això la UI l'ensenya **marcat com a pendent**
-    (amb on està escrit), no com a registre, i no el declara mai vàlid: el veredicte el dona «Comprova»."""
+    `buit`, amb la decisió de la nit del 14-11 que el `buit` d'un cos és `Galactic` (el material del món, cap material
+    nou). La fila `COSSOS-MAT` de neudet **ho ha executat**: és a `main` (mesurat aquí, 15-11) — el registre és
+    `domini.materials_cossos` de `validacions.json`, llegit per `materials_cossos()`, i `Galactic` hi és. Per això la UI
+    el pinta live i la cua del contracte («decidit i encara no registrat») **es buida sola**, com estava dissenyat."""
     _neudet()
+    import importlib
+    ma = importlib.import_module("neudet.detector.materials")
+    viu = set(ma.materials_cossos())
+    assert {"Pb", "PE", "Air", "Galactic"} <= viu, sorted(viu)     # els quatre del contracte, al registre viu de neudet
     info = CF.cosos_info(CF.estat_geometria_neudet()["cossos"])
-    pc = {m["nom"]: m for m in info["materials_contracte"]}
-    assert "buit" in pc, sorted(pc)
-    assert "§5" in pc["buit"]["on"] and "COSSOS-MAT" in pc["buit"]["on"]              # cita d'on ve, no una llista nostra
-    # decisió de la nit del 14-11 (§5, verificat al checkout local de neudet): el buit d'un cos és `Galactic`,
-    # el mateix material del món — cap material nou; i la llista de cossos i la de la xarxa són registres diferents
-    assert "Galactic" in pc["buit"]["on"] and "Galactic" in pc["buit"]["motiu"]
-    assert pc["buit"]["motiu"]
-    # no es repeteix on ja és live: si neudet (o la xarxa) el registra, la llista del contracte es buida sola
-    vius = set(info["materials"] or []) | {m["nom"] for m in (info["materials_xarxa"] or {}).get("materials", [])}
-    assert not (set(pc) & vius), (sorted(pc), sorted(vius))
-    # i la UI no el valida ni l'afegeix a cap yaml: avui `buit` passa per aquí i neudet el rebota en paraules
-    assert CF._errors_cossos([_pb(material="buit")]) == []
+    assert set(info["materials"]) == viu                           # la UI pinta el live i res més
+    assert info["materials_contracte"] == []                       # l'entrada pendent es va buidar sola: no és llista nostra
+    assert "Galactic" in info["materials_nota"]                    # i ho diu en paraules: el `buit` de §5 és `Galactic`
+    # la UI continua sense validar-lo ni declarar-lo vàlid: el veredicte del registre és de neudet («Comprova»)
+    NC = importlib.import_module("neudet.disseny.cossos")
+    assert CF._errors_cossos([_pb(material="buit")]) == []         # aquí «buit» no rebot: no és un nom de material
+    v = NC.violacions_cossos([_pb(material="buit")])
+    assert v and any("material registrat per a cossos" in x and "domini.materials_cossos" in x for x in v), v
 
 
 def test_la_densitat_dun_cos_es_un_camp_lliure_i_lunica_comprovacio_es_que_sigui_positiva():
     """§5 v1.28 (ordre directa de l'Albert, 14-11: «donat un material el tenim per qualsevol densitat… no estic parlant
-    de certificar aquesta densitat»): `densitat_gcm3` és un paràmetre, no un certificat. La UI en comprova el mateix que
-    el `Cos` de neudet —que sigui un número > 0— i no res més: quin ρ és el bo (avui, amb Pb, el ρ ÚNIC del registre,
-    que l'app Geant4 fa FATAL) ho diuen «Comprova» i l'execució, tal com surt."""
+    de certificar aquesta densitat»): `densitat_gcm3` és un paràmetre, no un certificat. Des que la fila `COSSOS-MAT`
+    de neudet és a `main` (mesurat aquí, 15-11), la comprovació és la mateixa als dos costats —número > 0— i el bessó
+    registra l'ACORD: la vella divergència (UI acceptava ρ lliure amb Pb, neudet la rebota amb «plom amb
+    densitat_gcm3») va morir amb el pin del Pb. El que avui ens separa és el `Galactic` —el `buit` de l'app és UN sol
+    material—: la UI no hi mira i neudet el refusa en paraules (i l'app Geant4, en FATAL)."""
     _neudet()
     import importlib
     NC = importlib.import_module("neudet.disseny.cossos")
+    ma = importlib.import_module("neudet.detector.materials")
     for rho in (0.94, 11.34, 0.0012):                       # PE, plom fora del pacte, un gas: la UI no els posa ni els treu
         assert CF._errors_cossos([_pb(densitat_gcm3=rho)]) == [], rho
     for rho in (0, -2.5, "onze"):
         e = CF._errors_cossos([_pb(densitat_gcm3=rho)])
         assert any(CF.COS_DENSITAT in x and "> 0" in x for x in e), (rho, e)
-    # el bessó amb neudet en el cas que avui el separen: el ρ lliure que la UI accepta, neudet (encara) no
-    assert bool(CF._errors_cossos([_pb(densitat_gcm3=0.94)])) is False
-    assert bool(NC.violacions_cossos([_pb(densitat_gcm3=0.94)])) is True
-    assert any("plom amb densitat_gcm3" in x for x in NC.violacions_cossos([_pb(densitat_gcm3=0.94)]))
+    # bessó en l'acord d'avui: el ρ lliure que la UI accepta, neudet l'accepta (abans el rebotava: pin mort)
+    for rho in (0.94, 11.34, 0.0012):
+        assert bool(NC.violacions_cossos([_pb(densitat_gcm3=rho)])) is False, rho
     assert bool(CF._errors_cossos([_pb(densitat_gcm3=0)])) == bool(NC.violacions_cossos([_pb(densitat_gcm3=0)]))
+    # i la divergència que queda escrita: `Galactic`, l'ÚNIC ρ del buit de l'app (bloc `BUIT` de `MaterialFactory.cc`)
+    rho_buit = ma.constants_buit()["kVacuumRho_gcm3"]
+    assert NC.violacions_cossos([_pb(material="Galactic", densitat_gcm3=rho_buit)]) == []          # el de l'app: vàlid
+    assert CF._errors_cossos([_pb(material="Galactic", densitat_gcm3=rho_buit * 3)]) == []         # la UI no hi mira
+    v = NC.violacions_cossos([_pb(material="Galactic", densitat_gcm3=rho_buit * 3)])
+    assert any("el buit és UN sol material" in x for x in v), v    # neudet el refusa en paraules: «Comprova» el torna tal com és
 
 
 # ── el que fa neudet AVUI (es llegeix el seu codi; no es copia res) ───────────
@@ -272,8 +283,8 @@ def test_la_ui_diu_a_cada_camp_què_valida_neudet():
 
 def test_la_ui_rebota_el_que_rebota_neudet_pel_mateix_motiu():
     """§25: la UI replica els passos estructurals de `violacions_cossos` (reservats, obligatoris, mides de la forma,
-    aritmètica); el veredicte del registre (material, ρ del Pb) el dona «Comprova» amb la frase de neudet. Amb cossos de Pb
-    al ρ del registre, doncs, el que és buit per a neudet és buit per a la UI i el que rebot, rebot pels dos costats."""
+    aritmètica); el veredicte del registre (material registrat, ρ) el dona «Comprova» amb la frase de neudet. Amb cossos
+    de Pb, doncs, el que és buit per a neudet és buit per a la UI i el que rebot, rebot pels dos costats."""
     _neudet()
     import importlib
     NC = importlib.import_module("neudet.disseny.cossos")
@@ -415,8 +426,10 @@ def test_la_fila_nova_de_la_taula_no_porta_cap_valor():
 @pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
 def test_el_selector_de_material_pinta_els_dos_registres_i_el_que_no_hi_és():
     """El mateix `cSelMat` de la pantalla, executat amb node: Pb marcat com a registrat per a cossos, Air marcat com a
-    rebutjat per neudet avui (la UI no l'amaga), `buit` marcat com a material del contracte encara no registrat (§5
-    v1.28) i un valor que no és enlloc pintat tal com és."""
+    rebutjat per neudet (la UI no l'amaga) i un valor que no és enlloc pintat tal com és. La cua del contracte amb
+    `buit` és un valor **sintètic** per provar el mecanisme: des de `COSSOS-MAT` (v1.28) la llista real
+    (`MATERIALS_COSSOS_CONTRACTE`) és buida —es va buidar sola quan neudet va registrar `Galactic`—, però el marcat i la
+    caiguda han de seguir funcionant per si algun dia falta un material decidit i encara no registrat."""
     src = INDEX.split("// MATERIALS-DEF-BEGIN")[1].split("\n", 1)[1].split("// MATERIALS-DEF-END")[0]
     S = {"materials": ["Pb"],
          "materials_xarxa": {"disponible": True, "materials": [{"nom": "PE", "mat_id": 0},
@@ -434,11 +447,12 @@ def test_el_selector_de_material_pinta_els_dos_registres_i_el_que_no_hi_és():
     assert pb.count('value="Pb"') == 1
     assert 'value="Air"' in pb and "neudet el rebutja avui" in pb                      # no s'amaga: es pinta marcat
     assert 'value="Air" selected' in air and "mat_id 8 · neudet el rebutja avui" in air
-    # «buit» (l'Albert, 14-11: «poder definir un cos sense material»): és al contracte, no al registre d'avui
+    # cua del contracte (sintètica aquí): un material decidit i encara no registrat surt marcat, no amagat
     assert 'value="buit" selected' in buit and "decidit al contracte, neudet encara no el registra" in buit
     assert buit.count('value="buit"') == 1                                             # es pinta una vegada, tal com és
     assert 'value="Ametlla" selected' in ametlla and "no és al registre de neudet ni a la xarxa" in ametlla
-    # i cau sol, sense tocar la UI, el dia que neudet el registri (`COSSOS-MAT`): la llista live manava abans
+    # i cau sol, sense tocar la UI, el dia que neudet el registra — és el que va fer `COSSOS-MAT` amb `buit`→`Galactic`:
+    # la llista live manava abans
     registrat = subprocess.run(
         ["node", "-e", "const escD = s => String(s);\n" + src + "\nconsole.log(cSelMat('p', 'buit', " +
          json.dumps({**S, "materials": ["Pb", "buit"]}) + "));"],

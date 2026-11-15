@@ -1776,14 +1776,16 @@ const cSelForma = (p, v, S) => `<select data-p="${escD(p)}" data-t="ostr" data-s
   v && !S.formes.some(o => o.valor === v) ? `<option value="${escD(v)}" selected>${escD(v)} (${(S.formes_reservades || []).includes(v) ? 'reservada, §25 la refusa' : 'no és a §25'})</option>` : ''}</select>`;
 // MATERIALS-DEF-BEGIN: funció pura (l'executa node al test bessó dels materials; no toca el DOM ni `CP`)
 // El material d'un cos surt de dues llistes que la UI llegeix, no n'escriu cap: el registre de cossos de neudet
-// (`PB_MATERIALS_COSSOS`, avui només Pb) i el registre de la xarxa de simnet (`GAMMA_MATERIALS`, amb el `mat_id`
-// que porta l'embedding). Els de la xarxa que neudet encara no accepta a `domini.cossos` surten marcats: la UI no
+// (`domini.materials_cossos` de `validacions.json`, llegit live per `materials_cossos()` —des de `COSSOS-MAT`/v1.28
+// amb `Galactic`, el `buit` de l'app—) i el registre de la xarxa de simnet (`GAMMA_MATERIALS`, amb el `mat_id`
+// que porta l'embedding). Els de la xarxa que neudet no accepta a `domini.cossos` surten marcats: la UI no
 // els amaga ni els corregeix, i «Comprova» en dona el rebot de neudet tal com surt.
 const cSelMat = (p, v, S) => {
   const X = S.materials_xarxa || {}, xa = X.materials || [], reg = S.materials || [];
   const hi = n => reg.includes(n) || xa.some(m => m.nom === n);
-  // §5 v1.28: `buit` (i companyia) ja és decidit al contracte però neudet encara no el registra. Surt MARCAT: és el
-  // pendent, no el registre. Si neudet el registra a `PB_MATERIALS_COSSOS`, la llista live ja el passa i aquest cau.
+  // Mecanisme §5: un material decidit al contracte i encara no registrat surt MARCAT (és el pendent, no el
+  // registre). Des que `COSSOS-MAT` (v1.28) va aterrar, `S.materials_contracte` ve buit: `buit` ja és al registre
+  // com a `Galactic` i la cua es va buidar sola, com estava dissenyat. Si algun dia en falta un de nou, cau aquí.
   const pc = (S.materials_contracte || []).filter(m => m && m.nom && !hi(m.nom));
   const op = (nom, marca) => `<option value="${escD(nom)}" ${nom === v ? 'selected' : ''}>${escD(nom)}${marca ? ` · ${marca}` : ''}</option>`;
   const fora = reg.filter(n => !xa.some(m => m.nom === n));

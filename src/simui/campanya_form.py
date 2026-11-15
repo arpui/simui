@@ -557,7 +557,8 @@ def entre_propietats(entre: str, hr: Optional[float] = None, t: Optional[float] 
 # §25 és la correcció que el coordinador fa al seu propi §24, i és el vocabulari que HI HA a
 # `neudet/disseny/cossos.py`. Des de la fila `COSSOS-YAML` de neudet (2026-11-13) `fitxa.py` també valida
 # `domini.cossos` al `campanya.yaml`: la UI no els inventa ni els descarta — els pinta, els valida per
-# contracte i ho diu en paraules; el veredicte complet (materials, ρ únic del Pb) el dona «Comprova».
+# contracte i ho diu en paraules; el veredicte complet (material al registre `domini.materials_cossos`, ρ —lliure
+# des de `COSSOS-MAT`/v1.28, amb l'excepció de l'ÚNIC ρ del `Galactic`) el dona «Comprova».
 FORMA_BLOC = ("cub", "cilindre")
 FORMA_BLOC_DEFECTE = "cub"                    # §22: absent = `cub`; els yaml vells no el porten i els hashos no canvien
 FORMA_BLOC_TEXT = {"cub": "cub (caixa: `mides_cm`)", "cilindre": "cilindre (`radi_cm` + `alzada_cm`)"}
@@ -589,21 +590,15 @@ COSSOS_CANVI_24 = ("§25 (v1.22) corregeix el §24 (v1.21): `box` → `caixa`; `
 #: materials que **el contracte ja ha decidit** però que neudet encara no registra. §5 de `COORDINACIO.md` (v1.28,
 #: 2026-11-14, ordre directa de l'Albert) obre el registre de cossos a **{Pb, PE, Air, buit}** — «en cossos, hauria de
 #: permetre's altres materials com el propi Air o Aire humit o PE… no cal validar aquest material» i, per a `buit`,
-#: «poder definir un cos sense material» (Albert, 14-11: un tub que tanca el buit al voltant de la font). Decisió de
-#: la nit del 14-11 (§5, verificat al checkout local): **el `buit` d'un cos és `Galactic`** — el mateix material que
-#: l'app Geant4 ja construeix per al món (`DetectorConstruction.cc`), cap material nou; només falta que la fila
-#: `COSSOS-MAT` de neudet registri `buit` a `PB_MATERIALS_COSSOS` (live: avui només `Pb`, `materials.py:52`).
-#: Mentre no hi sigui, la llista live no el passa i la UI el pinta **marcat**: no és el registre, és el pendent, i
-#: «Comprova» el rebutja en paraules (caiguda acceptada a §5). Quan neudet comiti, `S.materials` el passa sol.
-MATERIALS_COSSOS_CONTRACTE = (
-    {"nom": "buit",
-     "on": "COORDINACIO §5 (v1.28 + decisió de la nit del 2026-11-14: «el `buit` d'un cos és `Galactic`») "
-           "+ TAULER de neudet `COSSOS-MAT`",
-     "motiu": "cos sense material (el volum queda buit, p. ex. un tub que tanca el buit al voltant de la font); "
-              "decidit: el seu material és `Galactic`, el mateix que l'app Geant4 fa servir per al món — cap "
-              "material nou —; el que falta és que neudet registri `buit` a `PB_MATERIALS_COSSOS` (live: només `Pb`), "
-              "i mentrestant «Comprova» el rebota en paraules"},
-)
+#: «poder definir un cos sense material» (Albert, 14-11: un tub que tanca el buit al voltant de la font), amb la decisió
+#: de la nit del 14-11 (§5, verificat al checkout local): **el `buit` d'un cos és `Galactic`** — el mateix material que
+#: l'app Geant4 ja construeix per al món (`DetectorConstruction.cc`), cap material nou. La fila `COSSOS-MAT` de neudet
+#: **ha executat la decisió** (a `main` del neudet, mesurat aquí 15-11: el registre ja no és una constant del codi sinó
+#: `domini.materials_cossos` de `validacions.json`, que llegeix `materials_cossos()` de `materials.py`, i `Galactic`
+#: hi és). Per això la llista queda **buida** — com estava dissenyat, l'entrada es buida sola el dia que neudet el
+#: registrin i `S.materials` el passa sol. El mecanisme queda: un material decidit i encara no registrat sortiria aquí
+#: **marcat** (amb on està escrit), mai com a registre, i «Comprova» el rebutja en paraules.
+MATERIALS_COSSOS_CONTRACTE: Tuple[Dict[str, str], ...] = ()
 AVIS_NEUDET_CAMPS = "neudet encara no valida aquests camps"
 AVIS_COSSOS_MOTOR = ("§22 i §25: `transport` per cos és RESERVAT (fila `PLOM-F-B2`). Mentre `domini.mon.transport` "
                      "sigui absent o `false`, el motor de la xarxa no transporta els cossos: el que es mesura fora "
@@ -649,8 +644,9 @@ def _errors_cossos(cossos: Any, ruta: str = "domini.cossos") -> List[str]:
     `violacions_cossos` de neudet (`disseny/cossos.py`): primer els camps i formes **reservats** (es refusen en
     paraules, mai s'ignoren), després els obligatoris, després les mides de la forma, i l'aritmètica (mides > 0,
     `radi_int < radi_ext`, `pos_cm` centre) només si abans no s'ha dit res — com a neudet: un typo no pot donar un
-    cos amb les mides equivocades i la tanda seguiria. El veredicte del **registre** (material, el ρ ÚNIC del Pb a
-    `materials.py`) és de neudet: «Comprova» el torna tal com és; aquí no se'n copia cap número."""
+    cos amb les mides equivocades i la tanda seguiria. El veredicte del **registre** (els materials de
+    `domini.materials_cossos` de `validacions.json`, la ρ lliure per a Pb, PE i Air i l'ÚNIC ρ del `Galactic`) és de
+    neudet: «Comprova» el torna tal com és; aquí no se'n copia cap número."""
     if cossos is None:
         return []
     if not isinstance(cossos, list):
@@ -749,17 +745,23 @@ def estat_geometria_neudet() -> Dict[str, Any]:
         import importlib
         DES._neudet()                                        # és el que posa neudet a l'abast (com a `entre_propietats`)
         c = importlib.import_module("neudet.disseny.cossos")
+        ma = importlib.import_module("neudet.detector.materials")
+    except Exception:                                          # noqa: BLE001  (neudet absent o vell, sense PLOM F-B0)
+        pass
+    else:
+        # `COSSOS-MAT` (v1.28): el registre de materials de cossos ja no és una constant del codi — és
+        # `domini.materials_cossos` de `validacions.json`, que llegeix `materials_cossos()`. Si no hi és o és buit,
+        # surt el seu ValueError amb on buscar-lo: MAI INVENTIS, mai una llista buida passada en silenci.
         costat = {"formes": list(getattr(c, "FORMES_COS", ())),
                   "mides": {k: list(v) for k, v in (getattr(c, "MIDES_COS", {}) or {}).items()},
-                  "materials": list(getattr(importlib.import_module("neudet.detector.materials"), "PB_MATERIALS_COSSOS", ())),
+                  "materials": list(ma.materials_cossos()),
                   "on": "disseny/cossos.py"}
-    except Exception:                                          # noqa: BLE001  (neudet vell, sense PLOM F-B0)
-        pass
     out["cossos"] = {"validat": lin_c is not None, "on": f"{FITXA_PY}:{lin_c}" if lin_c else None,
                      "sidecar": costat,
                      "text": (f"neudet valida `domini.cossos` ({FITXA_PY}:{lin_c}) amb el vocabulari de §25 "
                               f"(`disseny/cossos.py`: {'|'.join(costat['formes']) if costat else ''}); el veredicte "
-                              f"complet — materials i el ρ únic del Pb — el dona «Comprova» tal com surt de neudet"
+                              f"complet — el registre de materials i la ρ (lliure per a Pb, PE i Air; única per al "
+                              f"`Galactic`, el `buit` de l'app) — el dona «Comprova» tal com surt de neudet"
                               if lin_c else
                               AVIS_NEUDET_CAMPS + ": neudet no llegeix `domini.cossos` del campanya.yaml"
                               + (f"; el que té és el vocabulari intern del sidecar de Geant4 ({costat['on']}: "
@@ -778,10 +780,11 @@ MATERIALS_XARXA_FITXER = ("src", "simnet", "neutron_net", "materials.py")
 def materials_xarxa() -> Dict[str, Any]:
     """Els materials que té registrats **la xarxa** (simnet), llegits del seu propi fitxer: `GAMMA_MATERIALS` de
     `<simnet>/src/simnet/neutron_net/materials.py`. NO és el registre de cossos: el que neudet accepta a
-    `domini.cossos` és `PB_MATERIALS_COSSOS` (`neudet/detector/materials.py`) —avui només `Pb`— i el seu propi
-    missatge diu que un de nou «és canvi de registre (`validacions.json · domini.materials_cossos`) i passa pel
-    coordinador». Per això la taula pinta els de la xarxa marcats i «Comprova» en torna el rebot de neudet tal com
-    surt; la UI no n'afegeix ni en corregeix cap (MAI INVENTIS)."""
+    `domini.cossos` és `domini.materials_cossos` de `validacions.json` —des de `COSSOS-MAT` (v1.28), llegit live per
+    `materials_cossos()` de `neudet/detector/materials.py`— i el seu propi missatge diu que un de nou «és canvi de
+    registre (`validacions.json · domini.materials_cossos`) i passa pel coordinador». Per això la taula pinta els de
+    la xarxa marcats i «Comprova» en torna el rebot de neudet tal com surt; la UI no n'afegeix ni en corregeix cap
+    (MAI INVENTIS)."""
     root = MS.owner_root("simnet")
     if root is None:
         return {"disponible": False, "materials": [],
@@ -814,7 +817,8 @@ def materials_xarxa() -> Dict[str, Any]:
     files = [(k, v) for k, v in mat.items() if isinstance(v, dict)]
     return {"disponible": True, "on": "/".join(MATERIALS_XARXA_FITXER), "arxiu": str(f),
             # NOMÉS el nom i el `mat_id`: la ρ de la taula de simnet no ve aquí (§25 — `densitat_gcm3` l'escriu qui
-            # omple la taula, i l'ÚNIC ρ del Pb és del registre de neudet; «Comprova» el torna tal com surt).
+            # omple la taula, i des de v1.28 neudet tampoc no la iguala a cap ρ del registre: és paràmetre;
+            # «Comprova» el torna tal com surt).
             "materials": [{"nom": k, "mat_id": v.get("mat_id")}
                           for k, v in sorted(files, key=lambda kv: (kv[1].get("mat_id") is None, kv[1].get("mat_id")))],
             "alias": {k: str(v) for k, v in (vars_.get("MATERIAL_ALIASES") or {}).items()},
@@ -832,10 +836,12 @@ def cosos_info(neudet: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
             "obligatoris": list(COS_OBLIGATORIS), "opcionals": list(COS_OPCIONALS), "densitat": COS_DENSITAT,
             "defecte_files": 0, "pos_cm": "centre del cos, per a totes les formes (§25)",
             "materials": ((neudet or {}).get("sidecar") or {}).get("materials"),
-            "materials_nota": "§25: el registre de materials per a cossos és de neudet (`materials.py::PB_MATERIALS_COSSOS`) "
-                              "i la UI el llegeix live, no l'inventa. §5 v1.28 (14-11) l'obre a Pb, PE, Air i buit — "
-                              "encara no hi són tots: la fila `COSSOS-MAT` de neudet és el canvi de registre, i mentre "
-                              "no comiti, «Comprova» rebota en paraules el que neudet no accepta avui.",
+            "materials_nota": "§25: el registre de materials per a cossos és de neudet i la UI el llegeix live: "
+                              "`materials_cossos()` (`neudet/detector/materials.py`) llegeix `domini.materials_cossos` "
+                              "de `validacions.json` — aquí no se'n copia ni se n'inventa cap nom. §5 v1.28 (14-11) "
+                              "l'obre a Pb, PE, Air i `buit`, amb la decisió que el `buit` d'un cos és `Galactic` (el "
+                              "material que l'app Geant4 fa servir per al món, cap material nou); la fila `COSSOS-MAT` "
+                              "de neudet ja l'ha registrat (mesurat aquí), per això surt sol a la llista.",
             "materials_xarxa": materials_xarxa(),
             "materials_contracte": [dict(m) for m in MATERIALS_COSSOS_CONTRACTE],
             "estat_piom": list(ESTAT_PIOM), "avis_transport": AVIS_COSSOS_MOTOR,
@@ -855,11 +861,13 @@ def cosos_info(neudet: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
             "font": COSSOS_CONTRACTE,
             "nota_densitat": "§25: `densitat_gcm3` és obligatòria (cap valor implícit) i l'escrius tu. §5 v1.28 "
                              "(decisió (2), l'Albert: «donat un material el tenim per qualsevol densitat… no estic "
-                             "parlant de certificar aquesta densitat»): ρ és paràmetre, no certificat — aquí només es "
-                             "comprova que sigui un número > 0. A neudet la igualtat ρ == ρ del registre **encara es "
-                             "comprova** (mesurat aquí: `cossos.py` clava el Pb al ρ ÚNIC pactat amb simnet, ± 1e-4, i "
-                             "l'app Geant4 ho repeteix en FATAL): la decisió (2) de v1.28 cau quan la fila `COSSOS-MAT` "
-                             "comiti. «Comprova» i l'execució tornen el missatge de neudet tal com és."}
+                             "parlant de certificar aquesta densitat») **ja és executada** per la fila `COSSOS-MAT` "
+                             "de neudet (mesurat aquí a `main`): ρ és paràmetre, no certificat — neudet, com aquí, "
+                             "només exigeix que sigui un número > 0 (la vella igualtat ρ == ρ del registre per al Pb "
+                             "ha mort amb aquella fila; els bessons en registren l'acord). L'única excepció és "
+                             "`Galactic`: el `buit` de l'app és UN sol material i si la seva ρ no és la de l'app "
+                             "(bloc `BUIT` de `MaterialFactory.cc`), neudet la refusa en paraules i l'app Geant4 en "
+                             "FATAL. «Comprova» i l'execució tornen el missatge de neudet tal com és."}
 
 
 #: on simphy guarda els escenaris com a dada (a l'arrel de simphy, no aquí); els vells són de §24
