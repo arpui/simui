@@ -607,6 +607,41 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "candidats": cands}, header)
 
 
+def _motors(d: Path, ev: Dict[str, Any], avisos: List[str]) -> None:
+    """MOTORS-UI (contracte §26): si neudet ha escrit `etapes/<E>/comparacio_motors.json`, es serveix tal com és
+    (aquí no se'n calcula res) i s'hi afegeix la vista normal de cada `motors/<motor>/` amb `candidats.csv`.
+    Sense el fitxer, l'etapa queda com la vista d'avui (encàrrec MOTORS-UI, punt 3)."""
+    ev["comparacio"] = None
+    ev["motors"] = []
+    base = ev["fitxers"].get("dir")
+    if not base:                                    # etapa declarada que encara no ha corregut
+        return
+    rel = PurePosixPath(base) / "comparacio_motors.json"
+    if not (d / rel).is_file():
+        return
+    try:
+        cm = _json(_dins(d, rel.as_posix(), ev["nom"]))
+    except (ValueError, OSError, CampanyaError) as exc:
+        avisos.append(f"{ev['nom']}: no s'ha pogut llegir comparacio_motors.json: {exc}")
+        return
+    ev["comparacio"] = cm
+    for m in (cm.get("motors") or []):
+        nom = m.get("nom") if isinstance(m, dict) else None
+        if not nom or m.get("aplicable") is False:
+            continue                                # «no aplicable»: el motiu es mostra a la columna de la comparació
+        vdir = PurePosixPath(base) / "motors" / nom
+        csv_rel = (vdir / "candidats.csv").as_posix()
+        if not (d / csv_rel).is_file():
+            avisos.append(f"{ev['nom']}: comparacio_motors.json diu el motor {nom} i {csv_rel} no hi és")
+            continue
+        e2: Dict[str, Any] = {"nom": f"{ev['nom']} · {nom}", "motor": nom, "dir": vdir.as_posix(), "candidats": csv_rel}
+        for clau, arxiu in (("resultats_tub", "resultats_tub.json"), ("meta", "meta.json")):
+            if (d / vdir / arxiu).is_file():
+                e2[clau] = (vdir / arxiu).as_posix()
+        vv, _h = _etapa_vista(d, e2, avisos)
+        ev["motors"].append(vv)
+
+
 def formules_metriques() -> Dict[str, str]:
     """FORM-UI (contracte §15): la fórmula de cada mètrica, tal com la dona neudet (`objectius.taula_objectius`). La UI no en escriu cap.
     Sense neudet, buit (les pàgines continuen funcionant sense les fórmules)."""
@@ -683,6 +718,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
     columnes: List[str] = []
     for e in m["etapes"]:
         ev, header = _etapa_vista(d, e, avisos)
+        _motors(d, ev, avisos)                      # MOTORS-UI (§26): comparació i variants, si neudet les ha escrites
         etapes.append(ev)
         columnes.extend(c for c in header if c not in columnes)
     #: El cens de no declarades (v1.27) es tracta com una etapa —les dades són les mateixes—; el que diu la

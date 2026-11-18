@@ -1663,7 +1663,7 @@ function cAvalHtml(f){
   const opt = (lst, cur) => lst.map(o => ({valor: o.valor})).map(o => `<option value="${escD(o.valor)}" ${o.valor === cur ? 'selected' : ''}>${escD(o.valor)}</option>`).join('');
   const xarxaV = av.xarxa ?? A.xarxa.defecte, modeV = av.mode ?? A.mode.defecte;
   const xa = A.xarxa.valors.find(o => o.valor === xarxaV), mo = A.mode.valors.find(o => o.valor === modeV);
-  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts'];
+  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts', 'motors'];
   const extra = Object.keys(av).filter(k => !known.includes(k));
   return `
   <div class="row">${cLab('xarxa', `<select data-p="avaluacio.xarxa" data-t="str">${opt(A.xarxa.valors, xarxaV)}</select>`)}
@@ -1676,7 +1676,32 @@ function cAvalHtml(f){
   <div class="hint">${escD(A.geom_vect.descripcio)}</div>
   <div class="row">${cLab('motor (neudet no el llegeix; el tria «xarxa»)', cRO(av.motor ?? '—'))}${cLab('gpus (només mode continu)', cRO(av.gpus ?? '—'))}</div>
   <div class="hint">gpus: ${escD(A.gpus.descripcio)} <span class="src">(${escD(cSrc(A.fitxer, A.gpus.linia))})</span></div>
+  ${cMotorsHtml(av.motors, A.motors)}
+  ${cMotAvisos()}
   ${extra.length ? `<div class="panel warn">Claus d'avaluació que el formulari no coneix: ${extra.map(k => `<code>${escD(k)}</code>`).join(', ')}</div>` : ''}`;
+}
+
+// MOTORS-UI (contracte §26): la llista de motors la dona neudet (`schema().avaluacio.motors`); aquí només es marca i
+// s'escriu `avaluacio.motors`. Amb un sol motor marcat (o cap) la clau no s'escriu: el yaml d'avui (compatibilitat).
+function cMotorsHtml(ms, A){
+  if(!A || !Array.isArray(A.valors) || !A.valors.length)
+    return `<div class="panel warn">El formulari no rep la llista de motors de neudet (<code>schema().avaluacio.motors</code>): el selector no s'ofereix.</div>`;
+  const sel = Array.isArray(ms) ? ms : [];
+  return `<div class="row3" style="margin-top:6px">${A.valors.map(o => `<label class="chk"><input type="checkbox" data-motor="${escD(o.valor)}" ${sel.includes(o.valor) ? 'checked' : ''}> ${escD(o.valor)}</label>`).join('')}</div>
+  <div class="hint"><b>Comparar motors:</b> marca'n <b>dos o més</b> i el yaml escriu <code>avaluacio.motors</code>: cada motor corre la seva cerca amb els mateixos candidats i energies, i Geant4 verifica la unió dels finalistes. Amb un sol motor, o cap, el yaml de sempre. <span class="src">(${escD(cSrc(A.fitxer, A.linia))})</span></div>
+  ${sel.length > 1 ? `<div class="hint">Marcats: ${sel.map(escD).join(' · ')} — un cop executada la campanya, la comparació surt a la pàgina de l'etapa.</div>` : ''}`;
+}
+
+// MOTORS-UI (§26): els límits per motor els dona neudet a `comprova.json` (`avisos_en_paraules`). Aquí es mostra
+// l'última comprovació que hi ha (en desar la proposta, o la desada a neudet), en vermell i en paraules; no se'n
+// filtra ni se'n calcula res. L'⛔/⚠ segueix el sufix que el mateix neudet hi escriu (« Atura la campanya.»,
+// neudet scripts/disseny/comprova_campanya.py:149 — el test bessó el fixa).
+function cMotAvisos(){
+  const l = CP.certAv;
+  if(!Array.isArray(l) || !l.length) return '';
+  return `<div class="panel bad"><b>La comprovació de neudet (última <code>comprova.json</code>) diu, en paraules:</b>
+  <ul class="msgs">${l.map(t => `<li>${t.endsWith(' Atura la campanya.') ? '⛔' : '⚠'} ${escD(t)}</li>`).join('')}</ul>
+  <span class="hint">Els límits dels motors (p. ex. PE i energies del nucli «salts») surten aquí. Torna a desar la proposta perquè la comprovació es refaci amb el yaml actual.</span></div>`;
 }
 
 // Verificació (Geant4): tot de lectura. Cap d'aquests camps no el llegeix neudet encara.
@@ -2054,6 +2079,15 @@ function cEdita(el, change){
       if(el.checked) ara.add(k); else ara.delete(k);
       if(ara.size === 0) ara.add(k);                                // cal almenys un tipus permès
       if(ara.size === ks.length) delete q.tipus_permesos; else q.tipus_permesos = ks.filter(x => ara.has(x));
+      cPintaForm(); cYaml();
+    }
+    return;
+  }
+  if(el.dataset.motor !== undefined){                               // MOTORS-UI (§26): ≥2 marcats escriu `avaluacio.motors`; amb un o cap, el yaml d'avui
+    if(change){
+      const ara = [...document.querySelectorAll('[data-motor]')].filter(i => i.checked).map(i => i.dataset.motor);
+      if(ara.length >= 2) cSet(CP.f, 'avaluacio.motors', ara);
+      else if(CP.f.avaluacio) delete CP.f.avaluacio.motors;
       cPintaForm(); cYaml();
     }
     return;
@@ -2459,6 +2493,7 @@ async function cDesa(){
       ${cAvisosDesa(r.certificacio)}
       ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
     CP.desat = r.id; Q('#c-desa').textContent = 'Modifica la proposta';        // a l'acte, sense esperar que es recarregui la llista
+    CP.certAv = (r.certificacio || {}).avisos_en_paraules || null;             // MOTORS-UI: l'última comprovació de neudet, per al bloc d'avaluació
     cEspera(r.id);
     // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
     await nzLlegeixLlista().catch(() => {});
@@ -2466,11 +2501,11 @@ async function cDesa(){
   } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
 }
 // Un formulari carregat (de neudet o d'un tanteig): substitueix el que hi havia.
-function cCarrega(form, nota, congelat){
+function cCarrega(form, nota, congelat, certAv){
   // INV: una campanya del format antic s'obre convertida a recursos (simphy, `a_inventari`); si no es pot, en només lectura
   const cv = form._conversio; delete form._conversio;
   const ro = !!(cv && cv.nomes_lectura);
-  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.mov3d = false; CP.fontMoguda = true; CP.desat = null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
+  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.mov3d = false; CP.fontMoguda = true; CP.desat = null; CP.certAv = Array.isArray(certAv) ? certAv : null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
   cPintaForm(); cYaml();
   const conv = !cv ? '' : ro ? `<div class="panel bad"><b>Només lectura:</b> aquesta campanya és del format antic (un tipus per anell o punt) i no es pot convertir a recursos: ${escD(cv.nomes_lectura)}.</div>`
     : `<div class="panel warn"><b>Convertida des del format antic</b> (un tipus per anell o punt → tubs disponibles i assignació; els mateixos candidats): <ul>${cv.convertida.map(x => `<li>${escD(x)}</li>`).join('')}</ul></div>`;
@@ -2661,7 +2696,7 @@ async function kModifica(){
   const id = KC.id;
   await cInit();
   const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
-  cCarrega(r.form, `Modificant <code>${escD(id)}</code> (estava ${escD(KC.v && KC.v.estat_yaml || '')}). En desar torna a «proposta» (sense confirmació) i el planificador l'ha de reinterpretar.`);
+  cCarrega(r.form, `Modificant <code>${escD(id)}</code> (estava ${escD(KC.v && KC.v.estat_yaml || '')}). En desar torna a «proposta» (sense confirmació) i el planificador l'ha de reinterpretar.`, false, r.avisos_en_paraules);
   NZ.sel = {k: 'form', id};
   nzVeu();
 }
@@ -2704,6 +2739,60 @@ const kSeccioNoDecl = (v, pinta) => {
     'Pareto: per això els seus candidats no surten al dibuix de cap etapa.</div>' + c.map(pinta).join('');
 };
 // NO-DECL-DEF-END
+// ── MOTORS-UI (contracte §26): la comparació l'escriu neudet a `etapes/<E>/comparacio_motors.json`; aquí es llegeix
+// tal com ve i es presenta amb una columna per motor. Un motor «no aplicable» mostra el motiu de neudet, no desapareix.
+// Sense fitxer, la vista d'avui (encàrrec, punt 3): `kComparacio` i `kVariants` no pinten res. ──
+function kComparacio(e){
+  const c = e.comparacio; if(!c) return '';
+  const ms = Array.isArray(c.motors) ? c.motors : [];
+  if(!ms.length) return `<div class="panel warn"><code>comparacio_motors.json</code> no llista cap motor (ho diu neudet).</div>`;
+  const g4 = (c.g4 && typeof c.g4 === 'object') ? c.g4 : {}, per = (g4.per_motor && typeof g4.per_motor === 'object') ? g4.per_motor : {};
+  const f = v => (v === null || v === undefined || v === '') ? '—' : escD(String(v));
+  const fila = (titol, fn) => `<tr><th>${titol}</th>${ms.map(m => m.aplicable === false ? '<td><span class="hint">—</span></td>' : `<td>${fn(m)}</td>`).join('')}</tr>`;
+  const cap = ms.map(m => `<th><b>${f(m.nom)}</b>${m.aplicable === false ? `<div><span class="tag t-no">no aplicable</span></div><div class="hint">${m.motiu ? escD(String(m.motiu)) : 'neudet no en dona el motiu'}</div>` : ''}</th>`).join('');
+  const verdicte = c.coincideix_guanyador === true ? '<div class="panel ok"><b>Els motors coincideixen en el guanyador</b> <span class="hint">(ho diu neudet a <code>comparacio_motors.json</code>)</span></div>'
+    : c.coincideix_guanyador === false ? '<div class="panel bad"><b>Els motors NO coincideixen en el guanyador</b> <span class="hint">(ho diu neudet)</span></div>'
+    : '<div class="hint"><code>comparacio_motors.json</code> no diu si els guanyadors coincideixen (neudet).</div>';
+  const finalists = Array.isArray(g4.finalistes) && g4.finalistes.length
+    ? `<div class="hint">Geant4 verifica la unió dels finalistes: ${g4.finalistes.map(x => escD(String(x))).join(', ')}.</div>` : '';
+  const g4cel = m => { const gm = per[m.nom]; if(!gm || typeof gm !== 'object') return '—';
+    return `error rel. màx. ${f(gm.err_rel_max)} · ${gm.dins_tol ? '<span class="tag t-ok">dins tolerància</span>' : '<span class="tag t-no">fora de tolerància</span>'}` +
+      (gm.taula ? ` · <a href="${escD(kFit(gm.taula))}" target="_blank">taula</a>` : ''); };
+  const norm = m => { const v = (e.motors || []).find(x => x.nom === `${e.nom} · ${m.nom}`);
+    return v ? `<a href="#" data-kvopen="${escD(v.nom)}">vista normal</a>` : '<span class="hint">neudet no n\'ha escrit la carpeta</span>'; };
+  return `${verdicte}<div class="tblw"><table class="tbl"><thead><tr><th></th>${cap}</tr></thead><tbody>
+    ${fila('guanyador', m => `<b>${f(m.guanyador)}</b>`)}
+    ${fila('Pareto', m => Array.isArray(m.pareto) && m.pareto.length ? m.pareto.map(x => escD(String(x))).join(', ') : '—')}
+    ${fila('temps', m => `${f(m.temps_s)} s <span class="hint">(${f(m.n_hist)} històries${m.gpu ? ` · GPU ${escD(String(m.gpu))}` : ''})</span>`)}
+    ${fila('FOM mitjana', m => f(m.fom_mitja))}
+    ${fila('contra Geant4', g4cel)}
+    ${fila('execució del motor', norm)}
+  </tbody></table></div>${finalists}`;
+}
+// Les variants són etapes com les altres (les dades les munta `campanya_vista._motors`), però no són al manifest:
+// les API de criteris i de fórmules demanen el nom d'una etapa declarada, i aquí no les oferim.
+function kVariants(e){
+  const vs = Array.isArray(e.motors) ? e.motors : [];
+  if(!vs.length) return '';
+  return vs.map(v => `<details class="fold" data-kv="${escD(v.nom)}"><summary>vista normal de <code>${escD(v.nom)}</code> <span class="hint">(l'execució d'aquest motor: els fitxers d'una etapa normal a neudet)</span></summary>${kVariantCos(v)}</details>`).join('');
+}
+function kVariantCos(v){
+  const eix = kVaAlPareto(KC.v, false) ? KC.v.pareto.eixos : null;
+  const meta = [`${(v.candidats || []).length} candidats a la taula`,
+    v.energies_MeV ? `${v.energies_MeV.length} energies` : null].filter(Boolean).join(' · ');
+  return `<div class="meta">${escD(meta)} <span class="hint">(<code>${escD((v.fitxers && v.fitxers.dir) || '—')}/</code>)</span></div>
+    ${kPla(v)}${kResposta(v)}
+    <div class="tblw">${kTaula(v)}</div>
+    ${kFormMetr(v)}
+    ${eix ? kPareto(v, eix) : ''}
+    ${v.figures.length ? kGaleria(v.figures) : ''}`;
+}
+document.getElementById('k-out').addEventListener('click', ev => {   // «vista normal» de la columna: obre el plegat d'aquell motor, a la mateixa pàgina
+  const a = ev.target.closest('a[data-kvopen]'); if(!a) return;
+  ev.preventDefault();
+  const d = document.querySelector(`details[data-kv="${CSS.escape(a.dataset.kvopen)}"]`);
+  if(d){ d.open = true; d.scrollIntoView({block: 'start'}); }
+});
 function kEtapa(e, noDecl){
   if(e.executada === false)
     return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kPla(e)}</article>`;
@@ -2722,6 +2811,7 @@ function kEtapa(e, noDecl){
     `<span class="meta">${escD(meta)}</span></header>
     ${apart && e.aturada && e.aturada.text ? `<ul class="msgs"><li>${escD(e.aturada.text)}</li></ul>` : ''}
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
+    ${kComparacio(e)}
     ${kPla(e)}
     ${kResposta(e)}
     ${KC.v.diagnostic && KC.v.diagnostic.actiu ? `<div class="diag-av" data-diag-xifres>⚠ ${escD(diagTxt(KC.v.diagnostic))} — les xifres d'aquesta taula</div>` : ''}
@@ -2730,6 +2820,7 @@ function kEtapa(e, noDecl){
     ${kReavHtml(e)}
     ${eix ? kPareto(e, eix) : (noDecl ? '' : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`)}
     ${e.figures.length ? kGaleria(e.figures) : ''}
+    ${kVariants(e)}
   </article>`;
 }
 // El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
@@ -3334,7 +3425,7 @@ async function nzCampanya(id){
     const r = await api('/api/campanya/carrega?id=' + encodeURIComponent(id));
     cCarrega(r.form, `Proposta de neudet <code>${escD(id)}</code> (estat: proposta). «Desa la proposta» la torna a escriure: només una proposta es pot sobreescriure.` +
       `<div class="hint">Missatge per a Albert (per enviar al planificador):</div><pre class="pre">${escD(`campanya \`${id}\` proposta`)}</pre>` +
-      (r.resum_text ? `<details class="fold"><summary>Què entén neudet que farà (resum de l'última desada)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.resum_text)}</div></details>` : '') + cCostBlocks(r.opcions_cost));
+      (r.resum_text ? `<details class="fold"><summary>Què entén neudet que farà (resum de l'última desada)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.resum_text)}</div></details>` : '') + cCostBlocks(r.opcions_cost), false, r.avisos_en_paraules);
     cEspera(id);                                                  // una proposta que encara no s'ha interpretat: s'espera la resposta de neudet
     NZ.sel = {k: 'form', id};
     return nzVeu();

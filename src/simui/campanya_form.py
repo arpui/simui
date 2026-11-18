@@ -47,6 +47,7 @@ C04_YAML = "disseny/campanyes/c04_draft/campanya.yaml"
 #: amb rutes d'aquest repo.
 _DIS = ("src", "neudet", "disseny")
 _SCRIPTS = ("scripts", "disseny")
+_CONTRACTES = ("docs", "site", "contractes")     # els contractes de neudet (p. ex. `simphy_ui.md`), quan una dada encara no és al codi
 GENERADORS_PY = "generadors.py"
 OBJECTIUS_PY = "objectius.py"
 CERCA_PY = "cerca.py"
@@ -1188,6 +1189,14 @@ def _schema_cerca(cer, ajudes: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             "camps": CERCA_CAMPS}
 
 
+#: MOTORS-UI (contracte §26, v1.23, 2026-11-18): els motors de comparació que declara el contracte de neudet.
+#: neudet encara no llegeix `avaluacio.motors` (SALTS-B pendent): la font és el contracte, no una línia de codi,
+#: fins que neudet ho publiqui (mateixa regla que `ENTRE_FONT_CONTRACTE`).
+MOTORS_CONTRACTE = ("B1", "salts", "openmc_gpu")
+MOTORS_FONT_CONTRACTE = ("contracte `simphy_ui.md` §26 (v1.23, 2026-11-18); neudet encara no llegeix "
+                         "avaluacio.motors: espera el pull de neudet (SALTS-B)")
+
+
 def _schema_avaluacio() -> Dict[str, Any]:
     for nom, linia in XARXES_LINIA.items():
         _linia(AVALUADOR_PY, linia, f'"{nom}"')
@@ -1225,6 +1234,12 @@ def _schema_avaluacio() -> Dict[str, Any]:
         "motor": {"fitxer": CAMPANYA_PY, "descripcio": "neudet no el llegeix: el motor el tria «xarxa»"},
         "gpus": {"fitxer": CAMPANYA_PY, "linia": 137,
                  "descripcio": "GPUs i pesos de repartiment (treballador.py), només en mode continu"},
+        # MOTORS-UI (§26): la llista ve del contracte de neudet (el codi encara no la publica, SALTS-B pendent);
+        # `_troba` en segueix la línia si el contracte es mou, i peta si els noms canvien — com amb les altres.
+        "motors": {"valors": [{"valor": m, "font": MOTORS_FONT_CONTRACTE} for m in MOTORS_CONTRACTE],
+                   "fitxer": "docs/site/contractes/simphy_ui.md", "dir": _CONTRACTES,
+                   "linia": _troba("simphy_ui.md", 856, "openmc_gpu", _CONTRACTES),
+                   "descripcio": "comparar motors: els mateixos candidats, energies i N per a tots; Geant4 verifica la unió dels finalistes"},
     }
 
 
@@ -1976,6 +1991,14 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
             e.append(f"avaluacio.{clau}: un enter ≥ {c['minim']} (campanya.py:{c['linia']})")
     if "geom_vect" in av and not isinstance(av["geom_vect"], bool):
         e.append(f"avaluacio.geom_vect: sí o no (campanya.py:{GEOM_VECT_LINIA})")
+    if "motors" in av:                                             # MOTORS-UI (§26): la llista tancada del contracte
+        ms = av["motors"]
+        if not (isinstance(ms, list) and ms and all(isinstance(x, str) for x in ms)):
+            e.append(f"avaluacio.motors: una llista de noms de motor ({' · '.join(MOTORS_CONTRACTE)}) — {MOTORS_FONT_CONTRACTE}")
+        else:
+            fora = [x for x in ms if x not in MOTORS_CONTRACTE]
+            if fora:
+                e.append(f"avaluacio.motors: {' '.join(fora)} no són a la llista del contracte ({' · '.join(MOTORS_CONTRACTE)}) — {MOTORS_FONT_CONTRACTE}")
     if "ckpts" in av:                                           # DIAG-UI (§18): un ckpt per material, de la llista de neudet
         ck = av["ckpts"]
         if not (isinstance(ck, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in ck.items())):

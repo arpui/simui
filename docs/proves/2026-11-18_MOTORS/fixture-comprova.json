@@ -1,0 +1,1 @@
+{"versio": 1, "avisos_en_paraules": ["motor «salts»: el nucli salts només cobreix PE 0,94 amb E ≤ 5 MeV; la graella de la campanya arriba a 6 MeV. Atura la campanya.", "motor openmc_gpu: aquesta màquina no té GPU per a OpenMC: a la comparació sortirà «no aplicable»."], "fixture": "prova MOTORS-UI; no l'ha escrit `certifica_proposta` de neudet"}

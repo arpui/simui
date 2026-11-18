@@ -44,7 +44,8 @@ PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DEC
 BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
           "const KC = {v: {pareto: {eixos: null}, diagnostic: null}}, buits = () => '';"
           "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
-          " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '';" + PURE +
+          " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '',"
+          " kComparacio = buits, kVariants = buits;" + PURE +
           "function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])
 
 
