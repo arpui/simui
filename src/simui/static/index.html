@@ -1676,7 +1676,8 @@ function cAvalHtml(f){
   <div class="hint">${escD(A.geom_vect.descripcio)}</div>
   <div class="row">${cLab('motor (neudet no el llegeix; el tria «xarxa»)', cRO(av.motor ?? '—'))}${cLab('gpus (només mode continu)', cRO(av.gpus ?? '—'))}</div>
   <div class="hint">gpus: ${escD(A.gpus.descripcio)} <span class="src">(${escD(cSrc(A.fitxer, A.gpus.linia))})</span></div>
-  ${cMotorsHtml(av.motors, A.motors)}
+  <h2 style="margin-top:18px">Motors</h2>
+  ${cMotorsHtml(CP.motorsSel ?? av.motors, A.motors)}
   ${cMotAvisos()}
   ${extra.length ? `<div class="panel warn">Claus d'avaluació que el formulari no coneix: ${extra.map(k => `<code>${escD(k)}</code>`).join(', ')}</div>` : ''}`;
 }
@@ -1699,9 +1700,10 @@ function cMotorsHtml(ms, A){
 function cMotAvisos(){
   const l = CP.certAv;
   if(!Array.isArray(l) || !l.length) return '';
-  return `<div class="panel bad"><b>La comprovació de neudet (última <code>comprova.json</code>) diu, en paraules:</b>
+  const atura = l.some(t => t.endsWith(' Atura la campanya.'));
+  return `<div class="panel ${atura ? 'bad' : 'warn'}"><b>Avisos de l'última comprovació de neudet</b> (<code>comprova.json</code>; són de tota la campanya, no només dels motors):
   <ul class="msgs">${l.map(t => `<li>${t.endsWith(' Atura la campanya.') ? '⛔' : '⚠'} ${escD(t)}</li>`).join('')}</ul>
-  <span class="hint">Els límits dels motors (p. ex. PE i energies del nucli «salts») surten aquí. Torna a desar la proposta perquè la comprovació es refaci amb el yaml actual.</span></div>`;
+  <span class="hint">Els límits per motor (p. ex. PE i energies del nucli «salts») hi surten quan n'hi ha. Es refà en desar la proposta; no reflecteix els canvis encara no desats.</span></div>`;
 }
 
 // Verificació (Geant4): tot de lectura. Cap d'aquests camps no el llegeix neudet encara.
@@ -2088,6 +2090,7 @@ function cEdita(el, change){
   if(el.dataset.motor !== undefined){                               // MOTORS-UI (§26): ≥2 marcats escriu `avaluacio.motors`; amb un o cap, el yaml d'avui
     if(change){
       const ara = [...document.querySelectorAll('[data-motor]')].filter(i => i.checked).map(i => i.dataset.motor);
+      CP.motorsSel = ara;                                           // la selecció en curs (1 motor) sobreviu al repintat
       if(ara.length >= 2) cSet(CP.f, 'avaluacio.motors', ara);
       else if(CP.f.avaluacio) delete CP.f.avaluacio.motors;
       cPintaForm(); cYaml();
@@ -2516,7 +2519,7 @@ function cCarrega(form, nota, congelat, certAv){
   // INV: una campanya del format antic s'obre convertida a recursos (simphy, `a_inventari`); si no es pot, en només lectura
   const cv = form._conversio; delete form._conversio;
   const ro = !!(cv && cv.nomes_lectura);
-  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.mov3d = false; CP.fontMoguda = true; CP.desat = null; CP.certAv = Array.isArray(certAv) ? certAv : null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
+  CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.mov3d = false; CP.fontMoguda = true; CP.desat = null; CP.certAv = Array.isArray(certAv) ? certAv : null; CP.motorsSel = null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
   cPintaForm(); cYaml();
   const conv = !cv ? '' : ro ? `<div class="panel bad"><b>Només lectura:</b> aquesta campanya és del format antic (un tipus per anell o punt) i no es pot convertir a recursos: ${escD(cv.nomes_lectura)}.</div>`
     : `<div class="panel warn"><b>Convertida des del format antic</b> (un tipus per anell o punt → tubs disponibles i assignació; els mateixos candidats): <ul>${cv.convertida.map(x => `<li>${escD(x)}</li>`).join('')}</ul></div>`;

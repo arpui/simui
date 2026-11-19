@@ -215,6 +215,9 @@ def test_formulari_ofereix_el_selector_i_escriu_motors_amb_dos_o_mes():
     assert 'data-motor="' in INDEX                              # checkboxes, una per motor del schema
     assert "cSet(CP.f, 'avaluacio.motors', ara)" in INDEX
     assert "ara.length >= 2" in INDEX                           # un sol motor (o cap): el yaml d'avui
+    assert "CP.motorsSel = ara" in INDEX and "CP.motorsSel ?? av.motors" in INDEX   # 1 motor marcat sobreviu al repintat
+    assert "<h2 style=\"margin-top:18px\">Motors</h2>" in INDEX   # títol blau (h2 = accent)
+    assert "atura ? 'bad' : 'warn'" in INDEX                    # vermell només amb ⛔
     assert "'motors'" in INDEX                                  # a la llista `known` de cAvalHtml
     assert "schema().avaluacio.motors" in INDEX                 # sense la llista de neudet, el selector no s'ofereix
 
