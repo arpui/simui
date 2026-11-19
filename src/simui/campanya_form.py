@@ -71,40 +71,40 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 38, "cv": 39, "rang": 40, "eps_min": 42, "cd_cm2": 43, "eps_gamma": 44,   # METRIQUES
-    "q_rang": 63, "q_monoton": 64, "res_E": 65,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 92, "sE_N": 93, "n_ef": 94,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 133, "err_grups": 134,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 38, "cv": 39, "rang": 40, "planor_f": 45, "eps_min": 47, "cd_cm2": 48, "eps_gamma": 49,   # METRIQUES
+    "q_rang": 77, "q_monoton": 78, "res_E": 79,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 106, "sE_N": 107, "n_ef": 108,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 147, "err_grups": 148,                                              # METRIQUES_GRUP3 (MET3)
 }
 #: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:257-259)
-AUTO_LINIA = 257
+AUTO_LINIA = 272
 #: sentit (objectius.py:425: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 425
+SENTITS_LINIA = 440
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
 #: les mètriques per defecte de l'objectiu (objectius.py:245): les que no són geomètriques ni de SOROLL
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 234, "letargia": 236}
-PESOS_DEFECTE_LINIA = 232
+PESOS_LINIA: Dict[str, int] = {"uniforme": 248, "letargia": 250}
+PESOS_DEFECTE_LINIA = 246
 #: energies: «totes» (objectius.py:226); subconjunt dins de la graella (objectius.py:231)
-ENERGIES_LINIA = 226
-GRAELLA_LINIA = 231
-K_SIGMA_LINIA = 260
-ERR_GRUPS_CAL_LINIA = 176        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+ENERGIES_LINIA = 240
+GRAELLA_LINIA = 245
+K_SIGMA_LINIA = 275
+ERR_GRUPS_CAL_LINIA = 190        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
 #: ε-restricció per defecte (objectius.py:255)
-RESTRICCIO_LINIA = 255
+RESTRICCIO_LINIA = 270
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
-DEFECTE_NOMS_LINIA = 245
+DEFECTE_NOMS_LINIA = 259
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
 #: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
-FINALITATS_LINIA = 506                       # FINALITATS: Dict[str, dict] = {
-TAULA_LINIA = 1270                           # def taula_objectius()
+FINALITATS_LINIA = 525                       # FINALITATS: Dict[str, dict] = {
+TAULA_LINIA = 1292                           # def taula_objectius()
 #: `eps_gamma` hi és perquè neudet la permet a `informatives` (família D «soroll»); NO pot decidir: la UI ho filtra
 #: amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
-    "comptador": ("eps_mitja", "cv", "rang", "eps_min", "cd_cm2", "eps_gamma"),
+    "comptador": ("eps_mitja", "cv", "rang", "planor_f", "eps_min", "cd_cm2", "eps_gamma"),
     "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2",
                       "eps_gamma"),
 }

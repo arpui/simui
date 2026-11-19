@@ -111,7 +111,7 @@ def test_yaml_en_viu_no_escriu_res(url, tmp_path, monkeypatch):
     _, d = _json(url, "/api/campanya/defaults")
     code, r = _json(url, "/api/campanya/yaml", {"form": d})
     assert code == 200 and r["yaml"].startswith("# Esborrany generat per simphy")
-    assert set(r) == {"yaml"}
+    assert set(r) == {"yaml", "pendents_retirats"} and r["pendents_retirats"] == []     # res a avisar: la plantilla no en retira cap
 
 
 def test_comprova_c04_dona_259_valids(url):
