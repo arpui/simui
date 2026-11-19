@@ -67,9 +67,13 @@ de l'Albert quan l'esborrany i les feines de neudet hi siguin (MOTORS-UI ja est�
 - **Dubte 1 (format del PENDENT):** la proposta (absent/null + motiu en un comentari del yaml) els arriba tal com — decisió
   del planificador de neudet a la feina 1.
 - **Higiene:** el coordinador **s'ha pres els dubtes i els ha commatat** (neudet `4a1eef3`; comprobats aquí: sha256
-  `13449483…` idèntic al de la còpia solta), **NO empès** — espera la paraula de l'Albert. La còpia solta que jo havia deixat
-  a l'arbre base del neudet s'ha esborrat. Llió apuntada: els dubtes s'escriuen al meu repo o es passen per missatge,
-  **mai a l'arbre base d'una altra sessió**.
+  `13449483…` idèntic al de la còpia solta), i la còpia solta de l'arbre base del neudet s'ha esborrat (sha256 comprobats
+  abans). **Segon missatge seu (19-11), error SEU:** en empendre la seva feina (`9e69ad3..ccad14d`), el `git push` de `main`
+  **s'ha endut `4a1eef3`** — ell el volia retenir fins a la paraula de l'Albert. Comprobat aquí amb `fetch` (no `pull`):
+  `4a1eef3` és a `origin/main`. Ho ha registrat (COORDINACIO §5 torn 99; neudet `daae3f2`) i té a la seva cua de l'Albert
+  l'ordre per desfer-ho (`git revert --no-edit 4a1eef3`) — decisió de l'Albert, no nostra. El text queda **guardat aquí tal
+  qual**: `dubtes-neudet.md` (mateix sha256), així que revertir o no costa el mateix. Llió apuntada: els dubtes s'escriuen
+  al meu repo o es passen per missatge, **mai a l'arbre base d'una altra sessió**.
 
 Comprobats al meu HEAD de neudet (`3d6d2bd`) tots els `fitxer:línia` que cita: el ⛔ de la font dins del bloc és
 `TEXT_FONT_DINS` a `candidat.py:490` — regla seva (feina 2), no defecte de simui.
