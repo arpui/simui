@@ -2114,9 +2114,47 @@ def _tipus_explicits(form: Dict[str, Any]) -> bool:
     return True
 
 
+def retira_pendents_orfes(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Treu de `pendents` els que senyalen una ruta que ja no és res al yaml, i els torna com a avís.
+
+    Un `pendent` (neudet, `fitxa.violacions_pendents`) senyala un valor que JA HI ÉS i cal confirmar; si la ruta
+    no és res, neudet refusa tota la campanya. Això passa quan el formulari mateix treu el camp: p. ex. en canviar
+    les posicions de `punts` a `anells`, el pendent de `…posicions.punts` queda penjat i ja no es pot desar res.
+    El pendent d'un valor que ja no existeix no té res a confirmar: es retira, però **mai en silenci** (es
+    torna i la pantalla l'ensenya). La ruta es resol amb la funció de neudet (`fitxa._ruta`), no amb una còpia;
+    sense neudet no es toca res (ja se'n queixarà). `domini.tipus_tub` es deixa a neudet: el formulari el
+    treu perquè neudet el deriva."""
+    pend = data.get("pendents") if isinstance(data, dict) else None
+    fx = _fitxa()
+    if not isinstance(pend, list) or fx is None or not hasattr(fx, "_ruta"):
+        return data, []
+    mantinguts, retirats = [], []
+    for x in pend:
+        r = x.get("ruta") if isinstance(x, dict) else None
+        if r and not str(r).startswith("domini.tipus_tub") and fx._ruta(data, r) is None:
+            retirats.append({"ruta": r, "descripcio": x.get("descripcio"),
+                             "motiu": f"`{r}` ja no és al yaml (l'has canviat o tret): no hi ha res a confirmar"})
+        else:
+            mantinguts.append(x)
+    if not retirats:
+        return data, []
+    data = dict(data)
+    if mantinguts:
+        data["pendents"] = mantinguts
+    else:
+        data.pop("pendents", None)
+    return data, retirats
+
+
 def to_yaml(form: Dict[str, Any]) -> str:
     """El `campanya.yaml` d'esborrany (text). Llança `FormError` amb tots els motius si la forma no
-    és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`."""
+    és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`.
+    Els pendents orfes es retiren (vegeu `retira_pendents_orfes`); `to_yaml_i_avisos` diu quins."""
+    return to_yaml_i_avisos(form)[0]
+
+
+def to_yaml_i_avisos(form: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
+    """(el yaml, els pendents retirats). El mateix que `to_yaml`, per a qui ha d'ensenyar l'avís."""
     form = _sense_pas_buit(copy.deepcopy(form))
     if isinstance(form, dict):
         form.pop(CONVERSIO, None)                  # INV: la nota de conversió és del formulari, no del yaml
@@ -2125,5 +2163,6 @@ def to_yaml(form: Dict[str, Any]) -> str:
         raise FormError("formulari no vàlid:\n- " + "\n- ".join(errs))
     if isinstance(form.get("domini"), dict) and _tipus_explicits(form):
         form["domini"].pop("tipus_tub", None)      # derivat per neudet dels tipus (o inventaris) de les tongades (SIMPLIFICA)
-    return CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
-                                 allow_unicode=True, default_flow_style=None, width=110)
+    form, retirats = retira_pendents_orfes(form)
+    return (CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
+                                  allow_unicode=True, default_flow_style=None, width=110), retirats)

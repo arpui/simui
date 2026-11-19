@@ -2008,7 +2008,7 @@ function cYaml(){
     try{
       const r = await api('/api/campanya/yaml', {form: CP.f, desa: false});
       if(seq !== CP.seq) return;
-      Q('#c-yaml').textContent = r.yaml; cErr('');
+      Q('#c-yaml').textContent = r.yaml; cErr(''); Q('#c-err').innerHTML = cPendentsRetirats(r.pendents_retirats);
     } catch(e){ if(seq === CP.seq){ cErr(e.message); } }
   }, 150);
   cCompta(); cObjComprova();
@@ -2459,6 +2459,14 @@ function cEspera(id){
   };
   CP.esp = {id, t: setInterval(mira, 30000)};
 }
+// Pendents que el formulari ha retirat perquè el camp que senyalaven ja no hi és (p. ex. en passar de punts a anells).
+// Mai en silenci: neudet refusaria la campanya si es deixessin, i el que el pendent demanava confirmar ja no existeix.
+function cPendentsRetirats(l){
+  if(!Array.isArray(l) || !l.length) return '';
+  return `<div class="panel warn"><b>S'han retirat ${l.length} pendent${l.length > 1 ? 's' : ''}</b> perquè el camp que senyalaven ja no és a la campanya:<ul class="msgs">` +
+    l.map(x => `<li><code>${escD(x.ruta)}</code>${x.descripcio ? ' — ' + escD(String(x.descripcio).slice(0, 220)) + (String(x.descripcio).length > 220 ? '…' : '') : ''}</li>`).join('') +
+    `</ul><span class="hint">Si el valor nou també és una estimació, afegeix-hi un pendent editant el yaml.</span></div>`;
+}
 function cAvisosDesa(c){
   if(!c) return '';
   const out = [];
@@ -2492,6 +2500,7 @@ async function cDesa(){
       <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
         <li>Ell l'interpreta (escriu el <code>PLA.md</code>) i la campanya passa a <b>interpretada</b>. Llavors la veus a «Campanyes» amb la interpretació i el botó <b>Confirmar i congelar</b>: cap simulació no corre sense la teva confirmació.</li>
         <li>Quan confirmes, l'agent <code>runbook-run</code> corre la xarxa i el Geant4. Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
+      ${cPendentsRetirats(r.pendents_retirats)}
       ${cAvisosDesa(r.certificacio)}
       ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
     CP.desat = r.id; Q('#c-desa').textContent = 'Modifica la proposta';        // a l'acte, sense esperar que es recarregui la llista

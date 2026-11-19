@@ -129,7 +129,7 @@ def desa_proposta(form: Any, root: Optional[Path] = None) -> Dict[str, Any]:
     f = copy.deepcopy(form)
     f["estat"] = ESTAT
     try:
-        text = CF.to_yaml(f)
+        text, retirats = CF.to_yaml_i_avisos(f)
     except CF.FormError as exc:
         raise DesaError(f"no es desa: {exc}") from None
     try:
@@ -152,7 +152,8 @@ def desa_proposta(form: Any, root: Optional[Path] = None) -> Dict[str, Any]:
         raise
     return {"id": id_, "estat": ESTAT, "sobreescrita": existia,
             "escrit": [str(d / nom) for nom in FITXERS], "missatge": MISSATGE.format(id=id_),
-            "atura": bool(cert.get("atura")), "draft": cert.get("draft"), "certificacio": cert}
+            "atura": bool(cert.get("atura")), "draft": cert.get("draft"), "certificacio": cert,
+            "pendents_retirats": retirats}
 
 
 # ── confirmació (CONF-UI; contracte UI §13) ─────────────────────────────────

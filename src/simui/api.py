@@ -334,7 +334,8 @@ def campanya_yaml(body: Dict[str, Any]) -> Dict[str, Any]:
     """El yaml del formulari, en viu i per a «Descarrega»: no escriu res. Desar és `campanya_desa` (a neudet)."""
     if body.get("desa"):
         raise ValueError("desar una proposta és POST /api/campanya/desa (es desa a neudet, amb la certificació)")
-    return {"yaml": CF.to_yaml(body.get("form"))}
+    text, retirats = CF.to_yaml_i_avisos(body.get("form"))
+    return {"yaml": text, "pendents_retirats": retirats}
 
 
 def campanya_desa(body: Dict[str, Any]) -> Dict[str, Any]:

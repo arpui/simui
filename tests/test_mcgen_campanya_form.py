@@ -611,3 +611,48 @@ def test_punts_v_acceptats_i_arriben_al_yaml(q):
                                       ({"z": {"de": 0, "a": 4, "pas": 0}}, "punts.1.z.pas"), ({"x": "gran"}, "punts.1.x")])
 def test_punts_v_invalids_diuen_el_camp(q, camp):
     assert any(camp in e for e in CF._errors(_form_punts(**q)))
+
+
+# ── pendents orfes (Albert, 2026-11-19: «no es desa: … pendents[1] … posicions.punts no és res») ──
+# Passar les posicions de `punts` a `anells` treu `punts` del formulari, i el `pendents` del yaml que el
+# senyalava queda penjat: neudet refusa la campanya sencera i ja no es pot desar res. Es retira, a la vista.
+
+def _yaml_amb_pendents():
+    arrel = DES.neudet_root()
+    f = arrel / "disseny" / "campanyes" / "mb10b_ref" / "campanya.yaml"
+    if not f.exists():
+        pytest.skip("neudet no té mb10b_ref")
+    return yaml.safe_load(f.read_text())
+
+
+def test_en_passar_de_punts_a_anells_el_pendent_de_punts_es_retira_i_neudet_ho_accepta():
+    d = _yaml_amb_pendents()
+    fx = CF._fitxa()
+    if fx is None or not hasattr(fx, "violacions_pendents"):
+        pytest.skip("neudet sense fitxa.violacions_pendents")
+    assert fx.violacions_pendents(d) == []                         # la plantilla (neudet) ho satisfà
+    g = copy.deepcopy(d)
+    pos = g["etapes"]["S1"]["tongades"][0]["posicions"]
+    pos.pop("punts")
+    pos["font"], pos["anells"] = "anells", [{"r": 7, "n": 2}]
+    assert any("posicions.punts" in v for v in fx.violacions_pendents(g))   # el cas de l'Albert
+    g2, retirats = CF.retira_pendents_orfes(g)
+    assert [r["ruta"] for r in retirats] == ["etapes.S1.tongades.0.posicions.punts"]
+    assert retirats[0]["descripcio"] and "ja no és al yaml" in retirats[0]["motiu"]
+    assert fx.violacions_pendents(g2) == []                                  # neudet ja ho accepta
+    assert [p["ruta"] for p in g2["pendents"]] == [p["ruta"] for p in d["pendents"]
+                                                    if p["ruta"] != retirats[0]["ruta"]]
+
+
+def test_sense_canvis_no_es_retira_cap_pendent():
+    d = _yaml_amb_pendents()
+    d2, retirats = CF.retira_pendents_orfes(d)
+    assert retirats == [] and d2 is d
+
+
+def test_si_es_treuen_tots_els_pendents_la_clau_desapareix():
+    d = {"a": 1, "pendents": [{"ruta": "b.c", "descripcio": "x"}]}
+    if CF._fitxa() is None:
+        pytest.skip("neudet sense fitxa")
+    d2, retirats = CF.retira_pendents_orfes(d)
+    assert "pendents" not in d2 and len(retirats) == 1 and d["pendents"]    # i l'original no es toca
