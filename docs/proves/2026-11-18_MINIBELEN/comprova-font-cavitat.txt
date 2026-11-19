@@ -1,0 +1,9 @@
+# MINIBELEN §4.3 — comprovació de neudet sobre la fixta mb10b_ref (2026-11-19)
+# Com: POST /api/campanya/comprova {yaml_text: fixta-mb10b_ref.yaml, etapa: S1}
+#     (servidor amb NEUDET_ROOT=la còpia de fixtures; la fitxa és faithful §5/§6: font puntual [0,0,0] dins del forat d'Air)
+# Resposta:
+HTTP 400
+{"error": "⛔ mb10b_ref: font dins del bloc: el bloc envolta la font; el cas d'ús és font a fora (posa-la a fora del bloc, amb domini.entre: buit)"}
+# Lectura: avui neudet REFUSA la font en cavitat amb «⛔ font dins del bloc» (regla «font a fora del bloc»).
+# El cas 10B porta la font al centre del forat (paper [3],[8]); és la feina 2 de l'encàrrec MINIBELEN (neudet):
+# acceptar-la com a «font en cavitat buida: el bloc l'envolta». No s'ha reinterpreta res: la fitxa queda tal com manen els §5/§6.

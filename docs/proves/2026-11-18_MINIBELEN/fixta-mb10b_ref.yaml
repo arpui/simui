@@ -1,0 +1,73 @@
+# FIXTA DE PROVA de simui (MINIBELEN, 2026-11-19) — NO és l'esborrany de neudet.
+# Reproduïx fidelment la fitxa ~/projects/neudet/disseny/casos/minibelen/README.md amb els §5 i §6 manen:
+# caixa 50×50×70 PE 0,95 (mida transversal = estimació de la Fig. 6, §5), forat 7×7 sobre els 70 cm
+# (expressat com a cos `Air` perquè `forat_cm` és un cercle: fitxa §3), 10 × lnd_252285 a les posicions
+# mesurades de §6 (ESTIMACIÓ), Cd 0,667 arc 360° només a l'anell 1 (recurs A), energies del paper ≤ 5 MeV (§3).
+# Serveix per provar que el formulari obre l'esborrany, es completa per blocs i no s'inventa res.
+id: mb10b_ref
+fitxa: 1
+draft: true
+estat: proposta
+creada: 2026-11-18
+
+domini:
+  bloc: {material: PE, mides_cm: [50, 50, 70], forat_cm: 0, densitat_gcm3: 0.95}
+  # forat de 7 × 7 cm² al llarg dels 70 cm (paper [4], Fig. 2 i 6): buit quadrat, NO un cilindre
+  cossos:
+    - {nom: forat, material: Air, forma: caixa, mides_cm: [7, 7, 70], densitat_gcm3: 0.0012, pos_cm: [0, 0, 0]}
+  font: {tipus: iso, pos_cm: [0, 0, 0]}                # puntual isòtropa al centre, dins del forat ([3], [8])
+  energies_MeV: [0.0001, 0.001, 0.01, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]   # la llista del paper [3] §3.2, aturada a 5 MeV (§3: límit dels salts)
+  restriccions: {n_tubs: 10, marge_bloc_cm: 1.0, sep_min_cm: 0.1, r_min_font_cm: 0.5, linia_feix: null}
+
+avaluacio:
+  motor: xarxa
+  xarxa: B1
+  mode: continu
+  det_canal: np
+  n_cribratge: 200000
+  n_final: 2000000
+  lot: 500000
+  geom_vect: true
+  gpus: [[0, 1.56], [1, 1]]
+
+objectius:
+  finalitat: comptador
+  objectius: [[eps_mitja, max], [rang, min]]           # ε_av i planor F = max/min del paper (eq. 1–2); que `rang` decideixi és el punt 4 de l'encàrrec (neudet)
+  informatives: auto
+  restriccions: []
+  pesos: uniforme                                       # §3 de la fitxa: uniforme sobre la llista del paper reprodueix ε_av
+  energies_MeV: totes
+  pareto_k_sigma: 2
+
+verificacio: {quants: 3, n_per_energia: 1000000, porta: 'per tub i energia: |xarxa/G4 − 1| ≤ max(3 %, 2σ)', hits: all}
+
+etapes:
+  S1:
+    que: referència 10B (sense reflectors, Cd només a l'anell 1) — posicions ESTIMADES de la Fig. 6 (mig), §6 de la fitxa
+    tongades:
+      - nom: referencia_10b
+        eix: z
+        seleccio: exhaustiu
+        lligam: global
+        max_candidats: 0
+        posicions:
+          font: punts
+          punts:
+            # anell 1 (r 7,0) — Cd fraction 0,667 arc 360° (recurs A)
+            - {x: 0.0, y: 7.0, z: 0.0, tipus_permesos: [A]}
+            - {x: 0.0, y: -7.0, z: 0.0, tipus_permesos: [A]}
+            # exterior diagonals (±15,9 · ±12,7; r 20,3) — sense Cd (recurs B)
+            - {x: 15.9, y: 12.7, z: 0.0, tipus_permesos: [B]}
+            - {x: -15.9, y: 12.7, z: 0.0, tipus_permesos: [B]}
+            - {x: 15.9, y: -12.7, z: 0.0, tipus_permesos: [B]}
+            - {x: -15.9, y: -12.7, z: 0.0, tipus_permesos: [B]}
+            # exterior eixos (0, ±21,1) · (±20,5, 0) — sense Cd (recurs C); §6 declara la diferència 20,5/21,1
+            - {x: 0.0, y: 21.1, z: 0.0, tipus_permesos: [C]}
+            - {x: 0.0, y: -21.1, z: 0.0, tipus_permesos: [C]}
+            - {x: 20.5, y: 0.0, z: 0.0, tipus_permesos: [C]}
+            - {x: -20.5, y: 0.0, z: 0.0, tipus_permesos: [C]}
+        inventari:
+          - {nom: A, tipus: lnd_252285, quantitat: 2, cd: {fraction: 0.667, arc: 360}}
+          - {nom: B, tipus: lnd_252285, quantitat: 4, cd: {fraction: 0}}
+          - {nom: C, tipus: lnd_252285, quantitat: 4, cd: {fraction: 0}}
+    cerca: {tipus: halving, n_inicial: 200000, n_final: 2000000, fraccio: 0.1, min_finalistes: 1}

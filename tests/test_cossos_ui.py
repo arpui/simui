@@ -412,6 +412,29 @@ def test_el_js_del_bloc_i_els_cossos_dona_el_mateix_que_el_python():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
+def test_un_bloc_sense_mides_queda_declarat_no_inventat_i_no_cassa():
+    """MINIBELEN (2026-11-19): amb `mides_cm` absent, null o un text «PENDENT…» (el marcat de l'esborrany),
+    `cBlocExt` ha de marcar `sense` (la UI avisa «el dibuix és orientatiu, no és la teva geometria»), no pot
+    passar el text com si fos una mida (§22: aquestes mides no tenen valor per defecte) i no pot cassar als
+    consumidors que fan `m.map` (peu del dibuix i escena)."""
+    src = INDEX.split("// COSSOS-DEF-BEGIN")[1].split("\n", 1)[1].split("// COSSOS-DEF-END")[0]
+    casos = [{"bloc": {}},
+             {"bloc": {"mides_cm": None}},
+             {"bloc": {"mides_cm": "PENDENT: mida de la Fig. 6 (a confirmar)"}},
+             {"bloc": {"mides_cm": [0, 50, 70]}},                 # escrita però no positiva: també és «sense»
+             {"bloc": {"mides_cm": [50, 50, 70]}}]
+    js = (src + "\nconst out = " + json.dumps(casos) +
+          ".map(d => { const e = cBlocExt(d); return [e.sense, e.m, e.m.map(x => Number(x) > 0)]; });\n"
+          "console.log(JSON.stringify(out));")
+    r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
+    surt = json.loads(r.stdout)                                   # sense, m, i que `m` sigui una llista de 3 (abans cassava amb el text)
+    assert [s for s, _, _ in surt] == [True, True, True, True, False]
+    assert all(len(v) == 3 for _, _, v in surt)
+    assert [m for _, m, _ in surt][0:3] == [[30, 30, 80]] * 3      # el reemplac del dibuix, sempre avisat (sense=true)
+    assert [m for _, m, _ in surt][3:] == [[0, 50, 70], [50, 50, 70]]   # el que hi ha escrit es mostra tal com és
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per executar les funcions pures de la UI")
 def test_la_fila_nova_de_la_taula_no_porta_cap_valor():
     assert 'data-act="cos+"' in INDEX and "push({})" in INDEX
     assert "// §25: la fila nova és buida, cap valor per defecte" in INDEX

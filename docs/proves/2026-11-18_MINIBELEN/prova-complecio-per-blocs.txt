@@ -1,0 +1,10 @@
+# MINIBELEN punt 1 — l'esborrany amb el bloc PENDENT s'obre i es completa per blocs (2026-11-19)
+# de_fitxer (càrrec tal qual, sense omplir res) → [Albert tecleja les 3 mides, com cSet a l'index.html] → to_yaml
+
+— mb10b_pend_falta: carregat tal qual, mides_cm = '<absent>'
+  sense completar, to_yaml refusA en paraules → - domini.bloc.mides_cm: tres mides positives en cm, p. ex. [30, 30, 80]
+  completat [50, 50, 70] → to_yaml OK: mides_cm: [50, 50, 70]
+
+— mb10b_pend_text: carregat tal qual, mides_cm = 'PENDENT: mida de la Fig. 6 (a confirmar)'
+  sense completar, to_yaml refusA en paraules → - domini.bloc.mides_cm: tres mides positives en cm, p. ex. [30, 30, 80]
+  completat [50, 50, 70] → to_yaml OK: mides_cm: [50, 50, 70]

@@ -1202,8 +1202,8 @@ function cBlocExt(d){
     const r = Number(b.radi_cm) || 0, a = Number(b.alzada_cm) || 0;
     return {forma: 'cilindre', radi: r, alzada: a, m: [2 * r || 30, 2 * r || 30, a || 80], sense: !(r > 0 && a > 0)};
   }
-  const m = b.mides_cm || [30, 30, 80];
-  return {forma: 'cub', radi: 0, alzada: 0, m, sense: !(Array.isArray(m) && m.length === 3 && m.every(x => Number(x) > 0))};
+  const m = Array.isArray(b.mides_cm) ? b.mides_cm : [30, 30, 80];
+  return {forma: 'cub', radi: 0, alzada: 0, m, sense: !(Array.isArray(b.mides_cm) && b.mides_cm.length === 3 && b.mides_cm.every(x => Number(x) > 0))};
 }
 // El color és del material (§6 D: «contorns amb el material al costat»); és una tria de dibuix, no una dada.
 const COL_MATERIAL = {Pb: '#6e6e6e', PE: '#3f7fbf', aire: '#9aa7b0', buit: '#c9cfd6', SST: '#8a6db1', SSTaisi316: '#6d8fb1',
@@ -1916,7 +1916,7 @@ function cFormHtml(){
   ${d.bloc.forma === 'cilindre'
     ? `<div class="row3">${cLab('radi (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.radi_cm', d.bloc.radi_cm, {min: 0, ph: 'radi_cm'}))}
        ${cLab('alzada (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.alzada_cm', d.bloc.alzada_cm, {min: 0, ph: 'alzada_cm'}))}<span></span></div>`
-    : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, (d.bloc.mides_cm || [null, null, null])[i], {min: 0}))).join('')}</div>`}
+    : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, (Array.isArray(d.bloc.mides_cm) ? d.bloc.mides_cm : [null, null, null])[i], {min: 0}))).join('')}</div>`}
   ${cLab('forat central (cm; 0 = sense; no canvia amb la forma, §22)', cNumIn('domini.bloc.forat_cm', d.bloc.forat_cm, {min: 0}))}
   ${d.bloc.forma === 'cilindre' ? `<div class="panel${S.bloc.neudet && S.bloc.neudet.validat ? '' : ' warn'}" data-bloc-neudet><b>${escD(S.bloc.avis_neudet)}</b> — ${escD(S.bloc.nota)}</div>` : ''}
   ${cCossosHtml(d)}
@@ -1989,12 +1989,14 @@ function cErr(msg){
     const m = linia.match(/^-\s*([\w.\[\]]+):\s*(.*)$/);
     if(!m) continue;
     const camp = m[1].replace(/\[(\d+)\]/g, '.$1');
-    const els = [...document.querySelectorAll('#pg-neudet [data-p]')].filter(el => el.dataset.p === camp);
-    for(const el of els){
+    // un error de llista (`domini.bloc.mides_cm`) és dels camps `…mides_cm.0/1/2`: el grup sencer es marca
+    const els = [...document.querySelectorAll('#pg-neudet [data-p]')].filter(el => el.dataset.p === camp || el.dataset.p.startsWith(camp + '.'));
+    els.forEach((el, i) => {
       el.classList.add('bad');
+      if(i) return;                                                 // en un grup de camps, el motiu es diu una sola vegada
       const d = document.createElement('div'); d.className = 'err camperr'; d.textContent = m[2];
       (el.closest('label') || el).after(d);
-    }
+    });
   }
 }
 
