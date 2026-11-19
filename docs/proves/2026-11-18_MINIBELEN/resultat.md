@@ -54,6 +54,26 @@ de l'Albert quan l'esborrany i les feines de neudet hi siguin (MOTORS-UI ja est�
 - La **representació del forat quadrat** (cos `Air` vs concepte nou) és dubte 2 del mateix fitxer; la fixta l'expressa com a cos
   perquè és l'única via honesta d'avui (el formulari l'accepta i `to_yaml` hi round-tripa).
 
+## Respostes del coordinador (2026-11-19, missatge de sessió) — comprobades aquí
+
+- **Dubte 2 (forat 7 × 7):** confirmat, i és pitjor del que jo deia: `forat_cm` **és un radi** (surt com a `hole_radius_cm`
+  a `candidat.py:359`, es dibuixa `plt.Circle((0, 0), bloc.forat_cm)` a `campanya.py:882`) i **a la xarxa el forat és
+  `buit`, no aire** (`motor.py:44` `FONS_BUIT = 3`; docstring de `material()` :457: «3=buit (forat, anell d'aire…)»). Per tant
+  el meu cos `Air` és només representació al formulari: **la xarxa no transporta els cossos §25** i, tal com va, es veuria PE
+  on hi ha el forat. La representació serà la que decideixi la feina 1 entre les tres sortides de la fitxa §3 (cos / cercle
+  r 3,95 amb la diferència declarada / forat quadrat nou amb codi); la fixta seguirà la decisió sense tocar res més.
+- **Dubte 5:** el coordinador coincideix amb mi — es conserven les posicions mesurades **r 20,5 (x) / 21,1 (y)** amb la
+  diferència escrita a l'apartat (unificar a 21 seria inventar una simetria que el paper no dona). Fixta sense canvis.
+- **Dubte 1 (format del PENDENT):** la proposta (absent/null + motiu en un comentari del yaml) els arriba tal com — decisió
+  del planificador de neudet a la feina 1.
+- **Higiene:** el coordinador **s'ha pres els dubtes i els ha commatat** (neudet `4a1eef3`; comprobats aquí: sha256
+  `13449483…` idèntic al de la còpia solta), **NO empès** — espera la paraula de l'Albert. La còpia solta que jo havia deixat
+  a l'arbre base del neudet s'ha esborrat. Llió apuntada: els dubtes s'escriuen al meu repo o es passen per missatge,
+  **mai a l'arbre base d'una altra sessió**.
+
+Comprobats al meu HEAD de neudet (`3d6d2bd`) tots els `fitxer:línia` que cita: el ⛔ de la font dins del bloc és
+`TEXT_FONT_DINS` a `candidat.py:490` — regla seva (feina 2), no defecte de simui.
+
 ## Com reproduir
 
 Els `.png` són de Chrome headless via CDP (script `/tmp/minibelen_proves/captures.mjs`, no versionat: les captures són
