@@ -213,6 +213,19 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 .nlc.diag{background:#fbeeea;color:var(--bad);border:1px dashed var(--bad)}
 .diag-av{border:2px solid var(--bad);background:#fbeeea;color:var(--bad);border-radius:6px;padding:6px 10px;margin:8px 0;font-weight:600}
 .diag-tag{display:inline-block;border:1px solid var(--bad);color:var(--bad);background:#fbeeea;border-radius:4px;padding:0 6px;font-size:.8em;font-weight:600;margin-left:6px;white-space:nowrap}
+/* FITXERS-UI (encàrrec 2026-11-19): enllaços «veure» i visor de fitxers de només lectura */
+.fxl{display:flex;flex-wrap:wrap;gap:2px 10px;margin:-2px 0 8px;padding:0 2px}
+.fxl a,a.fx{color:var(--accent);cursor:pointer;font-size:11px;text-decoration:underline dotted}
+.fxrow{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:3px 0;font-size:13px}
+.fxrow .hint{margin-top:0}
+#fx{position:fixed;inset:0;background:#0006;z-index:60;display:flex;align-items:center;justify-content:center}
+#fx[hidden]{display:none}
+.fxbox{background:#fff;width:min(1100px,94vw);max-height:92vh;display:flex;flex-direction:column;border-radius:6px;box-shadow:0 8px 30px #0005}
+.fxhead{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.fxhead .fspai{flex:1}
+.fxhead .fxcam{flex:1 1 100%;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.fxbody{overflow:auto;padding:12px 16px}
+.fxbody pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;margin:0}
 </style></head><body>
 
 <header class="top">
@@ -2696,6 +2709,7 @@ function kPinta(){
     out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
     out.push('<h2>Report</h2>' + kReport(v));
   }
+  out.push(kFitxers(v));   // FITXERS-UI: els fitxers que es poden veure, només els que hi són
   document.getElementById('k-out').innerHTML = out.join('');
 }
 // Formulari congelat (contracte UI §11b): la definició d'una campanya ja no editable, amb el mateix formulari i el que neudet
@@ -3336,6 +3350,28 @@ function kReport(v){
   const botons = v.report.map(r => `<a class="btn" href="${kFit(r)}" target="_blank" rel="noopener">${r.endsWith('.pdf') ? 'obre el PDF' : r.endsWith('.md') ? 'obre el .md' : escD(r)}</a>`).join('');
   return `<div>${botons}</div><div class="hint">${escD(v.report.join(' · '))}</div>`;
 }
+// ── FITXERS-UI (encàrrec 2026-11-19): què es pot «veure». La llista la fa `llista()`/`vista()` (només els que
+// hi són, amb camí i data); aquí només es pinta i s'enllaça al visor `fxObre`, que és a l'últim script.
+// El tros pur (marcadors FITXERS-DEF-BEGIN/END) es corre amb node al bessó `tests/test_fitxers_ui.py`.
+// FITXERS-DEF-BEGIN
+const kFitxers = v => {
+  const e = KC.lista.find(c => c.id === v.id) || {};
+  const motiu = e.motiu_altres ? `<div class="hint">Aquesta campanya surt a «altres»: ${escD(e.motiu_altres)}.</div>` : '';
+  const fils = (v.fitxers_veure || []).map(x =>
+    `<div class="fxrow"><a class="fx" data-fx-rel="${escD(x.rel)}" data-fx-nom="${escD(x.nom)}">veure ${escD(x.nom)}</a>` +
+    `<span class="hint">${escD(x['camí'])} · modificat ${escD(x.mtime)}</span></div>`).join('');
+  return '<h2>Fitxers</h2>' + motiu + (fils || '<div class="hint">`fitxers_veure` no ha tornat res.</div>');
+};
+// Al llistat, on només es coneix la carpeta: el que `llista()` diu que hi és (el yaml, que és el que la llista;
+// PLA.md i comprova.json a `fitxers`; el manifest a `manifest`). Sense obrir la campanya i sense endevinar.
+const fxLlista = c => {
+  const f = c.fitxers || {};
+  const fs = [['yaml', 'campanya.yaml'], f.pla && ['PLA.md', 'PLA.md'], f.comprova && ['comprova', 'comprova.json'],
+              c.manifest && ['ui.json', 'campanya_ui.json']].filter(Boolean);
+  return `<div class="fxl">${fs.map(([t, rel]) =>
+    `<a data-fx-id="${escD(c.id)}" data-fx-rel="${escD(rel)}" title="llegeix ${escD(rel)}, de només lectura">${t}</a>`).join('')}</div>`;
+};
+// FITXERS-DEF-END
 // Markdown mínim per al judici: títols, llistes, negreta i codi. El text ja és escapat abans.
 // `base` (opcional): la carpeta de la campanya on viu el text; les figures `![x](a/b.png)` es resolen contra ella.
 function kMd(t, base){
@@ -3378,6 +3414,8 @@ function kMd(t, base){
 }
 // Un candidat (fila de la taula o punt del Pareto) obre el seu full de disseny, al nivell 2 de Neudet.
 document.getElementById('k-out').addEventListener('click', e => {
+  const fx = e.target.closest('a.fx[data-fx-rel]');
+  if(fx){ fxObre(KC.id, fx.dataset.fxRel, fx.dataset.fxNom); return; }   // FITXERS-UI: visor de només lectura
   const th = e.target.closest('th[data-st]');
   if(th){
     const st = th.dataset.st, c = th.dataset.c, o = KC.ordre[st] || {k: 'pareto_rang', asc: true};
@@ -3449,7 +3487,8 @@ async function nzInicia(sub){
 async function nzLlegeixLlista(){
   KC.lista = (await api('/api/campanyes')).campanyes;
   const oberta = !!(Q('#n-altres') && Q('#n-altres').open);
-  const item = c => `<button class="cl" data-id="${escD(c.id)}"><span>${escD(c.id)}</span>${kTagYaml(c.estat_yaml)}</button>`;
+  const item = c => `<button class="cl" data-id="${escD(c.id)}"><span>${escD(c.id)}</span>${kTagYaml(c.estat_yaml)}</button>` +
+    fxLlista(c);   // FITXERS-UI: «veure» dels fitxers que hi són, sense obrir la campanya
   const princ = KC.lista.filter(c => c.grup === 'principal'), altres = KC.lista.filter(c => c.grup !== 'principal');
   const selAltres = altres.some(c => c.id === (NZ.sel && NZ.sel.id));
   Q('#n-camps').innerHTML = (princ.map(item).join('') || '<div class="hint">Cap campanya amb manifest ni proposta.</div>') +
@@ -3577,6 +3616,8 @@ async function nzTorna(){
   return nzCampanya(v.id);
 }
 Q('#n-llista').addEventListener('click', e => {
+  const fx = e.target.closest('a[data-fx-rel]');
+  if(fx){ fxObre(fx.dataset.fxId, fx.dataset.fxRel); return; }   // FITXERS-UI: el visor ja posa el rel com a títol
   const b = e.target.closest('button[data-id],button[data-k]');
   if(!b) return;
   if(b.dataset.k === 'nova') return nzNova().catch(err => cErr(err.message));
@@ -3993,5 +4034,67 @@ Q('#r-go').onclick = () => rVista().catch(e => rErr(e.message));
 QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 const [n0, sub0] = (location.hash || '#sim').slice(1).split('/');
 showTab(n0, sub0);
+</script>
+
+<div id="fx" hidden role="dialog" aria-modal="true" aria-label="visor de fitxers de la campanya">
+  <div class="fxbox">
+    <div class="fxhead">
+      <code id="fx-nom"></code><span class="hint" id="fx-mtime"></span>
+      <span class="fspai"></span>
+      <button class="ghost" id="fx-cru" hidden>cru</button>
+      <button class="ghost" id="fx-form" hidden title="el mateix campanya.yaml al formulari; aquí no s'escriu res">obre al formulari</button>
+      <button class="ghost" id="fx-tanca">tanca</button>
+      <div class="fxcam" id="fx-cami"></div>
+    </div>
+    <div class="fxbody" id="fx-body"></div>
+  </div>
+</div>
+<script>
+// ── FITXERS-UI (encàrrec 2026-11-19): visor de fitxers de només lectura ────────────────────
+// Llegeix el mateix punt que les figures i els reports, `/api/campanya/fitxer`: la llista blanca és del
+// servidor (dins de `disseny/campanyes/<id>/`, res de `..` ni d'absoluts ⇒ 403). No esgrimeix res:
+// no hi ha cap botó de desar. El camí absolut i la data van amb la resposta (`X-Cam-i`, `X-Mtime`).
+const FX = {id: null, rel: null, text: '', cru: false};
+async function fxObre(id, rel, nom){
+  FX.id = id; FX.rel = rel; FX.cru = false;
+  Q('#fx').hidden = false;
+  Q('#fx-nom').textContent = nom || rel;
+  Q('#fx-cami').textContent = ''; Q('#fx-mtime').textContent = '';
+  Q('#fx-body').innerHTML = '<div class="hint">llegint…</div>';
+  const r = await fetch('/api/campanya/fitxer?id=' + kEnc(id) + '&rel=' + kEnc(rel)).catch(() => null);
+  if(!r){ Q('#fx-body').innerHTML = '<div class="panel bad">no s\'ha pogut llegir: error de xarxa</div>'; return; }
+  if(!r.ok){
+    let m = 'HTTP ' + r.status;
+    try{ m = (await r.json()).error || m; } catch(e){}
+    Q('#fx-body').innerHTML = `<div class="panel bad">${escD(m)}</div>`;   // l'error del servidor, tal com és
+    return;
+  }
+  FX.text = await r.text();
+  Q('#fx-cami').textContent = decodeURIComponent(r.headers.get('X-Cam-i') || '');
+  Q('#fx-mtime').textContent = r.headers.get('X-Mtime') ? ' · modificat ' + r.headers.get('X-Mtime') : '';
+  fxPinta();
+}
+function fxPinta(){
+  const md = /\.md$/i.test(FX.rel);
+  const cru = Q('#fx-cru'); cru.hidden = !md;
+  if(md) cru.textContent = FX.cru ? 'renderit' : 'cru';   // el botó diu què obtindràs en prémer-lo
+  Q('#fx-form').hidden = FX.rel !== 'campanya.yaml';
+  // les figures del .md, si el visor és obert des de la mateixa campanya de la pàgina (si no, el text cru,
+  // que muntar la figura contra una altra campanya seria inventar-se una imatge)
+  const dir = FX.rel.slice(0, FX.rel.lastIndexOf('/'));
+  Q('#fx-body').innerHTML = md && !FX.cru
+    ? `<div>${kMd(FX.text, FX.id === KC.id && dir ? dir : null)}</div>`
+    : `<pre>${escD(FX.text)}</pre>`;
+}
+function fxTanca(){ FX.id = null; Q('#fx').hidden = true; }
+Q('#fx-cru').onclick = () => { FX.cru = !FX.cru; fxPinta(); };
+Q('#fx-tanca').onclick = fxTanca;
+Q('#fx').addEventListener('click', e => { if(e.target === Q('#fx')) fxTanca(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !Q('#fx').hidden) fxTanca(); });
+Q('#fx-form').onclick = () => {          // «obre al formulari», només per a `campanya.yaml`
+  const id = FX.id; fxTanca();
+  if(id === KC.id && NZ.sel && NZ.sel.k === 'camp') return kModifica().catch(err => kErr(err.message));
+  nzCampanya(id).catch(err => kErr(err.message));   // proposta: el formulari; si no, la vista (que ja té «Modifica»)
+};
 </script>
 </body></html>

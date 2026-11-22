@@ -59,6 +59,7 @@ Errors
 from __future__ import annotations
 
 import csv
+import datetime as DT
 import json
 import math
 import re
@@ -143,10 +144,15 @@ def llista() -> List[Dict[str, Any]]:
         estat_yaml = None if e_yaml is None else str(e_yaml)
         te_manifest = (d / MANIFEST).is_file()
         proposta = estat_yaml == ESTAT_PROPOSTA
+        grup = GRUP_PRINCIPAL if (te_manifest or proposta or y.get("fitxa") == 1) else GRUP_ALTRES
         out.append({"id": d.name, "estat_yaml": estat_yaml, "estat_manifest": estat_manifest,
                     "manifest": te_manifest, "provisional": not te_manifest, "proposta": proposta,
-                    "grup": GRUP_PRINCIPAL if (te_manifest or proposta or y.get("fitxa") == 1) else GRUP_ALTRES,
-                    "motiu": motiu})
+                    "grup": grup, "motiu": motiu,
+                    # FITXERS-UI (encàrrec 2026-11-19): el motiu pel qual surt a «altres», escrit per la pàgina
+                    # (són els criteris d'aquí dalt, no un criteri nou); i quins fitxers arrel hi ha, per als enllaços.
+                    "motiu_altres": None if grup == GRUP_PRINCIPAL else motiu or (
+                        "no hi ha `campanya_ui.json`, l'`estat` del yaml no és `proposta` i no porta `fitxa: 1`"),
+                    "fitxers": {"pla": (d / "PLA.md").is_file(), "comprova": (d / "comprova.json").is_file()}})
     return out
 
 
@@ -515,6 +521,34 @@ def _certificacio(d: Path, rel: Optional[str]) -> Dict[str, Any]:
             "a_punt": doc.get("a_punt")}
 
 
+def mtime_iso(f: Path) -> str:
+    """La data de modificació com la veu la gent. Un sol formatador: `_fitxers_veure` i les capçaleres
+    `X-Mtime` del servidor (que el visor també fa servir pels enllaços del llistat) l'han de coincidir."""
+    return DT.datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _fitxers_veure(d: Path, etapes: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """FITXERS-UI (encàrrec 2026-11-19): què es pot «veure» d'una campanya — només el que hi és, cadascun amb
+    el camí absolut i la data de modificació, perquè el visor no n'hagi d'endevinar res. Els camins dels
+    documents (`resposta`/`meta` de cada etapa) ja han passat pel filtre `..` del manifest; aquí es torna a
+    filtrar, per si un manifest ho incompleix: un rel brut o amb `..` simplement no surt."""
+    files = [("campanya.yaml", "campanya.yaml"), ("PLA.md", "PLA.md"),
+             ("comprova.json", "comprova.json"), ("campanya_ui.json", MANIFEST)]
+    for e in etapes:
+        for rel, nom in (((e.get("resposta") or {}).get("md"), f"{e.get('nom')} · resposta.md"),
+                         ((e.get("fitxers") or {}).get("meta"), f"{e.get('nom')} · meta.json")):
+            if isinstance(rel, str) and rel:
+                files.append((nom, rel))
+    out: List[Dict[str, Any]] = []
+    for nom, rel in files:
+        p = PurePosixPath(rel)
+        f = d / p.as_posix()
+        if p.is_absolute() or ".." in p.parts or not f.is_file():
+            continue
+        out.append({"rel": p.as_posix(), "nom": nom, "camí": str(f), "mtime": mtime_iso(f)})
+    return out
+
+
 def _eixos(y: Dict[str, Any], columnes: Sequence[str]) -> Tuple[Optional[List[Dict[str, str]]], Optional[str]]:
     """Els dos eixos de Pareto de `objectius.pareto` (`[[metrica, max|min], …]`), o el motiu que no n'hi ha."""
     par = (y.get("objectius") or {}).get("pareto")
@@ -741,6 +775,8 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "estat_yaml": None if y.get("estat") is None else str(y.get("estat")),
         "definicio": m["definicio"],
         "certificacio": _certificacio(d, m["certificacio"]),
+        # FITXERS-UI (encàrrec 2026-11-19): els fitxers que es poden «veure», només els que hi són.
+        "fitxers_veure": _fitxers_veure(d, etapes + no_decl),
         "pareto": {"eixos": eixos, "motiu": motiu_p},
         "metriques": metriques,
         "formules_metriques": formules_metriques(),                  # FORM-UI: la fórmula de cada mètrica, de neudet

@@ -14,7 +14,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from . import api
 from .api import ask, llm_status, meta, render_all
@@ -121,7 +121,11 @@ class Handler(BaseHTTPRequestHandler):
         if not f.is_file():
             self._json({"error": f"no hi ha {f.name} a la campanya"}, 404)
             return
-        extra = {"X-Content-Type-Options": "nosniff"}
+        # FITXERS-UI (encàrrec 2026-11-19): el visor posa el camí absolut i la data a dalt; per un enllaç del
+        # llistat no hi ha cap `_fitxers_veure` on mirar-los, així que van amb la resposta. El camí, escapats
+        # per si un nom té caràcters que una capçalera HTTP no accepta (el visor el torna a llegir sencer).
+        extra = {"X-Content-Type-Options": "nosniff",
+                 "X-Cam-i": quote(str(f)), "X-Mtime": CV.mtime_iso(f)}
         if f.suffix.lower() == ".svg":
             extra["Content-Security-Policy"] = "sandbox"       # un SVG servit no executa res
         self._send(200, f.read_bytes(), CV.tipus_de(f), extra)
