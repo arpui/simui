@@ -216,6 +216,46 @@ def test_desa_sobreescriu_la_proposta_propia(neudet_tmp, cert_ok):
     assert y["estat"] == "proposta" and "tipus_tub" not in y["domini"]   # SIMPLIFICA: neudet el deriva dels tipus de les tongades
 
 
+# ── desa com a campanya nova (FORM-COPIA-UI, 2026-11-19) ─────────────────────
+
+def test_desa_com_a_nova_deriva_sense_tocar_l_original(neudet_tmp, cert_ok):
+    """Bessó (encàrrec punt 2): des d'una proposta oberta, desar amb id **nou**: l'original queda **byte a byte
+    igual** (i sense res afegit al seu costat), i el yaml nou porta `deriva_de: <id original>` i el seu id."""
+    _real_c04()
+    orig = _camp(neudet_tmp, "c04_draft", "id: c04_draft\nestat: proposta\ntipus_x: 1\n")
+    abans = (orig / "campanya.yaml").read_bytes()
+    r = CD.desa_com_a_nova(_form_c04("c04_draft"), "mb1_nova", "c04_draft")
+    assert (orig / "campanya.yaml").read_bytes() == abans, "l'original no es toca mai"
+    assert sorted(x.name for x in orig.iterdir()) == ["campanya.yaml"]
+    d = neudet_tmp / "disseny" / "campanyes" / "mb1_nova"
+    y = yaml.safe_load((d / "campanya.yaml").read_text(encoding="utf-8"))
+    assert y["id"] == "mb1_nova" and y["deriva_de"] == "c04_draft" and y["estat"] == "proposta"
+    assert r["id"] == "mb1_nova" and r["sobreescrita"] is False
+
+
+def test_desa_com_a_nova_id_existent_es_refusa_sense_escriure(neudet_tmp, cert_ok):
+    """L'id triat ja és a `disseny/campanyes/`: ho diu i no escriu res — ni al nou ni a l'ocupant."""
+    _real_c04()
+    _camp(neudet_tmp, "c04_draft", "id: c04_draft\nestat: proposta\n")
+    _camp(neudet_tmp, "mb1_nova", "id: mb1_nova\nestat: jutjada\n")
+    abans = _arbre(neudet_tmp)
+    with pytest.raises(CD.DesaError, match="ja existeix"):
+        CD.desa_com_a_nova(_form_c04("c04_draft"), "mb1_nova", "c04_draft")
+    assert _arbre(neudet_tmp) == abans
+    assert cert_ok == [], "ni tan sols es certifica si es refusa"
+
+
+def test_desa_com_a_nova_exigeix_id_diferent_i_original_real(neudet_tmp, cert_ok):
+    """El mateix id que l'original és «Modifica la proposta», no una campanya nova; i l'original ha d'existir."""
+    _real_c04()
+    _camp(neudet_tmp, "c04_draft", "id: c04_draft\nestat: proposta\n")
+    with pytest.raises(CD.DesaError, match="diferent"):
+        CD.desa_com_a_nova(_form_c04("c04_draft"), "c04_draft", "c04_draft")
+    with pytest.raises(CD.DesaError, match="no sé de què deriva"):
+        CD.desa_com_a_nova(_form_c04("c04_draft"), "mb1_nova", "no_hi_ha")
+    assert not (neudet_tmp / "disseny" / "campanyes" / "mb1_nova").exists()
+
+
 @pytest.mark.parametrize("bo", ["../c05", "c05/../../x", "C05_prova", "c", "x y", "."])
 def test_desa_refusa_ids_dolents_i_no_escriu_res(neudet_tmp, cert_ok, bo):
     _real_c04()
@@ -333,17 +373,30 @@ def test_llista_separa_estat_del_yaml_i_del_manifest(neudet_tmp):
     assert files["c08_trencat"]["motiu"] and files["c08_trencat"]["grup"] == "altres"
 
 
-def test_vista_de_proposta_sense_manifest_no_falla(neudet_tmp):
-    _camp(neudet_tmp, "c05_prova", "id: c05_prova\nestat: proposta\ndraft: true\n")
+@pytest.fixture
+def neudet_tmp_v127(neudet_tmp):
+    """El root temporal amb el que demana la vista provisional des de v1.27 (ca310ee): el criteri
+    `scripts/disseny/manifest_campanya.py` es llegeix de NEUDET_ROOT per ruta, així que el copiem del neudet
+    real (la regla no se'n copia mai aquí). Sense aquest neudet, els tests que el necessiten es salten."""
+    f = _REAL_NEUDET / "scripts" / "disseny" / "manifest_campanya.py" if _REAL_NEUDET is not None else None
+    if f is None or not f.is_file():
+        pytest.skip(f"aquest neudet encara no té el criteri v1.27: no hi ha {f}")
+    (neudet_tmp / "scripts" / "disseny").mkdir(parents=True)
+    shutil.copy(f, neudet_tmp / "scripts" / "disseny")
+    return neudet_tmp
+
+
+def test_vista_de_proposta_sense_manifest_no_falla(neudet_tmp_v127):
+    _camp(neudet_tmp_v127, "c05_prova", "id: c05_prova\nestat: proposta\ndraft: true\n")
     v = CV.vista(CV.dir_de("c05_prova"))
     assert v["estat_yaml"] == "proposta" and v["provisional"] is True and v["etapes"] == []
 
 
-def test_vista_de_proposta_amb_pareto_pero_sense_etapes_no_falla(neudet_tmp):
+def test_vista_de_proposta_amb_pareto_pero_sense_etapes_no_falla(neudet_tmp_v127):
     """Una proposta amb `objectius.pareto` (com la de c04) però sense etapes: no hi ha candidats.csv on
     comprovar les mètriques. La vista ho diu al motiu, no falla."""
     real = _real_c04()
-    _camp(neudet_tmp, "c05_prova", real.read_text(encoding="utf-8").replace("id: c04_draft", "id: c05_prova")
+    _camp(neudet_tmp_v127, "c05_prova", real.read_text(encoding="utf-8").replace("id: c04_draft", "id: c05_prova")
           .replace("estat: jutjada", "estat: proposta"))
     v = CV.vista(CV.dir_de("c05_prova"))
     assert v["etapes"] == [] and v["estat_yaml"] == "proposta"

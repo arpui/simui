@@ -97,19 +97,16 @@ ERR_GRUPS_CAL_LINIA = 190        # «err_grups: cal objectius.grups_MeV» (és l
 RESTRICCIO_LINIA = 270
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
 DEFECTE_NOMS_LINIA = 259
-#: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) i les llistes tancades que en llegeix el formulari.
-#: `schema()` comprova que la taula de neudet diu exactament això; `to_yaml` les fa servir sense neudet.
+#: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) és la font de la llista de
+#: mètriques per finalitat, dels àlies i dels operadors: NO se'n copia res aquí (FORM-COPIA-UI, 2026-11-19 — la
+#: còpia `FINALITAT_METRIQUES` va quedar sense `planor_f` i tombava el formulari de `mb10b_ref`). La validació
+#: (`_errors_objectius_nou`) i `schema()` la llegeixen en directe; una mètrica nova a neudet s'accepta sense tocar simui.
+#: `schema()` només comprova el que no pot canviar sols: que cada mètrica que la taula declara existeixi a la llista
+#: de neudet, i que les línies citades siguin les reals.
 FINALITATS_LINIA = 525                       # FINALITATS: Dict[str, dict] = {
 TAULA_LINIA = 1292                           # def taula_objectius()
-#: `eps_gamma` hi és perquè neudet la permet a `informatives` (família D «soroll»); NO pot decidir: la UI ho filtra
-#: amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
-FINALITAT_METRIQUES: Dict[str, Tuple[str, ...]] = {
-    "comptador": ("eps_mitja", "cv", "rang", "planor_f", "eps_min", "cd_cm2", "eps_gamma"),
-    "espectrometre": ("eps_mitja", "res_E", "err_grups", "q_rang", "q_monoton", "n_ef", "N_obj", "sE_N", "cv", "cd_cm2",
-                      "eps_gamma"),
-}
-ALIES_OBJ = {"res_E_k": "res_E"}
-OPERADORS = (">=", "<=", ">", "<")
+#: `eps_gamma` surt permesa perquè neudet la porta a `informatives` (família D «soroll»); NO pot decidir: la UI ho
+#: filtra amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 PESOS_NOUS = ("letargia", "uniforme")         # i {espectre: <fitxer>}
 CLAUS_NOVES = ("finalitat", "objectius", "informatives", "preferencia", "restriccions")
 CLAUS_VELLES = ("metriques", "pareto", "restriccio", "c_cv")
@@ -1091,6 +1088,12 @@ def _mods_neudet():
     return objectius, cerca
 
 
+def _taula_objectius() -> Dict[str, Any]:
+    """La taula d'objectius de neudet, llegida en directe (contracte §14): mètriques per finalitat, àlies i
+    operadors. FORM-COPIA-UI: és l'única font — simui no en guarda cap còpia."""
+    return _mods_neudet()[0].taula_objectius()
+
+
 def _schema_objectius(obj) -> Dict[str, Any]:
     met = _metriques_neudet(obj)
     _comprova_llista("metriques", met, METRIQUES_LINIA)
@@ -1113,10 +1116,17 @@ def _schema_objectius(obj) -> Dict[str, Any]:
     _linia(OBJECTIUS_PY, FINALITATS_LINIA, "FINALITATS: Dict[str, dict] = {")
     _linia(OBJECTIUS_PY, TAULA_LINIA, "def taula_objectius()")
     taula = obj.taula_objectius()                          # OBJ: la font única (contracte §14)
-    nous = {k: tuple(v["metriques"]) for k, v in taula["finalitats"].items()}
-    if nous != FINALITAT_METRIQUES or taula["alies"] != ALIES_OBJ or tuple(taula["operadors"]) != OPERADORS:
-        raise DES.DesignError(f"neudet ha canviat la taula d'objectius ({OBJECTIUS_PY}, taula_objectius): té {nous}, "
-                              f"{taula['alies']}, {taula['operadors']}; cal revisar FINALITAT_METRIQUES a campanya_form.py")
+    # FORM-COPIA-UI: la taula mana — una mètrica nova s'accepta sense tocar simui. Només es comprova el que
+    # no pot ser nou sols: que tot el que la taula declara és una mètrica de neudet (si no, neudet se'n contradiu).
+    for fin, v in taula["finalitats"].items():
+        for m in v["metriques"]:
+            if m not in met:
+                raise DES.DesignError(f"la taula d'objectius de neudet ({OBJECTIUS_PY}, taula_objectius) declara "
+                                      f"«{m}» a la finalitat {fin} i no és a la seva llista de mètriques")
+    for a, b in taula["alies"].items():
+        if b not in met:
+            raise DES.DesignError(f"l'àlies «{a}» de la taula de neudet ({OBJECTIUS_PY}, taula_objectius) apunta a "
+                                  f"«{b}», que no és una mètrica de neudet")
     d = obj.Objectiu({}, [1.0])                             # els defaults, llegits de neudet (no copiats)
     metriques = []
     for nom, linia in METRIQUES_LINIA.items():
@@ -1882,24 +1892,28 @@ def _errors_objectius(f: Dict[str, Any]) -> List[str]:
     return e
 
 
-def _nom_obj(x: Any) -> Any:
-    return ALIES_OBJ.get(x, x) if isinstance(x, str) else x
+def _nom_obj(x: Any, alies: Dict[str, str]) -> Any:
+    return alies.get(x, x) if isinstance(x, str) else x
 
 
 def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
     """OBJ (contracte §14): la FORMA del bloc del cicle nou (finalitat → objectius → informatives → preferència →
-    restriccions → pesos), amb les llistes de la taula de neudet (FINALITAT_METRIQUES). Què vol dir i si es pot calcular
-    (un sol canal, grups sense energia…) ho diu neudet (`comprova.json.objectius.avisos`)."""
+    restriccions → pesos), amb les llistes llegides de la taula de neudet (`_taula_objectius()`, sense còpia:
+    FORM-COPIA-UI). Què vol dir i si es pot calcular (un sol canal, grups sense energia…) ho diu neudet
+    (`comprova.json.objectius.avisos`)."""
     e: List[str] = []
+    taula = _taula_objectius()
+    finalitats = {k: tuple(v["metriques"]) for k, v in taula["finalitats"].items()}
+    alies, operadors = taula["alies"], tuple(taula["operadors"])
     fin = ob.get("finalitat")
-    if fin not in FINALITAT_METRIQUES:
-        return [f"objectius.finalitat: cal {' o '.join(FINALITAT_METRIQUES)} (objectius.py:{FINALITATS_LINIA})"]
-    perm = FINALITAT_METRIQUES[fin]
+    if fin not in finalitats:
+        return [f"objectius.finalitat: cal {' o '.join(finalitats)} (objectius.py:{FINALITATS_LINIA})"]
+    perm = finalitats[fin]
     vells = [k for k in CLAUS_VELLES if k in ob]
     if vells:
         e.append(f"objectius: amb finalitat, {', '.join(vells)} ja no es fan servir (els que decideixen són "
                  f"`objectius`, les que s'informen `informatives` i la tria `preferencia`)")
-    of = lambda x, on: (None if _nom_obj(x) in perm else
+    of = lambda x, on: (None if _nom_obj(x, alies) in perm else
                         f"objectius.{on}: «{x}» no és de la finalitat {fin} (n'hi ha: {', '.join(perm)})")
     objs = ob.get("objectius")
     if objs is not None:
@@ -1919,9 +1933,9 @@ def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
                     e.append(of(nom, f"objectius.{i}"))
                 if sentit is not None and sentit not in SENTITS:
                     e.append(f"objectius.objectius.{i}: el sentit ha de ser max o min")
-                if _nom_obj(nom) in vist:
+                if _nom_obj(nom, alies) in vist:
                     e.append(f"objectius.objectius.{i}: «{nom}» hi és dues vegades")
-                vist.append(_nom_obj(nom))
+                vist.append(_nom_obj(nom, alies))
     inf = ob.get("informatives", "auto")
     if inf != "auto":
         if not isinstance(inf, list):
@@ -1946,12 +1960,12 @@ def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
         else:
             for i, r in enumerate(rs):
                 if not (isinstance(r, list) and len(r) == 3):
-                    e.append(f"objectius.restriccions.{i}: cal [mètrica, {' | '.join(OPERADORS)}, valor]")
+                    e.append(f"objectius.restriccions.{i}: cal [mètrica, {' | '.join(operadors)}, valor]")
                     continue
                 if of(r[0], f"restriccions.{i}.0"):
                     e.append(of(r[0], f"restriccions.{i}.0"))
-                if r[1] not in OPERADORS:
-                    e.append(f"objectius.restriccions.{i}.1: l'operador és {' | '.join(OPERADORS)}")
+                if r[1] not in operadors:
+                    e.append(f"objectius.restriccions.{i}.1: l'operador és {' | '.join(operadors)}")
                 if not _num(r[2]):
                     e.append(f"objectius.restriccions.{i}.2: el valor ha de ser un número")
     pw = ob.get("pesos", "letargia")

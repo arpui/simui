@@ -125,6 +125,12 @@ svg.bloc.mou, svg.blocl.mou{cursor:crosshair;outline:2px solid #c00000}
 #c-form .row3{grid-template-columns:repeat(3,minmax(0,15em))}
 #c-form .anell-h input{max-width:30em}
 @media (max-width:760px){#c-form .row,#c-form .row3{grid-template-columns:1fr}#c-form input,#c-form select{max-width:100%}}
+/* Estil del formulari (Albert, 2026-11-19): cada apartat comença amb una línia i un toc de color suau; els
+   subapartats i els camps van sangrats a la dreta, per veure a simple vista què és títol i què és d'aquell títol */
+#c-form > h2{margin:30px 0 10px;padding:6px 10px;border-top:1px solid #cfdce2;background:#eef3f5}
+#c-form > h3{margin:18px 0 6px 18px;padding-left:9px;border-left:3px solid var(--accent);font-size:13.5px}
+#c-form > :not(h2):not(.sticky-bloc){margin-left:18px}
+#c-form .row,#c-form .row3{max-width:calc(100% - 18px)}
 .sticky-bloc{background:var(--bg);border-bottom:1px solid var(--line);padding:4px 0 6px;margin-bottom:8px}
 /* enganxat a dalt només si la finestra és prou gran; i com a molt el 45 % de l'alçada (amb scroll propi): amb les vistes apilades el bloc feia ~1450 px i tapava el formulari */
 @media (min-width:1000px) and (min-height:760px){.sticky-bloc{position:sticky;top:0;z-index:5;max-height:45vh;overflow:auto}}
@@ -327,8 +333,11 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
       </details>
       <div class="bar">
         <button id="c-desa">Desa la proposta</button>
+        <button class="ghost" id="c-desa-nova" hidden title="escriu aquest formulari amb un id nou i deriva_de: l'oberta no es toca mai">Desa com a campanya nova…</button>
         <button class="ghost" id="c-baixa">Descarrega .yaml</button>
       </div>
+      <div class="bar" id="c-nova" hidden>«Desa com a campanya nova»: <b>un id nou</b> (l'original <code id="c-nova-de"></code> no es toca; el yaml nou portarà <code>deriva_de</code>)
+        <input id="c-nova-id" size="24" placeholder="id nou, p. ex. c05_prova"> <button id="c-nova-ok">Desa-la</button> <button class="ghost" id="c-nova-x">Cancel·la</button></div>
       <div id="c-err"></div>
       <div id="c-espera"></div>
       <div id="c-desat"></div>
@@ -1979,6 +1988,9 @@ function cCongela(){
   const hi = (KC.lista || []).some(x => x.id === (CP.f && CP.f.id)) || (CP.f && CP.desat === CP.f.id);
   Q('#c-desa').textContent = hi ? 'Modifica la proposta' : 'Desa la proposta';   // contracte §13: cada desada refà la certificació i torna l'estat a «proposta»
   Q('#c-flux').hidden = c; Q('#c-desa').parentNode.hidden = c;
+  // FORM-COPIA-UI (2026-11-19): «desa com a nova» només té sentit sobre una campanya que ja és a neudet (d'ella deriva)
+  Q('#c-desa-nova').hidden = c || !hi;
+  if(c) Q('#c-nova').hidden = true;
   if(c) Q('#c-form').querySelectorAll('input,select,textarea,button').forEach(n => { n.disabled = n.dataset.etapa === undefined && !n.closest('#c-bloc-wrap'); });   // triar l'etapa és mirar, no editar
 }
 // Cada error del formulari comença pel camp (el data-p de l'entrada): es marca i el missatge surt a sota.
@@ -2493,26 +2505,55 @@ function cAvisosDesa(c){
 async function cDesa(){
   Q('#c-desat').innerHTML = '<div class="hint">neudet certifica la proposta…</div>';
   try{
-    const r = await api('/api/campanya/desa', {form: CP.f});
-    const marca = r.atura ? '<span class="tag t-no">neudet diu: cal aturar</span>' : '<span class="tag t-ok">certificada</span>';
-    const id = escD(r.id);
-    Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada: <code>${id}</code></b> ${marca}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
-      ${r.certificacio && r.certificacio.resum_text ? `<details class="fold" open><summary>Què entén neudet que farà (resum)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.certificacio.resum_text)}</div></details>` : ''}
-      <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
-      <p><b>Ara et toca a tu</b> (la UI s'atura aquí i no ha corregut cap simulació):</p>
-      <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
-        <li>Ell l'interpreta (escriu el <code>PLA.md</code>) i la campanya passa a <b>interpretada</b>. Llavors la veus a «Campanyes» amb la interpretació i el botó <b>Confirmar i congelar</b>: cap simulació no corre sense la teva confirmació.</li>
-        <li>Quan confirmes, l'agent <code>runbook-run</code> corre la xarxa i el Geant4. Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
-      ${cPendentsRetirats(r.pendents_retirats)}
-      ${cAvisosDesa(r.certificacio)}
-      ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
-    CP.desat = r.id; Q('#c-desa').textContent = 'Modifica la proposta';        // a l'acte, sense esperar que es recarregui la llista
-    CP.certAv = (r.certificacio || {}).avisos_en_paraules || null;             // MOTORS-UI: l'última comprovació de neudet, per al bloc d'avaluació
-    cEspera(r.id);
-    // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
-    await nzLlegeixLlista().catch(() => {});
-    NZ.dis = null; NZ.sel = {k: 'form', id: CP.f.id}; nzVeu();
+    await cPintaDesa(await api('/api/campanya/desa', {form: CP.f}));
   } catch(e){ Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
+}
+// El panell comú de les dues desades (FORM-COPIA-UI, 2026-11-19): la certificació de neudet i què toca després.
+// Amb `deriva` (desada com a nova) el panell diu d'on ve i que l'original no s'ha tocat.
+async function cPintaDesa(r, deriva){
+  const marca = r.atura ? '<span class="tag t-no">neudet diu: cal aturar</span>' : '<span class="tag t-ok">certificada</span>';
+  const id = escD(r.id);
+  Q('#c-desat').innerHTML = `<div class="panel ok"><b>Proposta desada: <code>${id}</code></b> ${marca}${deriva ? ` · deriva de <code>${escD(deriva)}</code> (l'original no s'ha tocat)` : ''}${r.sobreescrita ? ' · sobreescriu la proposta anterior d\'aquest id' : ''}
+    ${r.certificacio && r.certificacio.resum_text ? `<details class="fold" open><summary>Què entén neudet que farà (resum)</summary><div class="panel pre" style="white-space:pre-wrap">${escD(r.certificacio.resum_text)}</div></details>` : ''}
+    <div class="hint">Escrit a neudet:</div><pre class="pre">${r.escrit.map(escD).join('\n')}</pre>
+    <p><b>Ara et toca a tu</b> (la UI s'atura aquí i no ha corregut cap simulació):</p>
+    <ol class="flux"><li>Digues al <b>planificador de neudet</b>: <code>${escD(r.missatge)}</code></li>
+      <li>Ell l'interpreta (escriu el <code>PLA.md</code>) i la campanya passa a <b>interpretada</b>. Llavors la veus a «Campanyes» amb la interpretació i el botó <b>Confirmar i congelar</b>: cap simulació no corre sense la teva confirmació.</li>
+      <li>Quan confirmes, l'agent <code>runbook-run</code> corre la xarxa i el Geant4. Quan acabi, digues al planificador «<code>${id}</code> executada». Ell fa el judici, i llavors la campanya surt amb resultats a «Campanyes».</li></ol>
+    ${cPendentsRetirats(r.pendents_retirats)}
+    ${cAvisosDesa(r.certificacio)}
+    ${r.atura ? '<p class="warn"><b>neudet diu «cal aturar»</b>: revisa la certificació abans d\'enviar-la al planificador.</p>' : ''}</div>`;
+  CP.desat = r.id; Q('#c-desa').textContent = 'Modifica la proposta';        // a l'acte, sense esperar que es recarregui la llista
+  CP.certAv = (r.certificacio || {}).avisos_en_paraules || null;             // MOTORS-UI: l'última comprovació de neudet, per al bloc d'avaluació
+  cEspera(r.id);
+  // la proposta és ara a la llista: es torna a pintar, i és la seleccionada
+  await nzLlegeixLlista().catch(() => {});
+  NZ.dis = null; NZ.sel = {k: 'form', id: CP.f.id}; nzVeu();
+}
+// «Desa com a campanya nova» (FORM-COPIA-UI, encàrrec 2026-11-19): el formulari obert s'escriu amb un id nou —
+// editable — i `deriva_de`; l'original no es toca mai, i un id que ja existeix es refusa sense escriure res (campanya_desa.py).
+async function cDesaNova(){
+  const de = CP.f.id;
+  Q('#c-nova-de').textContent = de;
+  Q('#c-nova-id').value = '';
+  Q('#c-nova-id').placeholder = 'id nou, p. ex. c05_prova';
+  Q('#c-nova').hidden = false; Q('#c-nova-id').focus();
+  try{                                                                        // la mateixa derivació que «Tanteja», la demanem a neudet: aquí no n'inventem cap
+    const r = await api('/api/campanya/tanteig', {de});                       // no escriu res: només diu quin id derivat és lliure
+    if(!Q('#c-nova-id').value && CP.f.id === de) Q('#c-nova-id').value = r.id;
+  }catch(e){ /* neudet no respon: id buit, que l'escrigui l'Albert */ }
+}
+async function cDesaNovaOk(){
+  const de = CP.f.id, id = Q('#c-nova-id').value.trim();
+  if(!id){ Q('#c-nova-id').placeholder = 'cal un id nou (és el nom de la carpeta)'; Q('#c-nova-id').focus(); return; }
+  Q('#c-nova').hidden = true;
+  Q('#c-desat').innerHTML = '<div class="hint">neudet certifica la proposta…</div>';
+  try{
+    const r = await api('/api/campanya/desa_nova', {form: CP.f, id: id, de: de});
+    CP.f.id = r.id;                                                           // el formulari és d'ara endavant de la nova: «Modifica la proposta» modificarà aquesta
+    cPintaForm(); cYaml();
+    await cPintaDesa(r, de);
+  } catch(e){ Q('#c-nova').hidden = false; Q('#c-desat').innerHTML = `<div class="panel bad"><b>No es desa:</b><pre class="pre">${escD(e.message)}</pre></div>`; }
 }
 // Un formulari carregat (de neudet o d'un tanteig): substitueix el que hi havia.
 function cCarrega(form, nota, congelat, certAv){
@@ -2593,6 +2634,9 @@ Q('#c-form').addEventListener('pointerdown', e => {
   e.preventDefault();
 });
 Q('#c-desa').onclick = cDesa;
+Q('#c-desa-nova').onclick = cDesaNova;
+Q('#c-nova-ok').onclick = cDesaNovaOk;
+Q('#c-nova-x').onclick = () => { Q('#c-nova').hidden = true; };
 Q('#c-baixa').onclick = cBaixa;
 });
 </script>

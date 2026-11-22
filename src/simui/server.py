@@ -161,6 +161,8 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_objectius, body)
         elif path == "/api/campanya/desa":
             self._tracta(api.campanya_desa, body)
+        elif path == "/api/campanya/desa_nova":
+            self._tracta(api.campanya_desa_nova, body)
         elif path == "/api/campanya/confirma":
             self._tracta(api.campanya_confirma, body)
         elif path == "/api/campanya/tanteig":

@@ -86,7 +86,12 @@ def test_schema_porta_la_taula_de_neudet():
     s = CF.schema()["objectius"]["cicle_nou"]
     t = taula_objectius()
     assert {k: v for k, v in s.items() if k not in ("fitxer", "linia")} == t
-    assert {k: tuple(v["metriques"]) for k, v in t["finalitats"].items()} == CF.FINALITAT_METRIQUES
+    # FORM-COPIA-UI (2026-11-19): simui no copia la llista — el que compta és que la taula de neudet sigui coherent:
+    # tot el que declara cada finalitat ha d'existir a la seva llista de mètriques (com ho comprova `schema()`).
+    from neudet.disseny import objectius as O
+    noms = set(O.METRIQUES) | set(O.METRIQUES_GRUP) | set(O.METRIQUES_GRUP2) | set(O.METRIQUES_GRUP3)
+    for fin, v in t["finalitats"].items():
+        assert set(v["metriques"]) <= noms, fin
     assert s["fitxer"] == CF.OBJECTIUS_PY and "def taula_objectius()" in CF._linia(CF.OBJECTIUS_PY, s["linia"], "def taula_objectius()")
 
 

@@ -156,6 +156,27 @@ def desa_proposta(form: Any, root: Optional[Path] = None) -> Dict[str, Any]:
             "pendents_retirats": retirats}
 
 
+def desa_com_a_nova(form: Any, id_nou: Any, de: Any, root: Optional[Path] = None) -> Dict[str, Any]:
+    """«Desa com a campanya nova» (FORM-COPIA-UI, 2026-11-19): el formulari obert de `de` es desa amb un id
+    **nou** i `deriva_de: <de>` al `campanya.yaml`. L'original no es toca mai: només s'escriu la carpeta
+    `<id_nou>/`. Si `id_nou` ja existeix, ho diu i no escriu res — a diferència de `desa_proposta`, que amb el
+    mateix id modifica la proposta oberta."""
+    valida_id(id_nou)
+    valida_id(de)
+    if id_nou == de:
+        raise DesaError("l'id nou ha de ser diferent de l'original: per modificar la proposta oberta ja hi ha "
+                        "«Modifica la proposta» (mateix id)")
+    base = _arrel(root)
+    if not _dir_de_id(base, de).is_dir():
+        raise DesaError(f"l'original «{de}» no és a disseny/campanyes: no sé de què deriva la campanya nova")
+    if _dir_de_id(base, id_nou).exists():
+        raise DesaError(f"l'id «{id_nou}» ja existeix a disseny/campanyes: tria'n un altre (no s'ha escrit res)")
+    f = copy.deepcopy(form)
+    f["id"] = id_nou
+    f["deriva_de"] = de
+    return desa_proposta(f, root=root)
+
+
 # ── confirmació (CONF-UI; contracte UI §13) ─────────────────────────────────
 
 def confirma_campanya(id_: Any, per: Any) -> Dict[str, Any]:

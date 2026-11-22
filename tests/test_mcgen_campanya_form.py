@@ -417,7 +417,7 @@ def test_llistes_tancades_de_simphy_son_les_de_neudet():
     # les de soroll **i** les que mai vénen soles (`planor_f`, la F del paper: es pot demanar, però no ve per defecte)
     assert set(CF.DEFECTE_NOMS) == {n for n in O.METRIQUES
                                     if n not in O.GEOMETRIQUES and n not in O.SOROLL and n not in O.MAI_AUTO}
-    assert "planor_f" in CF.METRIQUES_LINIA and "planor_f" in CF.FINALITAT_METRIQUES["comptador"]
+    assert "planor_f" in CF.METRIQUES_LINIA and "planor_f" in CF._taula_objectius()["finalitats"]["comptador"]["metriques"]
     assert "planor_f" not in CF.DEFECTE_NOMS and "planor_f" not in CF.AUTO_NOMS
     assert not (set(CF.AUTO_NOMS) & O.SOROLL)             # el soroll no ve mai sol (ni al Pareto ni a la restricció)
 

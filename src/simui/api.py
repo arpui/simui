@@ -344,6 +344,13 @@ def campanya_desa(body: Dict[str, Any]) -> Dict[str, Any]:
     return CD.desa_proposta(body.get("form"))
 
 
+def campanya_desa_nova(body: Dict[str, Any]) -> Dict[str, Any]:
+    """«Desa com a campanya nova» (FORM-COPIA-UI): `form`, `id` (nou, editable) i `de` (l'obert). Escriu només
+    `disseny/campanyes/<id>/`, amb `deriva_de: <de>` al yaml; l'original no es toca mai, i si l'id ja existeix no
+    escriu res. Vegeu `campanya_desa.desa_com_a_nova`."""
+    return CD.desa_com_a_nova(body.get("form"), body.get("id"), body.get("de"))
+
+
 def campanya_confirma(body: Dict[str, Any]) -> Dict[str, Any]:
     """«Confirmar i congelar» una campanya `interpretada` (neudet escriu la confirmació; vegeu `campanya_desa.confirma_campanya`)."""
     return CD.confirma_campanya(body.get("id"), body.get("per"))
