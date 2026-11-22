@@ -2680,6 +2680,7 @@ function kPinta(){
   out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${diagTag(v.diagnostic)}${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
     (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
   out.push(diagAv(v.diagnostic));
+  out.push(kAPunt(v.certificacio));   // A-PUNT: verd/vermell a dalt de tot, llegit del bloc `a_punt` de neudet
   out.push(kAccions());
   if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
   v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
@@ -2771,6 +2772,29 @@ function kDefinicio(v){
     ` <button class="ghost" data-k="congela" title="El mateix formulari de la proposta, només lectura">Veu el formulari (congelat)</button>` +
     (v.export ? ` <span class="hint">export/ a la campanya</span>` : '') + '</div>';
 }
+// ── A-PUNT (encàrrec 2026-11-20, contracte v1.28 §27): a dalt de la pàgina, si la campanya es pot córrer. La UI no
+// calcula res: llegeix el bloc `a_punt` del `comprova.json` (l'escriu neudet, coherència garantida al seu codi:
+// `a_punt = not falta and not atura` i amb `atura` sense falta hi posa una frase genèrica ⇒ el vermell mai és buit).
+// El tros pur (marcadors A-PUNT-DEF-BEGIN/END) es corre amb node al bessó `tests/test_a_punt_ui.py`.
+// A-PUNT-DEF-BEGIN
+const kAPunt = c => {
+  const a = c && c.disponible ? c.a_punt : null;
+  if(!a) return '<div class="panel warn" data-a-punt="sense"><b>A punt per córrer:</b> encara sense bloc ' +
+    '<code>a_punt</code> al <code>comprova.json</code>: torna a comprovar (la UI no l\'inventa).</div>';
+  const cap = a.a_punt === true
+    ? '<div class="panel ok" data-a-punt="si"><b>A punt per córrer</b></div>'
+    : `<div class="panel bad" data-a-punt="no"><b>Falta:</b><ul class="msgs">` +
+      (a.falta || []).map(t => `<li>${escD(t)}</li>`).join('') + '</ul></div>';   // les frases de neudet, tal com venen
+  const r = a.recursos_estimats || {};
+  const num = x => (x === null || x === undefined) ? '<i>no mesurada</i>' : escD(x);  // null = dada no mesurada, mai «0 h»
+  const res = `recursos estimats: GPU ${num(r.gpu_h)} h · CPU ${num(r.cpu_h)} h · disc ${num(r.gb)} GB`;
+  const av = (a.avisos || []).length
+    ? '<ul class="msgs">' + a.avisos.map(t => `<li>${escD(t)}</li>`).join('') + '</ul>'
+    : '<span class="hint">Cap avís de neudet.</span>';
+  return cap + `<details class="fold"><summary>Avisos i recursos estimats (neudet)</summary>${av}` +
+    `<div class="hint" data-a-punt-res>${res}</div></details>`;
+};
+// A-PUNT-DEF-END
 function kCert(v){
   const c = v.certificacio;
   if(!c || !c.disponible) return `<div class="panel warn">Certificació no disponible: ${escD((c && c.motiu) || '')}</div>`;

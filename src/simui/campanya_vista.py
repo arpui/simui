@@ -510,7 +510,9 @@ def _certificacio(d: Path, rel: Optional[str]) -> Dict[str, Any]:
             "resum_text": doc.get("resum_text"), "confirmacio": doc.get("confirmacio"),   # CONF-P: text i estat de neudet, tal qual
             "avisos_en_paraules": doc.get("avisos_en_paraules"),
             "opcions_cost": doc.get("opcions_cost"),             # AFINA-N: si el cost passa del límit, neudet porta les opcions
-            "camps_falten": doc.get("camps_falten"), "etapes": doc.get("etapes") or {}}
+            "camps_falten": doc.get("camps_falten"), "etapes": doc.get("etapes") or {},
+            # A-PUNT (contracte v1.28 §27): el bloc tal com ve — absent ⇒ None, que la UI diu «encara sense bloc».
+            "a_punt": doc.get("a_punt")}
 
 
 def _eixos(y: Dict[str, Any], columnes: Sequence[str]) -> Tuple[Optional[List[Dict[str, str]]], Optional[str]]:
