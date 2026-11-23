@@ -182,28 +182,33 @@ def test_mb10b_anells_test_besso_el_seleccio_csv_de_neudet_te_el_format_que_lleg
     assert rows and all(r["hash"] for r in rows)                    # cada candidat verificat, amb hash
 
 
-def test_mb10b_cd_la_dada_contra_geant4_hi_es_i_la_divergencia_queda_escrita():
-    """Divergència escrita 23-11 (encàrrec VERIF-UI). L'endreç de neudet `821a06b6` declara l'`S1` d'mb10b_cd
-    `executada: false` —el seu `_al_flux` no reconeix la coral multi-motor: no hi ha `etapes/S1/candidats.csv`,
-    les dades són a `motors/<m>/`— mentre al disc-hi són `comparacio_motors.json` amb `g4.per_motor` (B1 i
-    salts), les taules `g4_comparacio.csv` i el `seleccio.csv` de 4 candidats. La UI no reinterpreta el
-    manifest: la pàgina diu «encara no ha corregut» i el bloc «Verificació amb Geant4» mostra el que neudet ha
-    escrit (la selecció i els motius), no la taula per motor — que vindrà quan ells ho resolguin (demanat al
-    planificador de neudet 23-11). Aquest test fixa els dos costats; si canvia un bàndol, peta aquí."""
+def test_mb10b_cd_la_coral_multi_motor_es_servida_i_la_divergencia_queda_tancada():
+    """Divergència TANCADA 23-11 (MAN-FORAT, neudet `6d06c41b`). El 23-11 al matí l'endreç `821a06b6` declarava
+    l'`S1` d'mb10b_cd `executada: false` (el seu criteri no reconeixia la coral: sense `candidats.csv` a l'arrel)
+    mentre les dades eren a `motors/<m>/` —ho vam escriure aquí. MAN-FORAT ho resol des de la font: `S1` surt
+    com a execució amb `motors: [B1, salts]`, `comparacio_motors` i `n_candidats` = la unió avaluada (25), i la
+    vista la pinta amb el Geant4 per motor. Aquest test fixa el costat tancat; si algú torna a declarar l'etapa
+    no-executada amb les dades al disc, peta aquí."""
     _neudet_o_skip()
     d = V.dir_de("mb10b_cd")
     if not (d / "etapes" / "S1" / "comparacio_motors.json").is_file():
         pytest.skip("l'arbre local de neudet no té les sortides SALTS-B d'mb10b_cd")
     man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
     s1m = next(e for e in man["etapes"] if e["nom"] == "S1")
-    assert s1m["executada"] is False and s1m["candidats_csv"] is None     # el que diu el manifest
+    assert "executada" not in s1m                                        # ja no és una CONF-PLA: és l'execució
+    assert s1m["candidats_csv"] is None and s1m["comparacio_motors"] == "etapes/S1/comparacio_motors.json"
+    assert [m["nom"] for m in s1m["motors"]] == ["B1", "salts"]
+    cm = json.loads((d / "etapes" / "S1" / "comparacio_motors.json").read_text(encoding="utf-8"))
+    assert s1m["n_candidats"] == len(cm["nomes_candidats"]) == 25        # la unió avaluada, verbatim de neudet
     v = V.vista(d)
     s1 = next(e for e in v["etapes"] if e["nom"] == "S1")
-    assert s1["executada"] is False and s1["comparacio"] is None          # la UI segueix el manifest, no l'inventa
-    per = json.loads((d / "etapes" / "S1" / "comparacio_motors.json")
-                     .read_text(encoding="utf-8"))["g4"]["per_motor"]
-    assert set(per) == {"B1", "salts"}                                    # la dada, al disc, hi és
+    assert "executada" not in s1 and s1["fitxers"]["dir"] == "etapes/S1"
+    assert s1["fitxers"]["candidats"] is None and s1["n_candidats"] == 25 and s1["citable"] is True
+    assert s1["comparacio"] is not None                                  # la comparació de motors, tal com és
+    per = s1["comparacio"]["g4"]["per_motor"]
+    assert set(per) == {"B1", "salts"}
     for m, gm in per.items():
         rel = f"etapes/S1/{gm['taula']}"                                  # el mateix prefix que posa la pàgina
         assert V.fitxer(d, rel).is_file(), f"{m}: la taula no és a {rel}"
-    assert s1["seleccio"] and len(s1["seleccio"]["files"]) == 4           # el bloc, però, es pinta (4 candidats)
+    assert [mm["motor"] for mm in s1["motors"]] == ["B1", "salts"]       # les targetes per motor, amb les seves dades
+    assert s1["seleccio"] and len(s1["seleccio"]["files"]) == 4

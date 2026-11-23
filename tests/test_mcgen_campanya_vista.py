@@ -285,7 +285,7 @@ def test_fitxer_no_segueix_un_enllac_que_surt_de_la_campanya(c04, tmp_path):
 def test_el_manifest_real_de_c04_amb_les_claus_del_6b(c04):
     """neudet `06de072`: c04 porta `campanya_ui.json` amb `S1` (`executada: false`) i el cens amb les dues
     variants que han corregut, **amb la mateixa forma que una entrada de flux** (decret `7585843`: la seva
-    `_etapa()` també per al cens, `manifest_campanya.py:165-169`). §6b tradueix les entrades del cens igual que
+    `_etapa()` també per al cens, `manifest_campanya.py:249,:255`). §6b tradueix les entrades del cens igual que
     les del flux: `candidats_csv` → `candidats`, `verificada_per` → `verifica`, i la carpeta `figures` → els
     fitxers. Abans el cens era minimal i les dues etapes reals es veien sense figures ni enllaç de verificació."""
     if not (c04 / "campanya_ui.json").is_file():

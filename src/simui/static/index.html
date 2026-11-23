@@ -2828,8 +2828,9 @@ const kVaAlPareto = (v, noDecl) => !noDecl && !!v.pareto.eixos;
 const kSeccioNoDecl = (v, pinta) => {
   const c = kNoDecl(v);
   if(!c.length) return '';
-  return '<h2>Etapes no declarades al yaml</h2><div class="panel">Són directoris d’<code>etapes/</code> amb ' +
-    '<code>candidats.csv</code> que neudet no compta com l’execució de cap etapa declarada al <code>campanya.yaml</code> ' +
+  return '<h2>Etapes no declarades al yaml</h2><div class="panel">Són directoris d’<code>etapes/</code> que neudet compta com a execució ' +
+    '(perquè tenen <code>candidats.csv</code> a l’arrel o resultats per motor a <code>motors/<motor>/resultats_tub.json</code> — el criteri és seu, <code>_es_execucio</code>) ' +
+    'però no com a l’execució de cap etapa declarada al <code>campanya.yaml</code> ' +
     '(ni la seva germana <code>_g4</code>, ni un intent apartat). Qui els llista és neudet, amb la clau ' +
     '<code>etapes_no_declarades</code> del manifest: la UI no n’endevina cap pel nom. No nodreixen les columnes de ' +
     'Pareto: per això els seus candidats no surten al dibuix de cap etapa.</div>' + c.map(pinta).join('');

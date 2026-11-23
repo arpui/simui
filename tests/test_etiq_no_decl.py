@@ -7,8 +7,8 @@ Què es fixa
   (`neudet/tests/test_v127_no_decl.py:15`). A `src/simui` no hi ha cap `def _al_flux` ni `def _base` ni
   `def _apartats`, i cap literal `_anterior_`/`_aturada_`: si hi aparegués, la UI s'hauria escrit el criteri
   per la seva compte.
-- **Test bessó, en dues parts.** (1) Sobre la mateixa fixture que ells (`test_v127_no_decl.py:46-73` i
-  `:76-88`), el seu generador i el nostre `manifest_provisional` reparteixen igual; (2) sobre les campanyes
+- **Test bessó, en dues parts.** (1) Sobre la mateixa fixture que ells (`test_v127_no_decl.py:115-143` i
+  `:146-159`), el seu generador i el nostre `manifest_provisional` reparteixen igual; (2) sobre les campanyes
   reals amb `campanya_ui.json`, el nostre provisional diu el mateix flux i el mateix cens que el manifest
   que ells van escriure (regenerats l'última vegada a `06de072`).
 - La forma del cens: `anterior: null` (mai `false`), `candidats` traduït de `candidats_csv`, `dir` la seva
@@ -16,7 +16,7 @@ Què es fixa
 - **La forma del cens, mirall del seu `KEYS_ETAPA`.** La divergència que havíem escrit (4 claus al cens, sense
   `verificada_per` ni `figures`) la va tancar el coordinador per decret (`7585843`) i neudet la va publicar
   (`06de072`): l'entrada del cens surt de la **mateixa `_etapa()`** que la de flux
-  (`neudet/scripts/disseny/manifest_campanya.py:165-169`). Aquí es fixa el mirall — el mateix joc de 16 claus,
+  (`neudet/scripts/disseny/manifest_campanya.py:249,:255`). Aquí es fixa el mirall — el mateix joc de 20 claus (16 + 4 de MAN-FORAT),
   com a molt una de més (`motiu_aturada`), `anterior: null` — i que pels dos camins la UI arriba a la **mateixa**
   conclusió (`verifica` i els candidats marcats com a verificats). Si ells tornen a retallar el cens, peta aquí.
 - **La pantalla** (`index.html`): el cens es pinta en una secció a part, «Etapes no declarades al yaml», cada
@@ -99,9 +99,9 @@ def test_el_criteri_que_s_usa_es_el_fitxer_de_neudet():
 # ── bessó 1: la mateixa fixture, els dos costats ────────────────────────────
 
 def _fixture(d: Path, csv_a: list, pla: bool = False) -> Path:
-    """La fixture de neudet (`test_v127_no_decl.py:46-56`): el yaml de `c0_2a0511` (declara `S1`) i directoris
+    """La fixture de neudet (`test_v127_no_decl.py:115-126`): el yaml de `c0_2a0511` (declara `S1`) i directoris
     d'`etapes/`; `csv_a` són els que tenen `candidats.csv` (els altres no apareixen enlloc). `pla` és com el
-    seu cas c04 (`:81`): CONF-PLA només existeix si hi ha PLA.md (`manifest_campanya.py:171`)."""
+    seu cas c04 (`:151`): CONF-PLA només existeix si hi ha PLA.md (`manifest_campanya.py:258`)."""
     d.mkdir(parents=True)
     shutil.copy(_neudet() / "disseny/campanyes/c0_2a0511/campanya.yaml", d / "campanya.yaml")
     if pla:
@@ -149,7 +149,7 @@ def test_besso_a_la_fixture_de_ells_repartim_igual(tmp_path):
 
 
 def test_besso_cas_c04_etapa_declared_sense_execucio(tmp_path):
-    """`test_v127_no_decl.py:76-88`: només corre una variant. L'etapa declarada surt a `etapes` amb
+    """`test_v127_no_decl.py:146-159`: només corre una variant. L'etapa declarada surt a `etapes` amb
     `executada: false` i la variant al cens; el nostre provisional fa el mateix, i el `pla` és el text de
     neudet (`seccio_pla`), no res escrit aquí."""
     d = _fixture(tmp_path / "cy", ["S1_draft"], pla=True)
@@ -165,7 +165,7 @@ def test_besso_cas_c04_etapa_declared_sense_execucio(tmp_path):
 
 def test_sense_PLA_md_NO_HI_HA_cap_entrada_executada_false(tmp_path):
     """CONF-PLA es nodreix de `PLA.md`: sense ell, l'etapa declarada que no ha corregut no surt a cap banda,
-    ni a ells (`manifest_campanya.py:171`) ni aquí. La UI no l'inventa."""
+    ni a ells (`manifest_campanya.py:258`) ni aquí. La UI no l'inventa."""
     d = _fixture(tmp_path / "cw", ["S1_draft"])
     man, prov = _genera_ells(d), V.manifest_provisional(d)
     assert [e["nom"] for e in man["etapes"]] == [] and [c["nom"] for c in man[CENS]] == ["S1_draft"]
@@ -186,11 +186,13 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
     """Sobre els 36 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
     `882facd7`; 5 més de l'endreç mb10b del 23-11, `821a06b6`: `mb10b_cd`, `mb10b_motors`, `mb10b_motors_sensecd`,
     `mb10b_ref`, `mb10b_temps`), el nostre provisional diu el mateix flux i el mateix cens que ells — la divergència
-    que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 11 (mesurat 23-11: `mb10b_cd`
-    s'hi ha afegit amb l'endreç `821a06b6`, que hi deixa `S1_prova10k`; eren 10 tornat a mesurar 2026-11-14 a les
+    que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 12 (mesurat 23-11:
+    `mb10b_motors_sensecd` s'hi ha afegit amb MAN-FORAT `6d06c41b`, que amb el criteri nou compta els directoris
+    només-amotors com a execució i hi deixa `S1_interromput_2026-11-20`; abans, `mb10b_cd` s'hi havia afegit amb
+    l'endreç `821a06b6`, que hi deixa `S1_prova10k`; eren 10 tornat a mesurar 2026-11-14 a les
     16:15: `cert_lnd_252285_E12_fin` s'hi havia afegit amb la represa PARET-Q2, que ha creat `S0_pq2_p2_amb`/`_sense`
-    com a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 11, la UI en llista 3 —`dir_de` mira
-    `disseny/campanyes` i prou (`c04_draft`, `c0_2anells`, `mb10b_cd`), i les altres vuit són a `disseny/certificacio`
+    com a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 12, la UI en llista 4 —`dir_de` mira
+    `disseny/campanyes` i prou (`c04_draft`, `c0_2anells`, `mb10b_cd`, `mb10b_motors_sensecd`), i les altres vuit són a `disseny/certificacio`
     i a `disseny/experiments`.
     Que la UI les llisti és una altra fila, no aquesta. Llista congelada = dada viscuda: si neudet corre,
     aquesta xifra es mou i el test ho diu; el que no es mou és que les dues parts coincideixen cama a cama."""
@@ -216,9 +218,9 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
         "c04_draft", "c0_2anells",
         "cert_lnd_252248", "cert_lnd_252250", "cert_lnd_252285_E",
         "cert_lnd_252285_E12_fin", "cert_lnd_252285_E12_sol_fin",
-        "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "mb10b_cd", "x06_banc_pe_lnd252285",
+        "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "mb10b_cd", "mb10b_motors_sensecd", "x06_banc_pe_lnd252285",
     ], f"el cens ha canviat d'abast: {sorted(amb_cens)}. Cal reexplicar la fila: les que la UI llista tenen un significat nou."
-    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells", "mb10b_cd"], \
+    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells", "mb10b_cd", "mb10b_motors_sensecd"], \
         "la llista de la UI ha canviat; el que diu aquest test de les 11 és el que cal reescriure"
 
 
@@ -243,14 +245,15 @@ def test_a_c04_draft_el_que_ha_corregut_és_al_cens_i_no_al_flux(c04):
 # trellen una, peta aquí i a la vegada als seus — és el mateix pacte pels dos costats del contracte.
 CLAUS_ETAPA = {"nom", "motor", "etapa_pla", "pla", "resposta", "candidats_csv", "resultats_tub",
                "meta", "figures", "n_candidats", "citable", "verificada_per", "anterior",
-               "aturada", "intents_anteriors", "formules"}
+               "aturada", "intents_anteriors", "formules",
+               "judici", "portes", "motors", "comparacio_motors"}   # MAN-FORAT (23-11, neudet `6d06c41b`): additives, mai reanomenades
 
 
 def test_el_cens_porta_el_mateix_joc_de_claus_que_el_flux():
     """Divergència tancada: el cens ja no és minimal. Sobre els 36 manifests reals (30 de `6559acd`,
     `mb10b_anells` de `882facd7` i 5 de l'endreç `821a06b6` del 23-11), cada entrada de cens porta
-    el joc de 16 claus d'una entrada de flux — com a molt una de més, `motiu_aturada` (additiva, decret
-    `7585843`) — i `anterior: null` sempre. Neudet se'n fixa el mateix a `test_v127_no_decl.py:52-66`."""
+    el joc de 20 claus d'una entrada de flux (16 + les 4 additives de MAN-FORAT `6d06c41b`) — com a molt una de més, `motiu_aturada` (additiva, decret
+    `7585843`) — i `anterior: null` sempre. Neudet se'n fixa el mateix a `test_v127_no_decl.py:53-82`."""
     ds = sorted(f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
     assert len(ds) == 36, f"són {len(ds)} manifests, no 36 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
                           f"+ 5 de l'endreç mb10b `821a06b6` del 23-11: cd, motors, motors_sensecd, ref, temps)"
@@ -294,6 +297,36 @@ def test_els_dos_camins_donen_el_mateix_cens_a_c04_draft(c04, tmp_path):
     assert amb["S1_draft"]["figures"] == ["etapes/S1_draft/figures/eps_E.png",
                                           "etapes/S1_draft/figures/mapes_frontera.png",
                                           "etapes/S1_draft/figures/pareto.png"]      # l'ask (b), satisfeta
+
+
+# ── MAN-FORAT: el que el manifest declara per motor, a disc hi és ────────────
+
+CLAUS_MOTOR_RUTA = ("candidats_csv", "resultats_tub", "meta", "figures", "resum", "g4_comparacio")
+
+
+def test_el_manifest_multi_motor_no_declara_cap_ruta_inexistent():
+    """MAN-FORAT (neudet `6d06c41b`): una execució multi-motor declara `motors[]` (cada motor amb els seus
+    fitxers i la germana `_g4`), `comparacio_motors` i `portes`. La UI serveix aquestes rutes tal com són,
+    així que cadascuna ha d'existir relativa a l'arrel de la campanya — si neudet en publica una que no hi
+    és, peta aquí abans que la pàgina enllaci al res. `judici` no es comprova: pot ser text, no camí."""
+    ds = sorted(f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
+    n_motors = 0
+    for d in ds:
+        man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
+        for e in man["etapes"] + man[CENS]:
+            if e.get("comparacio_motors"):
+                assert (d / e["comparacio_motors"]).is_file(), (d, e["nom"], e["comparacio_motors"])
+            for p in (e.get("portes") or []):
+                assert (d / p).exists(), (d, e["nom"], p)
+            for m in (e.get("motors") or []):
+                n_motors += 1
+                for clau in CLAUS_MOTOR_RUTA:
+                    if m.get(clau):
+                        assert (d / m[clau]).exists(), (d, e["nom"], m["nom"], clau, m[clau])
+                for clau, p in (m.get("g4") or {}).items():    # la germana `<motor>_g4/` (`citable` no és ruta)
+                    if isinstance(p, str):
+                        assert (d / p).exists(), (d, e["nom"], m["nom"], "g4." + clau, p)
+    assert n_motors >= 2, f"cap manifest amb `motors[]` ({n_motors}): el test passaria en buit — mb10b_cd en porta 2"
 
 
 # ── el Pareto no absorbeix el cens (criteri que no és nostre) ───────────────

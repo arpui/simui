@@ -297,12 +297,15 @@ def _manifest_neudet():
         esp.loader.exec_module(mod)             # només imports i sys.path: main() queda sota __main__
         if not hasattr(mod, "_al_flux"):
             raise CampanyaError(f"{f}: no hi ha `_al_flux` — cal un `pull` de neudet a ≥ `ec36a2d` (contracte v1.27)")
+        if not hasattr(mod, "_es_execucio"):
+            raise CampanyaError(f"{f}: no hi ha `_es_execucio` — cal un `pull` de neudet a ≥ `6d06c41b` "
+                                "(MAN-FORAT: les campanyes multi-motor no deixen `candidats.csv` a l'arrel d'etapa)")
         _MAN_NEUDET.append(mod)
     return _MAN_NEUDET[0]
 
 
 def _declarada_sense_execucio(mn, d: Path, etapes_dir: Path, nom: str, pla_text: Optional[str]) -> Dict[str, Any]:
-    """CONF-PLA com el fa neudet (`manifest_campanya.py:176-179`): una etapa declarada al yaml **sense execució
+    """CONF-PLA com el fa neudet (`manifest_campanya.py:258-269`): una etapa declarada al yaml **sense execució
     pròpia** surt a `etapes` amb `executada: false` i els camins a null. Cal des que v1.27 exclou les variants del
     flux: si no, la pàgina d'una campanya com `c04_draft` es quedaria sense dir res de l'etapa declarada. El text
     del PLA, l'`aturada` i els intents apartats són els d'ells (cridats aquí), no res calculat per la UI."""
@@ -316,8 +319,11 @@ def _declarada_sense_execucio(mn, d: Path, etapes_dir: Path, nom: str, pla_text:
 
 
 def _etapa_provisional(d: Path, e: Path) -> Dict[str, Any]:
-    """Una etapa de `etapes/*` (amb `candidats.csv`), com la faria neudet (CAMP-2 §6)."""
+    """Una etapa de `etapes/*`, com la faria neudet (CAMP-2 §6). Amb `candidats.csv` a l'arrel, o sense —
+    una coral multi-motor (MAN-FORAT, neudet `6d06c41b`) no hi deixa res: l'execució és a `motors/<motor>/`
+    i `candidats` queda `None` (mai un camí inventat)."""
     motius: List[str] = []
+    csvf = e / "candidats.csv"
     rt = e / "resultats_tub.json"
     mp = e / "meta.json"
     doc = None
@@ -332,22 +338,35 @@ def _etapa_provisional(d: Path, e: Path) -> Dict[str, Any]:
             meta = _json(mp)
         except CampanyaError as exc:
             motius.append(str(exc))
-    n_csv = len(_csv(e / "candidats.csv")[1])
-    if not rt.is_file():
-        citable, motius = False, motius + ["no hi ha resultats_tub.json"]
-    elif doc is None:
-        citable = False
+    n_csv = len(_csv(csvf)[1]) if csvf.is_file() else 0
+    mot = _manifest_neudet()._motors(e, d)         # l'índex de motors és d'ells (MAN-FORAT): buit en una etapa normal
+    cmp_rel = None
+    if not csvf.is_file() and mot:                 # coral multi-motor: com fan a ells (`manifest_campanya.py:196-199`)
+        citable = all(m["citable"] for m in mot)   # sense meta d'arrel: citable si ho són tots els motors
+        n = n_csv
+        cmp_p = e / "comparacio_motors.json"
+        if cmp_p.is_file():
+            u = _json(cmp_p).get("nomes_candidats")
+            n = len(u) if u else max(m["n_candidats"] for m in mot)   # la unió avaluada; si no n'hi ha comparació, el d'un motor
+            cmp_rel = _rel(d, cmp_p)
     else:
-        pr = RES.provenance(rt)
-        citable, motius = pr.citable, motius + list(pr.motius)
+        n = len(doc["candidats"]) if doc is not None else n_csv
+        if not rt.is_file():
+            citable, motius = False, motius + ["no hi ha resultats_tub.json"]
+        elif doc is None:
+            citable = False
+        else:
+            pr = RES.provenance(rt)
+            citable, motius = pr.citable, motius + list(pr.motius)
     verifica = e.name[:-3] if e.name.endswith("_g4") and (e.parent / e.name[:-3] / "candidats.csv").is_file() else None
     return {"nom": e.name, "dir": _rel(d, e), "motor": _motor(doc, meta),
-            "candidats": _rel(d, e / "candidats.csv"),
+            "candidats": _rel(d, csvf) if csvf.is_file() else None,
             "resultats_tub": _rel(d, rt) if rt.is_file() else None,
             "meta": _rel(d, mp) if mp.is_file() else None,
             "figures": _figures(d, e),
-            "n_candidats": len(doc["candidats"]) if doc is not None else n_csv,
-            "n_csv": n_csv, "citable": citable, "motius": motius, "verifica": verifica}
+            "n_candidats": n,
+            "n_csv": n_csv, "citable": citable, "motius": motius, "verifica": verifica,
+            "motors": mot, "comparacio_motors": cmp_rel}
 
 
 def manifest_provisional(dir_: PathLike) -> Dict[str, Any]:
@@ -361,7 +380,7 @@ def manifest_provisional(dir_: PathLike) -> Dict[str, Any]:
     no_decl: List[Dict[str, Any]] = []
     if etapes_dir.is_dir():
         for e in sorted(etapes_dir.iterdir()):
-            if not (e.is_dir() and (e / "candidats.csv").is_file()):
+            if not (e.is_dir() and mn._es_execucio(e)):     # el criteri de què és execució també és d'ells (MAN-FORAT: una coral multi-motor no deixa csv a l'arrel)
                 continue
             if mn._al_flux(e.name, declarades):
                 etapes.append(_etapa_provisional(d, e))
@@ -373,7 +392,7 @@ def manifest_provisional(dir_: PathLike) -> Dict[str, Any]:
     from neudet.disseny.confirmacio import APARTAT
     pla = (d / "PLA.md").read_text(encoding="utf-8") if (d / "PLA.md").is_file() else None
     corregides = {mn._base(e["nom"], declarades) for e in etapes if not APARTAT.search(e["nom"])}
-    for nom in (declarades if pla else {}):      # com a ells (`manifest_campanya.py:171`): CONF-PLA necessita PLA.md
+    for nom in (declarades if pla else {}):      # com a ells (`manifest_campanya.py:258`): CONF-PLA necessita PLA.md
         if nom not in corregides:
             etapes.append(_declarada_sense_execucio(mn, d, etapes_dir, nom, pla))
     return {
@@ -425,12 +444,17 @@ def manifest(dir_: PathLike) -> Dict[str, Any]:
 def _de_6b_entrada(e: Dict[str, Any], f: Path) -> Dict[str, Any]:
     """Una entrada `_etapa` de neudet → la de la vista. Des del decret `7585843` el cens i el flux tenen la
     **mateixa forma** (ells construeixen l'entrada del cens amb la mateixa `_etapa()`:
-    `scripts/disseny/manifest_campanya.py:165-169`), per això les dues passen per aquí."""
+    `scripts/disseny/manifest_campanya.py:249,:255`), per això les dues passen per aquí."""
     e = dict(e)
     if "candidats_csv" in e:
         csv = e.pop("candidats_csv")
         e["candidats"] = csv
-        e.setdefault("dir", str(PurePosixPath(csv).parent) if csv else None)
+        if csv:
+            e.setdefault("dir", str(PurePosixPath(csv).parent))
+        elif e.get("comparacio_motors"):      # MAN-FORAT (neudet `6d06c41b`): coral multi-motor — l'arrel no té csv; el directori és el de la comparació
+            e.setdefault("dir", str(PurePosixPath(e["comparacio_motors"]).parent))
+        else:
+            e.setdefault("dir", None)
     if "verificada_per" in e:
         e["verifica"] = e.pop("verificada_per")
     fig = e.get("figures")
@@ -638,6 +662,23 @@ def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[str, Any], List[str]]:
+    if not e.get("candidats") and (e.get("motors") or                                  # MAN-FORAT (neudet `6d06c41b`): el manifest declara motors, o
+                                   (e.get("dir") and (d / PurePosixPath(e["dir"])       # al provisional, ho diu el fitxer de comparació al seu directori —
+                                                      / "comparacio_motors.json").is_file())):   # en cap cas no s'endevina pel nom
+        # Coral multi-motor: l'arrel de l'etapa no deixa `candidats.csv`; neudet escriu l'execució a `motors/<motor>/`,
+        # la unió avaluada a `n_candidats` i la comparació (amb el Geant4 per motor) a `comparacio_motors.json`.
+        # La taula d'arrel queda buida i `candidats` a null —mai un camí inventat—; `_motors` fa la resta tal com és.
+        return ({"nom": e["nom"], "motor": e.get("motor"), "verifica": e.get("verifica"),
+                 "n_candidats": e.get("n_candidats"), "n_csv": None, "citable": bool(e.get("citable")),
+                 "motius": [], "figures": list(e.get("figures") or []),
+                 "fitxers": {"dir": e.get("dir"), "candidats": None,
+                             "resultats_tub": e.get("resultats_tub"), "meta": e.get("meta")},
+                 "columnes": [], "energies_MeV": None, "candidats": [],
+                 "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+                 "motiu_aturada": e.get("motiu_aturada"),
+                 "intents_anteriors": e.get("intents_anteriors"),
+                 "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
+                 "resposta": _resposta(d, e)}, [])
     if not e.get("candidats"):                    # CONF-PLA: etapa declarada al yaml que encara no ha corregut (`executada: false`)
         return ({"nom": e["nom"], "motor": e.get("motor"), "verifica": None, "n_candidats": 0, "n_csv": 0, "citable": False,
                  "motius": [], "figures": [], "fitxers": {"dir": None, "candidats": None, "resultats_tub": None, "meta": None},
