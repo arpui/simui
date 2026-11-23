@@ -385,7 +385,8 @@ def test_la_targeta_duna_entrada_del_cens_va_retolada_i_sense_pareto():
 def test_el_flux_i_el_cens_es_pinten_en_dues_seccions_distintes():
     assert "out.push(kSeccioNoDecl(v, e => kEtapa(e, true)));" in INDEX
     # `.map(kEtapa)` passaria l'índex com a `noDecl`: a partir de la segona etapa del flux tot estaria retolat.
-    assert "v.etapes.map(kEtapa)" not in INDEX and "v.etapes.map(e => kEtapa(e))" in INDEX
+    # UI-MULTIMOTOR S7: el flux el pinta `kEtapesAmbIntents`, que crida `kEtapa(x)` sense segon argument.
+    assert "v.etapes.map(kEtapa)" not in INDEX and "kEtapesAmbIntents(v.etapes)" in INDEX
 
 
 def _campanya_sense_cens():
@@ -414,6 +415,9 @@ def test_el_js_del_cens_dona_el_mateix_repartiment_que_el_python(c04):
         assert al_pareto_flux is bool(v["pareto"]["eixos"])
         if v[CENS]:
             assert "<h2>Etapes no declarades al yaml</h2>" in seccio
-            assert seccio.endswith(''.join('|' + e["nom"] for e in v[CENS]))
+            # UI-MULTIMOTOR S7 (encàrrec 2026-11-23): les targetes del cens van dins el plegat «Proves»;
+            # els noms segueixen sent els mateixos, en el mateix ordre.
+            assert seccio.endswith(''.join('|' + e["nom"] for e in v[CENS]) + "</details>")
+            assert f'data-proves><summary>Proves ({len(v[CENS])})' in seccio
         else:
             assert seccio == ''                     # sense cens, cap secció i cap paraula inventada

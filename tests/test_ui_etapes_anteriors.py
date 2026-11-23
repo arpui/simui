@@ -46,6 +46,8 @@ BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
           "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
           " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '',"
           " kComparacio = buits, kVerificacio = buits, kVariants = buits;" + PURE +
+          # UI-MULTIMOTOR S1: la capçalera ara passa per `kMotorsEtiqueta`; entra de veritat, no en versió buida.
+          "const kMotorsEtiqueta" + INDEX.split("const kMotorsEtiqueta")[1].split("function kComparacio")[0] +
           "function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])
 
 

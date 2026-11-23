@@ -27,7 +27,9 @@ quan arribi CAMP-2:
   citable, motius, verifica}`. UI-X06: `anterior` (boolean, `true` si neudet ha apartat l'etapa:
   la prova és el camp, mai el nom de la carpeta), `aturada` (objecte de neudet amb `text`, `motiu`,
   `geant4`, `citable`…) i `intents_anteriors` (llista de noms d'etapes apartades d'aquesta).
-  Sense el camp, `anterior` és `null` (= no es pot saber), mai `false` per defecte. `candidats`, `resultats_tub`, `meta` i `figures/*` són camins relatius a
+  Sense el camp, `anterior` és `null` (= no es pot saber), mai `false` per defecte. UI-MULTIMOTOR S7:
+  `etapa_pla` és el pla del yaml a qui pertany l'etapa, tal com neudet l'escriu al manifest (l'usa la UI per
+  plegar els apartats sota la seva etapa; sense manifest, `null`). `candidats`, `resultats_tub`, `meta` i `figures/*` són camins relatius a
   la carpeta de la campanya. `motor` és el de `resultats_tub.json`; sense ell, el de `meta.json`
   (`args.argv` amb `--xarxa X` → `xarxa X`; `script` = `verifica_g4.py` → `geant4`). `n_candidats` són
   els del `resultats_tub.json` (els que tenen tubs); `n_csv` són totes les files del csv (les descartades
@@ -674,7 +676,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
                  "fitxers": {"dir": e.get("dir"), "candidats": None,
                              "resultats_tub": e.get("resultats_tub"), "meta": e.get("meta")},
                  "columnes": [], "energies_MeV": None, "candidats": [],
-                 "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+                 "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),   # UI-MULTIMOTOR S7: neudet diu a quin pla pertany un apartat
+                 "aturada": e.get("aturada"),
                  "motiu_aturada": e.get("motiu_aturada"),
                  "intents_anteriors": e.get("intents_anteriors"),
                  "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
@@ -683,7 +686,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
         return ({"nom": e["nom"], "motor": e.get("motor"), "verifica": None, "n_candidats": 0, "n_csv": 0, "citable": False,
                  "motius": [], "figures": [], "fitxers": {"dir": None, "candidats": None, "resultats_tub": None, "meta": None},
                  "columnes": [], "energies_MeV": None, "candidats": [], "executada": False,
-                 "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+                 "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),
+                 "aturada": e.get("aturada"),
                  "intents_anteriors": e.get("intents_anteriors"),
                  "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
                  "resposta": _resposta(d, e)}, [])      # CONF-PLA: neudet diu null; si en dona una, se'n serveix el text
@@ -705,7 +709,8 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "n_candidats": e.get("n_candidats"), "n_csv": e.get("n_csv"), "citable": bool(e.get("citable")),
              "motius": list(e.get("motius") or []), "figures": list(e.get("figures") or []),
              "fitxers": fit, "columnes": header,
-             "anterior": e.get("anterior"), "aturada": e.get("aturada"),
+             "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),
+             "aturada": e.get("aturada"),
              "motiu_aturada": e.get("motiu_aturada"),            # v1.27: el text de neudet per a una no declarada
              "intents_anteriors": e.get("intents_anteriors"),
              "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
