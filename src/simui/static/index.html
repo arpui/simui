@@ -2852,8 +2852,10 @@ function kComparacio(e){
   const finalists = Array.isArray(g4.finalistes) && g4.finalistes.length
     ? `<div class="hint">Geant4 verifica la unió dels finalistes: ${g4.finalistes.map(x => escD(String(x))).join(', ')}.</div>` : '';
   const g4cel = m => { const gm = per[m.nom]; if(!gm || typeof gm !== 'object') return '—';
+    // `taula` és relatiu al directori d'etapa (neudet `comparacio_motors.py`: «motors/<m>/g4_comparacio.csv»); l'endpoint el resol contra l'arrel de la campanya.
+    const trel = (e.fitxers && e.fitxers.dir ? e.fitxers.dir + '/' : '') + gm.taula;
     return `error rel. màx. ${f(gm.err_rel_max)} · ${gm.dins_tol ? '<span class="tag t-ok">dins tolerància</span>' : '<span class="tag t-no">fora de tolerància</span>'}` +
-      (gm.taula ? ` · <a href="${escD(kFit(gm.taula))}" target="_blank">taula</a>` : ''); };
+      (gm.taula ? ` · <a href="${escD(kFit(trel))}" target="_blank">taula</a>` : ''); };
   const norm = m => { const v = (e.motors || []).find(x => x.nom === `${e.nom} · ${m.nom}`);
     return v ? `<a href="#" data-kvopen="${escD(v.nom)}">vista normal</a>` : '<span class="hint">neudet no n\'ha escrit la carpeta</span>'; };
   return `${verdicte}<div class="tblw"><table class="tbl"><thead><tr><th></th>${cap}</tr></thead><tbody>
@@ -2865,6 +2867,35 @@ function kComparacio(e){
     ${fila('execució del motor', norm)}
   </tbody></table></div>${finalists}`;
 }
+// ── VERIF-UI (encàrrec 2026-11-23): bloc «Verificació amb Geant4» de cada etapa. Les dades són de neudet:
+// quins candidats va verificar el bessó `_g4` i amb quin ε mitjà (`verificacions` de `campanya_vista`, mirats
+// pel hash) i els motius de la selecció (`<E>_verificacio/seleccio.csv`). Aquí no es calcula res: les dades
+// per tub i energia (cel·les fora / concloents, biaix mitjà, pitjor cel·la) les escriu neudet a
+// `comparacio_motors.json`; el que no hi és, no surt. ──
+// VERIF-DEF-BEGIN
+function kVerificacio(e){
+  const vs = Array.isArray(e.verificacions) ? e.verificacions : [];
+  const sel = (e.seleccio && typeof e.seleccio === 'object') ? e.seleccio : null;
+  if(!vs.length && !sel) return '';
+  const motius = h => { const x = sel && (sel.files || []).find(r => r && r.hash === h);
+    return x && x.motius ? String(x.motius).split(';').map(s => s.trim()).filter(Boolean).map(escD).join(' · ')
+      : '<span class="hint">neudet no en diu el motiu a <code>seleccio.csv</code></span>'; };
+  const cos = vs.map(v => {
+    const cs = (v.candidats || []).map(c => `<tr><td><b>${escD(String(c.nom))}</b><div class="hint">${motius(c.hash)}</div></td>`
+      + `<td>${fmtNum(c.eps_xarxa)}</td><td>${fmtNum(c.eps_g4)}</td></tr>`).join('');
+    const enl = [];
+    if(v.fitxers && v.fitxers.candidats) enl.push(`<a href="${escD(kFit(v.fitxers.candidats))}" target="_blank">candidats.csv</a>`);
+    if(v.fitxers && v.fitxers.resultats_tub) enl.push(`<a href="${escD(kFit(v.fitxers.resultats_tub))}" target="_blank">resultats_tub.json</a>`);
+    const tit = `<p><b>${escD(String(v.etapa))}</b> — ${(v.candidats || []).length || v.n_candidats} candidats${enl.length ? ' · ' + enl.join(' · ') : ''}</p>`;
+    return cs ? `${tit}<div class="tblw"><table class="tbl"><thead><tr><th>candidat — per què (motius de neudet a <code>seleccio.csv</code>)</th><th>ε xarxa</th><th>ε Geant4</th></tr></thead><tbody>${cs}</tbody></table></div>`
+      : `${tit}<div class="hint">Cap candidat d'aquesta etapa no és a la taula de ${escD(String(e.nom))}.</div>`;
+  }).join('');
+  const selv = sel ? `<p class="hint">Selecció: <a href="${escD(kFit(sel.csv))}" target="_blank"><code>${escD(String(sel.csv))}</code></a> (${(sel.files || []).length} files).</p>` : '';
+  return `<div class="panel"><b>Verificació amb Geant4</b>
+    <div class="hint">Els números són els de neudet (ε mitjà de cada etapa) i el «per què», els motius que neudet escriu a la selecció. La comparació per tub i energia —cel·les fora / concloents, biaix mitjà i pitjor cel·la— l'escriu neudet a <code>comparacio_motors.json</code>: el que no hi és, la UI no el calcula.</div>
+    ${cos}${selv}</div>`;
+}
+// VERIF-DEF-END
 // Les variants són etapes com les altres (les dades les munta `campanya_vista._motors`), però no són al manifest:
 // les API de criteris i de fórmules demanen el nom d'una etapa declarada, i aquí no les oferim.
 function kVariants(e){
@@ -2891,7 +2922,7 @@ document.getElementById('k-out').addEventListener('click', ev => {   // «vista 
 });
 function kEtapa(e, noDecl){
   if(e.executada === false)
-    return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kPla(e)}</article>`;
+    return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(e.motor || 'motor desconegut')}</span><span class="tag t-wa">encara no ha corregut</span></header>${kVerificacio(e)}${kPla(e)}</article>`;   // si neudet ha escrit la verificació, es mostra igualment (mb10b_cd)
   const apart = e.anterior === true;   // UI-X06: mana el camp `anterior` de neudet, mai el nom de la carpeta
   const eix = kVaAlPareto(KC.v, noDecl) ? KC.v.pareto.eixos : null;
   const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
@@ -2908,6 +2939,7 @@ function kEtapa(e, noDecl){
     ${apart && e.aturada && e.aturada.text ? `<ul class="msgs"><li>${escD(e.aturada.text)}</li></ul>` : ''}
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
     ${kComparacio(e)}
+    ${kVerificacio(e)}
     ${kPla(e)}
     ${kResposta(e)}
     ${KC.v.diagnostic && KC.v.diagnostic.actiu ? `<div class="diag-av" data-diag-xifres>⚠ ${escD(diagTxt(KC.v.diagnostic))} — les xifres d'aquesta taula</div>` : ''}

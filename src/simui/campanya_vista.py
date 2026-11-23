@@ -591,6 +591,36 @@ def _encaixa_g4(etapes: List[Dict[str, Any]], avisos: List[str]) -> None:
             c["g4"].append({"etapa": g["nom"], "eps_mitja": cg.get("eps_mitja")})
 
 
+def _verificacio_g4(d: Path, etapes: List[Dict[str, Any]], avisos: List[str]) -> None:
+    """VERIF-UI (encàrrec 2026-11-23): per etapa, els bessons `_g4` que la verifiquen —amb l'ε mitjà dels dos
+    costats, mirats pel hash, com fa `_encaixa_g4`— i la selecció que en diu els motius
+    (`<E>_verificacio/seleccio.csv`, de neudet: `nom,hash,etapes,motius,params`). Aquí no se'n calcula res:
+    es llegeix el que hi és; el que no hi és (cel·les fora, biaix mitjà, pitjor cel·la per candidat) no surt
+    i la pàgina diu on hauria d'estar escrit."""
+    for e in etapes:
+        e["verificacions"] = []
+        e["seleccio"] = None
+        sel = PurePosixPath("etapes") / f"{e['nom']}_verificacio" / "seleccio.csv"
+        if (d / sel).is_file():
+            try:
+                _h, rows = _csv(d / sel)
+                e["seleccio"] = {"csv": sel.as_posix(), "files": rows}
+            except (OSError, ValueError, CampanyaError) as exc:
+                avisos.append(f"{e['nom']}: no s'ha pogut llegir {sel}: {exc}")
+    per_nom = {e["nom"]: e for e in etapes}
+    per_hash = {n: {c["hash"]: c for c in e["candidats"]} for n, e in per_nom.items()}
+    for g in etapes:
+        t = g.get("verifica")
+        if not t:
+            continue                                # l'avís de «verifica una cosa que no hi és» ja el dona _encaixa_g4
+        if t not in per_nom:
+            continue
+        cs = [{"nom": c["nom"], "hash": c["hash"], "eps_xarxa": c.get("eps_mitja"), "eps_g4": cg.get("eps_mitja")}
+              for cg in g["candidats"] if (c := per_hash[t].get(cg["hash"])) is not None]
+        per_nom[t]["verificacions"].append({"etapa": g["nom"], "n_candidats": len(g["candidats"]),
+                                            "fitxers": g["fitxers"], "candidats": cs})
+
+
 def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """La resposta d'etapa (contracte UI §12): `resposta` del manifest, o `<dir de l'etapa>/resposta.md` si hi és.
     La UI en mostra el text tal com és (neudet l'escriu; aquí no se'n calcula res). `base` és la carpeta del
@@ -764,6 +794,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         cv, _h = _etapa_vista(d, c, avisos)
         no_decl.append(cv)
     _encaixa_g4(etapes + no_decl, avisos)      # els bessons `_g4` s'encaixen encara que siguin al cens
+    _verificacio_g4(d, etapes + no_decl, avisos)    # VERIF-UI: qui verifica cada etapa i per què (seleccio.csv de neudet)
     eixos, motiu_p = _eixos(y, columnes)
     metriques = [x for x in ((y.get("objectius") or {}).get("metriques") or []) if isinstance(x, str)]
     return {

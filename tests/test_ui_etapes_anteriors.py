@@ -45,7 +45,7 @@ BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
           "const KC = {v: {pareto: {eixos: null}, diagnostic: null}}, buits = () => '';"
           "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
           " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '',"
-          " kComparacio = buits, kVariants = buits;" + PURE +
+          " kComparacio = buits, kVerificacio = buits, kVariants = buits;" + PURE +
           "function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])
 
 

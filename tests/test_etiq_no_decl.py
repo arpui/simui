@@ -183,12 +183,15 @@ def _la_llista_la_ui(id_: str) -> bool:
 
 
 def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
-    """Sobre els 31 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
-    `882facd7`), el nostre provisional diu el mateix flux i el mateix cens que ells — amb UNA divergència
-    escrita, `mb10b_anells`, que ells tenen rovellat (assert dins del bucle). El cens no és buit a 10 (tornat a mesurar 2026-11-14 a les 16:15:
-    `cert_lnd_252285_E12_fin` s'hi ha afegit amb la represa PARET-Q2, que ha creat `S0_pq2_p2_amb`/`_sense` com
-    a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 10, la UI en llista 2 —`dir_de` mira
-    `disseny/campanyes` i prou, i les altres vuit són a `disseny/certificacio` i a `disseny/experiments`.
+    """Sobre els 36 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
+    `882facd7`; 5 més de l'endreç mb10b del 23-11, `821a06b6`: `mb10b_cd`, `mb10b_motors`, `mb10b_motors_sensecd`,
+    `mb10b_ref`, `mb10b_temps`), el nostre provisional diu el mateix flux i el mateix cens que ells — la divergència
+    que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 11 (mesurat 23-11: `mb10b_cd`
+    s'hi ha afegit amb l'endreç `821a06b6`, que hi deixa `S1_prova10k`; eren 10 tornat a mesurar 2026-11-14 a les
+    16:15: `cert_lnd_252285_E12_fin` s'hi havia afegit amb la represa PARET-Q2, que ha creat `S0_pq2_p2_amb`/`_sense`
+    com a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 11, la UI en llista 3 —`dir_de` mira
+    `disseny/campanyes` i prou (`c04_draft`, `c0_2anells`, `mb10b_cd`), i les altres vuit són a `disseny/certificacio`
+    i a `disseny/experiments`.
     Que la UI les llisti és una altra fila, no aquesta. Llista congelada = dada viscuda: si neudet corre,
     aquesta xifra es mou i el test ho diu; el que no es mou és que les dues parts coincideixen cama a cama."""
     nd = _neudet()
@@ -199,12 +202,10 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
         man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
         prov = V.manifest_provisional(d)
         if d.name == "mb10b_anells":
-            # Divergència fixada 22-11, rovellat d'ells: el seu manifest és a `882facd7` (19-11, «G4 no llançat»)
-            # i `etapes/S1_g4/` hi va entrar després amb `0f72de2d` (20-11, `verifica_g4.py`) sense regenerar-lo.
-            # El seu propi `_al_flux` (origin/main `manifest_campanya.py:66-69`) hi posaria `S1_g4` al flux: els
-            # nostres tenen raó i el manifest és vell. Quan el regenerin, aquest assert canviarà de costat.
-            assert [e["nom"] for e in prov["etapes"]] == ["S1", "S1_g4"], d
-            assert [e["nom"] for e in man["etapes"]] == ["S1"], d
+            # Divergència de 22-11 TANCADA el 23-11: era un manifest vell (`882facd7`, 19-11) amb `etapes/S1_g4/`
+            # entrat després (`0f72de2d`, 20-11). L'endreç mb10b (`821a06b6`, 23-11) el va regenerar i el seu flux
+            # diu `S1_g4` igual que el nostre provisional — l'assert queda aquí per si mai tornen enrere.
+            assert [e["nom"] for e in prov["etapes"]] == [e["nom"] for e in man["etapes"]] == ["S1", "S1_g4"], d
         else:
             assert [e["nom"] for e in prov["etapes"]] == [e["nom"] for e in man["etapes"]], d
         assert [c["nom"] for c in prov[CENS]] == [c["nom"] for c in (man.get(CENS) or [])], d
@@ -215,10 +216,10 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
         "c04_draft", "c0_2anells",
         "cert_lnd_252248", "cert_lnd_252250", "cert_lnd_252285_E",
         "cert_lnd_252285_E12_fin", "cert_lnd_252285_E12_sol_fin",
-        "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "x06_banc_pe_lnd252285",
-    ], f"el cens ha canviat d'abast: {sorted(amb_cens)}. Cal reexplicar la fila: dues de les que la UI llista tenen un significat nou."
-    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells"], \
-        "la llista de la UI ha canviat; el que diu aquest test de les 9 és el que cal reescriure"
+        "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "mb10b_cd", "x06_banc_pe_lnd252285",
+    ], f"el cens ha canviat d'abast: {sorted(amb_cens)}. Cal reexplicar la fila: les que la UI llista tenen un significat nou."
+    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells", "mb10b_cd"], \
+        "la llista de la UI ha canviat; el que diu aquest test de les 11 és el que cal reescriure"
 
 
 def test_a_c04_draft_el_que_ha_corregut_és_al_cens_i_no_al_flux(c04):
@@ -246,12 +247,13 @@ CLAUS_ETAPA = {"nom", "motor", "etapa_pla", "pla", "resposta", "candidats_csv", 
 
 
 def test_el_cens_porta_el_mateix_joc_de_claus_que_el_flux():
-    """Divergència tancada: el cens ja no és minimal. Sobre els 31 manifests reals (el 31è, `mb10b_anells`,
-    afegit per ells a `882facd7`), cada entrada de cens porta
+    """Divergència tancada: el cens ja no és minimal. Sobre els 36 manifests reals (30 de `6559acd`,
+    `mb10b_anells` de `882facd7` i 5 de l'endreç `821a06b6` del 23-11), cada entrada de cens porta
     el joc de 16 claus d'una entrada de flux — com a molt una de més, `motiu_aturada` (additiva, decret
     `7585843`) — i `anterior: null` sempre. Neudet se'n fixa el mateix a `test_v127_no_decl.py:52-66`."""
     ds = sorted(f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
-    assert len(ds) == 31, f"són {len(ds)} manifests, no 31 (30 des de `06de072` + `mb10b_anells` de `882facd7`)"
+    assert len(ds) == 36, f"són {len(ds)} manifests, no 36 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
+                          f"+ 5 de l'endreç mb10b `821a06b6` del 23-11: cd, motors, motors_sensecd, ref, temps)"
     n_cens = 0
     for d in ds:
         man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
