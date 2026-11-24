@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -529,46 +530,69 @@ def test_s11_g4_comparacio_són_les_files_del_candidat_al_csv():
     assert _ent(es, "S1_anterior_2026-11-21_2 · B1")["g4_comparacio"] == []
 
 
-def test_divergencia_motor_fora_del_contracte_simphy_ui_seccio_2():
-    """Divergència escrita 24-11 (refeta el mateix dia amb la decisió de l'Albert). El
-    `resultats_tub.json` dels `salts` d'mb10b_cd declara `motor: "xarxa B1 + salts"` i el d'mb10b_cd_openmc
-    `"openmc_gpu"`. Decisió (a) de l'Albert (24-11, neudet `fac3d329`): **no es reescriu cap artefacte**,
-    s'amplia el vocabulari — §2 (`~/projects/neudet/docs/site/contractes/simphy_ui.md:65`) admet ara els set
-    valors, amb aquests dos. Queda doncs una divergència **contra simphy**: la còpia del §2 que fa el lector
-    (`src/simphy/mcgen/results_tub.py:54`, `MOTORS`) segueix amb cinc valors i rebutja a la càrrega
-    (`:162-166`, que corre per a tot `versio != "1"`). La UI no calcula res ni relaxa res: les entrades surten
-    `error de lectura` amb el motiu tal com és. Aquest bessó fixa les tres mesures alhora (l'artefacte, el §2
-    ampliat i el rebuig de simphy); quan simphy hi afegeixi els dos valors, cauran les dues assertions
-    d'`ERROR_LECTURA` i s'actualitza aquí amb data — no es queda mut."""
+def test_divergencia_motor_fora_del_contracte_tancada_24_11_amb_simphy_9bd0559():
+    """Divergència escrita 24-11 i **TANCADA el mateix dia**. Com va: el `resultats_tub.json` dels `salts`
+    d'mb10b_cd declara `motor: "xarxa B1 + salts"` i el d'mb10b_cd_openmc `"openmc_gpu"`, i el lector de
+    simphy (`src/simphy/mcgen/results_tub.py`, `MOTORS`) només en validava cinc → `error de lectura`. Decisió
+    (a) de l'Albert (24-11, neudet `fac3d329`): **no es reescriu cap artefacte**, s'amplia el vocabulari;
+    simphy `9bd0559` hi posa els set valors del §2. Què queda fixat aquí, perquè no torni mut:
+
+    1. **Les dues còpies del §2 diuen el mateix**, en el mateix ordre: la taula de
+       `~/projects/neudet/docs/site/contractes/simphy_ui.md` i `RES.MOTORS` (mirall mesurat 24-11).
+    2. **L'abast ja no és cap artefacte**: els 12 que eren fora dels cinc (`5 openmc_gpu` + `7 xarxa B1 +
+       salts`) segueixen a l'arbre i ara són tots dins del vocabulari (`0` fora).
+    3. **Llegit, no perdonat**: els `salts`, l'`openmc_gpu` i el seu Geant4 fan `ok` i porten files; cap
+       motiu de rebuig. La UI no relaxa res —llegeix el que diu el lector, aquí i abans—.
+    """
     from simphy.mcgen import results_tub as RES
     try:
         contracte = (V.neudet_root() / "docs/site/contractes/simphy_ui.md").read_text(encoding="utf-8")
     except Exception as e:
         pytest.skip(f"neudet no és present: {e}")
     linea = [l for l in contracte.splitlines() if l.startswith("| `motor` |")][0]
-    assert "`xarxa B1 + salts`" in linea and "`openmc_gpu`" in linea      # §2 ampliat (decisió de l'Albert)
-    assert RES.MOTORS == ("xarxa B1", "geant4", "mcnp", "openmc", "fluka")  # i simphy, encara amb cinc
-    # l'abast de la divergència, mesurat 24-11 (el neudet ho porta a §5 amb `ea61d3cd`): dels
-    # `resultats_tub.json` de l'arbre, 12 declaren un motor fora dels cinc de simphy — 5 `openmc_gpu`
-    # + 7 `xarxa B1 + salts`. Són aquests, i ells sols, els que fan `error de lectura`.
+    valors = re.findall(r"`([^`]+)`", linea.split("|")[2].split("(")[0])   # sense la nota del final
+    assert valors == list(RES.MOTORS), f"les dues còpies del §2 han tornat a separar-se: {valors} vs {RES.MOTORS}"
     from collections import Counter
     arts = Counter(json.loads(p.read_text(encoding="utf-8")).get("motor")
                    for p in (V.neudet_root() / "disseny" / "campanyes").glob(
                        "*/etapes/*/motors/*/resultats_tub.json"))
-    assert arts["openmc_gpu"] == 5 and arts["xarxa B1 + salts"] == 7
-    assert sum(c for m, c in arts.items() if m not in RES.MOTORS) == 12
+    assert arts["openmc_gpu"] == 5 and arts["xarxa B1 + salts"] == 7   # els mateixos 12 artefactes
+    assert sum(c for m, c in arts.items() if m not in RES.MOTORS) == 0     # ara, cap fora del vocabulari
     _, es = _per_motor("mb10b_cd")
-    s = _ent(es, "S1 · salts")
-    assert s["status"] == RES.ERROR_LECTURA
-    assert "motor 'xarxa B1 + salts' no és cap de xarxa B1, geant4, mcnp, openmc, fluka" in s["motiu"]
-    assert _ent(es, "S1_anterior_2026-11-21_3 · salts")["status"] == RES.ERROR_LECTURA
-    # 24-11: `openmc_gpu` corre ara a la mateixa etapa (COORDINACIO §6) i el motiu és el mateix
-    assert "motor 'openmc_gpu' no és cap de" in _ent(es, "S1 · openmc_gpu")["motiu"]
-    assert _ent(es, "S1 · Geant4 (salts)")["status"] == RES.OK   # el Geant4 propi, en canvi, sí que llegeix
+    for retol in ("S1 · salts", "S1 · openmc_gpu", "S1 · Geant4 (salts)", "S1_anterior_2026-11-21_3 · salts"):
+        assert _ent(es, retol)["status"] == RES.OK
+    assert [e["retol"] for e in es if e["status"] != RES.OK] == []      # cap entrada rebutjada a la campanya
+    assert all(not e["motiu"] for e in es)                              # i sense motiu de rebuig pendent
+    assert len(_ent(es, "S1 · openmc_gpu")["eps_totals"]) == 11            # amb dades, no un ok buit
     _, eo = _per_motor("mb10b_cd_openmc")
-    o = _ent(eo, "S1 · openmc_gpu")
-    assert o["status"] == RES.ERROR_LECTURA and "motor 'openmc_gpu' no és cap de" in o["motiu"]
+    assert _ent(eo, "S1 · openmc_gpu")["status"] == RES.OK
     assert _ent(eo, "S1 · Geant4 (openmc_gpu)")["status"] == RES.OK
+
+
+def test_divergencia_l_openmc_gpu_dins_dmb10b_cd_declara_laltra_campanya():
+    """Divergència nova, escrita 24-11 amb el tancament de S9·MOTORS (decisió (a): **no es reescriu cap
+    artefacte**). L'`openmc_gpu` que corre a la `S1` d'mb10b_cd és a
+    `mb10b_cd/etapes/S1/motors/openmc_gpu/`, però el seu `resultats_tub.json` continua dient
+    `campanya: "mb10b_cd_openmc"` — és una còpia de la campanya antiga i ningú no n'ha canviat la capçalera.
+
+    Conseqüència a la UI, que és el que aquest bessó fixa: el llistat de motors i el cap de la columna diuen
+    `mb10b_cd_openmc`, tal com ho diu l'artefacte (no ho maquillem posant la campanya del directori), i **no
+    per això queda fora de la comparativa de l`S1** — l'abast es mira per on és l'artefacte (el manifest,
+    camp `al_manifest`), no per la clau de dins. Si algú reescriu l'artefacte, el test cau i esborra aquest
+    paràgraf; si algú torna a filtrar per `campanya`, `openmc_gpu` desapareix de la taula i també cau."""
+    d, es = _per_motor("mb10b_cd")
+    e = _ent(es, "S1 · openmc_gpu")
+    assert e["path"] == str(d / "etapes" / "S1" / "motors" / "openmc_gpu")   # el directori del motor
+    j = json.loads((Path(e["path"]) / "resultats_tub.json").read_text(encoding="utf-8"))
+    assert e["campanya"] == "mb10b_cd_openmc" == j["campanya"]   # verbatim de l'artefacte, no del directori
+    assert e["etapa"] == "S1"
+    from simui import api
+    r = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")
+    assert next(x for x in r["entries"] if x["path"] == e["path"])["al_manifest"] is True
+    cols = r["comparativa"]["columnes"]
+    col = next(c for c in cols if c["path"] == e["path"])
+    assert col["motor"] == "openmc_gpu" and col["etapa"] == "S1" and col["campanya"] == "mb10b_cd_openmc"
+    assert all(c["etapa"] == "S1" for c in cols)                  # i tot i això, la taula continua sent d'S1
 
 
 @NODE
@@ -588,18 +612,24 @@ def test_s9_c_rtotals_pinta_taula_i_gràfic_amb_el_geant4_de_traç_discontínu()
 
 @NODE
 def test_s11_c_una_columna_per_motor_contra_el_geant4_valors_reals():
+    """Un grup de columnes per motor amb `g4_comparacio` (ε ± σ, biaix, estat). Des de simphy `9bd0559`
+    n'hi ha tres a mb10b_cd S1 —`B1`, `openmc_gpu`, `salts`—; abans només `B1`, perquè els altres dos es
+    rebutjaven a la càrrega. Files i etiquetes comptades sobre els artefactes, no sobre la taula pintada."""
     _, es = _per_motor("mb10b_cd")
     r = _node_dades(ESCD + "\n" + FMTNUM + "\n" + RG4VAL, "rG4Valor", es)
-    assert r["avisos"] == []                                     # un sol motor amb files: cap divergència
+    assert r["avisos"] == []                        # els tres coincideixen en el seu Geant4: cap divergència
     h = r["html"]
     assert "<h3>Motor contra Geant4, valor a valor</h3>" in h
-    b1 = _ent(es, "S1 · B1")
-    assert h.count("<tr>") - 1 == len(b1["g4_comparacio"]) == 110
-    assert "<th>S1 · B1 ε ± σ</th><th>S1 · B1/G4 − 1</th><th>estat</th>" in h
-    dins = sum(1 for f in b1["g4_comparacio"] if f["concloent"] and f["dins_tol"])
-    fora = sum(1 for f in b1["g4_comparacio"] if f["concloent"] and not f["dins_tol"])
-    assert h.count('<span class="tag t-ok">dins</span>') == dins == 102
-    assert h.count('<span class="tag t-no">fora</span>') == fora == 8
+    amb = [e for e in es if e["status"] == "ok" and e["g4_comparacio"]]
+    assert [e["retol"] for e in amb] == ["S1 · B1", "S1 · openmc_gpu", "S1 · salts"]
+    assert len({len(e["g4_comparacio"]) for e in amb}) == 1
+    assert h.count("<tr>") - 1 == len(amb[0]["g4_comparacio"]) == 110
+    for e in amb:
+        assert f"<th>{e['retol']} ε ± σ</th><th>{e['retol']}/G4 − 1</th><th>estat</th>" in h
+    dins = sum(1 for e in amb for f in e["g4_comparacio"] if f["concloent"] and f["dins_tol"])
+    fora = sum(1 for e in amb for f in e["g4_comparacio"] if f["concloent"] and not f["dins_tol"])
+    assert h.count('<span class="tag t-ok">dins</span>') == dins == 303
+    assert h.count('<span class="tag t-no">fora</span>') == fora == 27
     assert "-0.90 %" in h                                        # biaix de la primera fila, fmtPct del `biaix`
 
 
@@ -620,8 +650,11 @@ def test_s11_c_no_concloent_i_geant4_divergent_queda_escrit():
     assert '<td class="t-no">divergent</td>' in r["html"]        # un G4 en què no coincideixen, no pintat com si
     assert ">G4 " in r["html"]                                   # cada columna porta el seu G4 escrit
     assert '<span class="tag t-nt">NO CONCLOENT</span>' in r["html"]
-    _, eo = _per_motor("mb10b_cd_openmc")                        # sens files: bloc buit, no una taula a zeros
-    assert _node_dades(pre, "rG4Valor", eo) == {"avisos": [], "html": ""}
+    # sens files, bloc buit (no una taula a zeros): el Geant4 del motor no porta `g4_comparacio` pròpia
+    _, eo = _per_motor("mb10b_cd_openmc")
+    assert _node_dades(pre, "rG4Valor", [_ent(eo, "S1 · Geant4 (openmc_gpu)")]) == {"avisos": [], "html": ""}
+    # i la campanya antiga, des de simphy `9bd0559`, sí que les té (110 files), no un bloc mut
+    assert len(_ent(eo, "S1 · openmc_gpu")["g4_comparacio"]) == 110
 
 
 # ── comparativa per tub i ε total: entre MOTORS d'UNA etapa (encàrrec 24-11, mb10b_cd S1) ──
@@ -656,15 +689,17 @@ def test_comparativa_una_columna_per_motor_de_letpa_triada_sense_barre_les_altre
     _, es = _per_motor("mb10b_cd")
     r = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")
     cols = r["comparativa"]["columnes"]
+    # una columna per motor de l'etapa triada, en l'ordre del vocabulari de simphy (`MOTORS`, després font)
     assert [(c["etapa"], c["motor"], c["path"].rsplit("/", 1)[-1]) for c in cols] == [
-        ("S1", "xarxa B1", "B1"), ("S1", "geant4", "B1_g4"), ("S1", "geant4", "salts_g4")]
+        ("S1", "xarxa B1", "B1"), ("S1", "xarxa B1 + salts", "salts"), ("S1", "openmc_gpu", "openmc_gpu"),
+        ("S1", "geant4", "B1_g4"), ("S1", "geant4", "salts_g4")]
     assert all(c["etapa"] == "S1" for c in cols)
     # per defecte, l'etapa triada és la primera amb dades de l'ordre del manifest: S1 (el que demana l'encàrrec).
     # El selector de la pàgina (`rCarrega`) es construeix amb aquest ordre i la pàgina sempre envia `stage`.
     assert [e["retol"] for e in r["entries"] if e["status"] == "ok"][0] == "S1 · B1"
-    # els dos motors que simphy rebutja no tenen columna; no és que no hi siguin dades (test de dalt)
-    for retol in ("S1 · salts", "S1 · openmc_gpu"):
-        assert _ent(es, retol)["path"] not in {c["path"] for c in cols}
+    # 24-11: des de simphy `9bd0559`, `salts` i `openmc_gpu` també llegeixen — abans eren els dos que sortien
+    # a la llista «sense columna» amb el motiu del vocabulari. Les cinc entrades ok d'S1 hi són.
+    assert {e["path"] for e in es if e["status"] == "ok" and e["etapa"] == "S1"} == {c["path"] for c in cols}
     # i si se'n tria una altra, la taula és la d'aquella etapa, no un resum de totes
     alt = _ent(es, "S1_anterior_2026-11-21_2 · B1")["path"]
     c2 = api.results(HASH_PROVA, stage=alt, energia=4.0, campanya="mb10b_cd")["comparativa"]
@@ -676,25 +711,39 @@ def test_comparativa_una_columna_per_motor_de_letpa_triada_sense_barre_les_altre
 def test_c_compmeta_un_retol_distint_per_columna_i_nom_els_motors_sense_columna():
     """El mirall (marcadors `COMPCOMP-DEF`): `etapaEntries` deixa l'etapa triada + simphy i `compMeta` posa el
     `retol` de neudet a cada capçalera —els dos Geant4 d'una etapa es dirien tots dos «geant4»— i llista, amb
-    el seu motiu literal, els motors de l'etapa que no tenen columna. No se n'afegeix ni se'n treu cap."""
+    el seu motiu literal, els motors de l'etapa que no tenen columna. No se n'afegeix ni se'n treu cap.
+
+    Les entrades són les que dona `api.results` —les mateixes que rep la pàgina, amb `al_manifest`—, no un
+    `resultats_per_motor` pel seu compte: així el mirall filtra exactament amb el mateix camp que l'API i no
+    poden separar-se sense que aquest test ho digui."""
     from simui import api
-    _, es = _per_motor("mb10b_cd")
-    comp = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")["comparativa"]
-    sel = _ent(es, "S1 · B1")["path"]
+    r = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")
+    es, comp = r["entries"], r["comparativa"]
+    sel = next(e["path"] for e in es if e["retol"] == "S1 · B1")
     extra = {"font": "simphy", "etapa": "simphy", "path": "/simphy/mcnp", "retol": "simphy · mcnp", "status": "ok"}
+    # un motor d'S1 rebutjat: a mb10b_cd ja no n'hi ha cap (des de simphy `9bd0559`), i el camí del motiu
+    # s'ha de seguir pintant igualment —no desapareix cap motor en silenci—
+    sense = {"font": "neudet", "campanya": "mb10b_cd", "etapa": "S1", "al_manifest": True,
+             "status": "error de lectura", "motiu": "no hi ha resultats_tub.json",
+             "path": "/x/pendent", "retol": "S1 · pendent"}
     sortida = _node_dades(ESCD + COMPCOMP, "d => { const s = etapaEntries(d.entries, d.sel);"
-                        " const a = etapaEntries([...d.entries, d.extra], d.sel);"
+                        " const a = etapaEntries([...d.entries, d.extra, d.sense], d.sel);"
                         " return [s.map(e => e.retol), compMeta(d.comp, s),"
                         " a.map(e => e.retol), compMeta(d.comp, a)]; }",
-                        {"comp": comp, "entries": es, "sel": sel, "extra": extra})
+                        {"comp": comp, "entries": es, "sel": sel, "extra": extra, "sense": sense})
     de_letpa, meta, retols_amb_simphy, meta_amb_simphy = sortida
     assert de_letpa == ["S1 · B1", "S1 · Geant4 (B1)", "S1 · openmc_gpu", "S1 · salts", "S1 · Geant4 (salts)"]
     assert "S1_anterior_2026-11-21_2 · B1" not in de_letpa             # les altres etapes, fora
-    assert [c["rotol"] for c in meta["caps"]] == ["S1 · B1", "S1 · Geant4 (B1)", "S1 · Geant4 (salts)"]
-    assert [a["rotol"] for a in meta["absents"]] == ["S1 · openmc_gpu", "S1 · salts"]
-    assert all("no és cap de" in a["motiu"] for a in meta["absents"])   # el motiu amb què se'ls rebutja, tal com és
+    assert [c["rotol"] for c in meta["caps"]] == ["S1 · B1", "S1 · salts", "S1 · openmc_gpu",
+                                                  "S1 · Geant4 (B1)", "S1 · Geant4 (salts)"]
+    # el que diu cada artefacte, com cada artefacte ho diu (l'openmc_gpu d'mb10b_cd ve de l'altra campanya)
+    assert [c["campanya"] for c in meta["caps"]] == ["mb10b_cd", "mb10b_cd", "mb10b_cd_openmc",
+                                                     "mb10b_cd", "mb10b_cd"]
+    assert meta["absents"] == []                                        # amb les dades reals, cap fora
+    assert [a["rotol"] for a in meta_amb_simphy["absents"]] == ["S1 · pendent"]
+    assert meta_amb_simphy["absents"][0]["motiu"] == "no hi ha resultats_tub.json"   # el motiu, literal
     assert "simphy · mcnp" in retols_amb_simphy                         # simphy no és una etapa: hi és
-    assert meta_amb_simphy == meta                                      # i no mou ni caps ni absents
+    assert meta_amb_simphy["caps"] == meta["caps"]                       # i no mou cap columna
     buit = _node_dades(ESCD + COMPCOMP, "d => compMeta(d.c, d.e)",
                        {"c": None, "e": [{"path": "/x", "etapa": "S2", "status": "error de lectura", "motiu": "m"}]})
     assert buit == {"caps": [], "absents": [{"rotol": "S2 · ?", "motiu": "m"}]}

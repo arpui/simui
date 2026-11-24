@@ -82,7 +82,10 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.results, q.get("hash", ""), q.get("stage") or None, q.get("energia"),
                          q.get("campanya") or None)
         elif path == "/api/campanyes":
-            self._tracta(api.campanyes)
+            # `?substituides=1` per veure també les declarades `substituïda_per` (clau ASCII: les altres del
+            # nivell `/api` també ho són). Per defecte, fora de la llista (Albert, 24-11).
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            self._tracta(api.campanyes, q.get("substituides") or False)
         elif path == "/api/campanya/vista":
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             self._tracta(api.campanya_vista, q.get("id", ""))

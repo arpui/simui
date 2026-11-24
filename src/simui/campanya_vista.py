@@ -125,11 +125,15 @@ def dir_de(id_: str) -> Path:
 GRUP_PRINCIPAL, GRUP_ALTRES = "principal", "altres"
 
 
-def llista() -> List[Dict[str, Any]]:
+def llista(substituïdes: bool = False) -> List[Dict[str, Any]]:
     """Les campanyes de neudet (carpetes amb `campanya.yaml`). Per a cada una, DUES coses que no són el mateix:
     `estat_yaml` (el camp `estat:` del campanya.yaml, tal com és: `proposta`, `jutjada`, `S3`, `tancada (…)`…;
     un valor desconegut no és un error) i `estat_manifest` (`draft` o `definitiva`, de `draft:` del yaml, el que
-    diu CAMP-2). Un yaml il·legible no fa caure la llista: surt amb `motiu`."""
+    diu CAMP-2). Un yaml il·legible no fa caure la llista: surt amb `motiu`.
+
+    Les declarades `substituïda_per` (CON-API del neudet, 24-11) no hi surten per defecte —l'Albert ho va
+    decidir així el 24-11—; amb `substituïdes=True` sí, amb el seu camp `substituïda`. No és un estat: el cicle
+    de neudet no en té (`confirmacio.py:42`) i l'`estat` del yaml no canvia."""
     out: List[Dict[str, Any]] = []
     root = campanyes_root()
     if not root.is_dir():
@@ -147,7 +151,11 @@ def llista() -> List[Dict[str, Any]]:
         te_manifest = (d / MANIFEST).is_file()
         proposta = estat_yaml == ESTAT_PROPOSTA
         grup = GRUP_PRINCIPAL if (te_manifest or proposta or y.get("fitxa") == 1) else GRUP_ALTRES
+        subst = _substituida(y)
+        if subst and not substituïdes:
+            continue
         out.append({"id": d.name, "estat_yaml": estat_yaml, "estat_manifest": estat_manifest,
+                    "substituïda": subst,
                     "manifest": te_manifest, "provisional": not te_manifest, "proposta": proposta,
                     "grup": grup, "motiu": motiu,
                     # FITXERS-UI (encàrrec 2026-11-19): el motiu pel qual surt a «altres», escrit per la pàgina
@@ -169,6 +177,15 @@ def _yaml(f: Path) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise CampanyaError(f"{f}: l'arrel ha de ser un diccionari")
     return data
+
+
+def _substituida(y: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """CON-API del neudet (24-11, `91aaf7c5`): `substituïda_per`/`_data`/`_motiu` són claus additives del
+    `campanya.yaml`; el cicle neudet no les mira i l'`estat` no canvia. Lectura amb `get` i res més: només
+    alguna campanya les porta (1 de 17 mesurat 24-11)."""
+    per = y.get("substituïda_per")
+    return None if per is None else {"per": str(per), "data": y.get("substituïda_data"),
+                                     "motiu": y.get("substituïda_motiu")}
 
 
 def _estat(y: Dict[str, Any]) -> str:
@@ -884,6 +901,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "motiu": m.get("motiu"),
         "estat": m["estat"],
         "estat_yaml": None if y.get("estat") is None else str(y.get("estat")),
+        "substituïda": _substituida(y),        # CON-API 24-11: a qui ha passat, amb data i motiu de neudet
         "definicio": m["definicio"],
         "certificacio": _certificacio(d, m["certificacio"]),
         # FITXERS-UI (encàrrec 2026-11-19): els fitxers que es poden «veure», només els que hi són.

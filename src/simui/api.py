@@ -302,19 +302,37 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
     l'entrada top-level de `for_design` no es repeteix.
     """
     entries = RES.for_design(hash_)
+    al_manifest: set = set()
     if campanya:
         extra = CV.resultats_per_motor(campanya, hash_)
-        vistes = {(e["campanya"], e["etapa"]) for e in extra}
-        entries = extra + [e for e in entries if (e["campanya"], e["etapa"]) not in vistes]
+        al_manifest = {x["path"] for x in extra}
+        vistes = {(x["campanya"], x["etapa"]) for x in extra}
+        entries = extra + [x for x in entries if (x["campanya"], x["etapa"]) not in vistes]
+    for x in entries:
+        # d'on ve cada entrada: del manifest de la campanya que mirem, o de `for_design`. La pàgina fa servir
+        # el mateix camp per aplicar-hi la mateixa regla d'abast que aquí a sota.
+        x["al_manifest"] = x["path"] in al_manifest
     out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None, "comparativa": None}
     if energia not in (None, ""):
         e = next((x for x in entries if x["status"] == RES.OK
                   and (stage is None or x["path"] == stage)), None)
-        # la taula per tub és entre motors d'UNA etapa: la triada (per defecte la primera amb dades).
-        # Les altres etapes que tenen aquest hash (intents apartats, proves) no hi comparen. Les de
-        # simphy porten `etapa: "simphy"` — no són una etapa de la campanya, són un motor més— i es queden.
-        comparats = [x for x in entries if x.get("font") == "simphy"
-                     or (e is not None and (x["campanya"], x["etapa"]) == (e["campanya"], e["etapa"]))]
+
+        def de_l_etapa_triada(x: Dict[str, Any]) -> bool:
+            # la taula per tub és entre motors d'UNA etapa: la triada (per defecte la primera amb dades). Les
+            # altres etapes que tenen aquest hash (intents apartats, proves) no hi comparen. Les de simphy
+            # porten `etapa: "simphy"` —no són una etapa de la campanya, són un motor més— i es queden.
+            if x.get("font") == "simphy":
+                return True
+            if e is None:
+                return False
+            # amb campanya, «de la seva etapa» és per on és l'artefacte (el manifest), no per la clau
+            # `campanya` que porta a dins: l'`openmc_gpu` d'mb10b_cd ve de la campanya antiga i diu
+            # `mb10b_cd_openmc` (divergència escrita amb test) i segueix sent un motor d'aquesta `S1`.
+            if x["al_manifest"]:
+                return x["etapa"] == e["etapa"]
+            return (x["campanya"], x["etapa"]) == (e["campanya"], e["etapa"])
+
+        comparats = [x for x in entries if de_l_etapa_triada(x)]
         # lectura i quocient, sense física
         out["comparativa"] = RES.comparativa(comparats, float(energia))
         dat = CAT.per_hash(hash_)
@@ -449,9 +467,10 @@ def campanya_objectius(body: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Campanyes (contracte §6, CAMP-2): la campanya com a conjunt, des de neudet ──
 
-def campanyes() -> Dict[str, Any]:
-    """Les campanyes de neudet (`disseny/campanyes/*/campanya.yaml`), amb estat i si tenen manifest."""
-    return {"campanyes": CV.llista()}
+def campanyes(substituïdes: bool = False) -> Dict[str, Any]:
+    """Les campanyes de neudet (`disseny/campanyes/*/campanya.yaml`), amb estat i si tenen manifest.
+    Les declarades `substituïda_per` no hi surten si no és demanant `substituïdes` (Albert, 24-11)."""
+    return {"campanyes": CV.llista(bool(substituïdes))}
 
 
 def campanya_vista(id_: str) -> Dict[str, Any]:

@@ -326,6 +326,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
   <div class="hint">Una proposta nova, amb els valors per defecte de neudet i un id que cal triar abans de desar.</div>
   <h2>Campanyes</h2>
   <div id="n-camps"><div class="hint">Carregant les campanyes de neudet…</div></div>
+  <label class="hint"><input type="checkbox" id="n-subst"> mostra les substituïdes</label>
   <h2>Disseny</h2>
   <button class="cl" data-k="solt">Obre un disseny</button>
   <div class="hint">Un disseny sense campanya: un <code>export/</code> de neudet, un <code>.dat</code> amb el seu <code>.json</code>, o un text.</div>
@@ -2695,6 +2696,11 @@ function kPinta(){
   out.push(`<div class="bar"><h3 style="margin:0">${escD(v.id)}</h3>${diagTag(v.diagnostic)}${kTagYaml(v.estat_yaml)}${kTagEstat(v.estat)}` +
     (v.provisional ? '<span class="tag t-wa">provisional</span>' : '<span class="tag t-ok">manifest de neudet</span>') + '</div>');
   out.push(diagAv(v.diagnostic));
+  // SUBST (24-11): si el yaml la declara substituïda, aquí diu a quina i per què — text de neudet; si no hi
+  // diu el motiu, ho diu, no l'inventa.
+  out.push(v.substituïda ? `<div class="panel warn" data-subst>Substituïda per <a href="#neudet/${escD(v.substituïda.per)}">${escD(v.substituïda.per)}</a>${
+    v.substituïda.data ? ` <span class="hint">${escD(v.substituïda.data)}</span>` : ''}: ${
+    escD(v.substituïda.motiu || 'el yaml no en diu el motiu')}</div>` : '');
   out.push(kAPunt(v.certificacio));   // A-PUNT: verd/vermell a dalt de tot, llegit del bloc `a_punt` de neudet
   out.push(kAccions());
   if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
@@ -3653,6 +3659,9 @@ async function nzInicia(sub){
   const s = Array.isArray(sub) ? sub : (sub ? [sub] : []);
   if(s[0] === 'nova') return nzNova();
   if(s[0] === 'solt') return nzSolt();
+  if(s[0] && !KC.lista.some(c => c.id === s[0]) && !NZ_SUBST){        // SUBST: pot ser una substituida amagada
+    NZ_SUBST = true; await nzLlegeixLlista();                         // l'adreça mana; la casella queda marcada
+  }
   if(s[1] === 'full' && s[2]) return nzFull(s[0], s[2]);      // S8: `#neudet/<camp>/full/<hash>`
   if(s[0]) return nzCampanya(KC.lista.some(c => c.id === s[0]) ? s[0] : nzPrincipal());
   if(NZ.sel) return nzVeu();                       // tornar a la pestanya: el mateix lloc
@@ -3671,10 +3680,17 @@ async function nzFull(camp, hash){
   return nzObreCandidat({hash, nom: cand ? cand.nom : hash, de: camp});
 }
 // La llista es torna a llegir en cada visita: una proposta desada des del formulari hi ha d'aparèixer.
+// SUBST (decisió de l'Albert 24-11, CON-API del neudet `91aaf7c5`): una campanya amb `substituïda_per` al yaml
+// no surt a la llista per defecte; la casella la porta (l'API filtra, aquí no se n'amaga cap per compte propi).
+// L'adreça directa, en canvi, sí que l'obre: si el nom de la ruta no és a la llista, la tornem a llegir amb les
+// substituïdes i marquem la casella — un enllaç antic a una substituida no ha de caure en una altra campanya.
+let NZ_SUBST = false;
 async function nzLlegeixLlista(){
-  KC.lista = (await api('/api/campanyes')).campanyes;
+  KC.lista = (await api('/api/campanyes' + (NZ_SUBST ? '?substituides=1' : ''))).campanyes;
+  const x = Q('#n-subst'); if(x) x.checked = NZ_SUBST;
   const oberta = !!(Q('#n-altres') && Q('#n-altres').open);
-  const item = c => `<button class="cl" data-id="${escD(c.id)}"><span>${escD(c.id)}</span>${kTagYaml(c.estat_yaml)}</button>` +
+  const item = c => `<button class="cl" data-id="${escD(c.id)}"><span>${escD(c.id)}</span>${kTagYaml(c.estat_yaml)}` +
+    (c.substituïda ? `<span class="tag t-no" data-subst-a>substituïda → ${escD(c.substituïda.per)}</span>` : '') + `</button>` +
     fxLlista(c);   // FITXERS-UI: «veure» dels fitxers que hi són, sense obrir la campanya
   const princ = KC.lista.filter(c => c.grup === 'principal'), altres = KC.lista.filter(c => c.grup !== 'principal');
   const selAltres = altres.some(c => c.id === (NZ.sel && NZ.sel.id));
@@ -3816,6 +3832,7 @@ Q('#n-llista').addEventListener('click', e => {
   if(b.dataset.k === 'solt') return nzSolt().catch(err => dErr(err.message));
   nzCampanya(b.dataset.id).catch(err => kErr(err.message));
 });
+Q('#n-subst').onchange = e => { NZ_SUBST = e.target.checked; nzLlegeixLlista().catch(err => cErr(err.message)); };
 Q('#n-bread').addEventListener('click', e => {
   const b = e.target.closest('button[data-go]');
   if(!b) return;
@@ -4187,8 +4204,15 @@ function rTaula(){
 // cada columna (els dos Geant4 d'una mateixa etapa es dirien tots dos «geant4» sense el seu `retol`) i llista
 // els motors de l'etapa que no hi tenen columna, amb el motiu amb què se'ls rebutja: no desapareixen en silenci.
 function etapaEntries(entries, selPath){
-  const sel = entries.find(e => e.path === selPath) || null;
-  return entries.filter(e => e.font === 'simphy' || (sel && e.campanya === sel.campanya && e.etapa === sel.etapa));
+  const sel = entries.find(e => e.path === selPath && e.status === 'ok') || null;
+  return entries.filter(e => {
+    if(e.font === 'simphy') return true;
+    if(!sel) return false;
+    // amb campanya, «de la etapa triada» es mira per on és l'artefacte (`al_manifest`, el que dona l'API), no
+    // per la clau `campanya` de dins: l'openmc_gpu d'mb10b_cd és a la seva `S1` i diu la campanya antiga.
+    return e.al_manifest ? e.etapa === sel.etapa
+                         : (e.campanya === sel.campanya && e.etapa === sel.etapa);
+  });
 }
 function compMeta(comp, entries){
   const cols = (comp && comp.columnes) || [];
