@@ -190,7 +190,7 @@ def test_mb10b_cd_la_coral_multi_motor_es_servida_i_la_divergencia_queda_tancada
     """Divergència TANCADA 23-11 (MAN-FORAT, neudet `6d06c41b`). El 23-11 al matí l'endreç `821a06b6` declarava
     l'`S1` d'mb10b_cd `executada: false` (el seu criteri no reconeixia la coral: sense `candidats.csv` a l'arrel)
     mentre les dades eren a `motors/<m>/` —ho vam escriure aquí. MAN-FORAT ho resol des de la font: `S1` surt
-    com a execució amb `motors: [B1, salts]`, `comparacio_motors` i `n_candidats` = la unió avaluada (25), i la
+    com a execució amb `motors: [B1, salts]` (24-11: `openmc_gpu` s'hi afegeix a la mateixa etapa, COORDINACIO §6), `comparacio_motors` i `n_candidats` = la unió avaluada (25), i la
     vista la pinta amb el Geant4 per motor. Aquest test fixa el costat tancat; si algú torna a declarar l'etapa
     no-executada amb les dades al disc, peta aquí."""
     _neudet_o_skip()
@@ -201,7 +201,7 @@ def test_mb10b_cd_la_coral_multi_motor_es_servida_i_la_divergencia_queda_tancada
     s1m = next(e for e in man["etapes"] if e["nom"] == "S1")
     assert "executada" not in s1m                                        # ja no és una CONF-PLA: és l'execució
     assert s1m["candidats_csv"] is None and s1m["comparacio_motors"] == "etapes/S1/comparacio_motors.json"
-    assert [m["nom"] for m in s1m["motors"]] == ["B1", "salts"]
+    assert [m["nom"] for m in s1m["motors"]] == ["B1", "openmc_gpu", "salts"]   # ordre del manifest, mirall fac3d329
     cm = json.loads((d / "etapes" / "S1" / "comparacio_motors.json").read_text(encoding="utf-8"))
     assert s1m["n_candidats"] == len(cm["nomes_candidats"]) == 25        # la unió avaluada, verbatim de neudet
     v = V.vista(d)
@@ -210,9 +210,9 @@ def test_mb10b_cd_la_coral_multi_motor_es_servida_i_la_divergencia_queda_tancada
     assert s1["fitxers"]["candidats"] is None and s1["n_candidats"] == 25 and s1["citable"] is True
     assert s1["comparacio"] is not None                                  # la comparació de motors, tal com és
     per = s1["comparacio"]["g4"]["per_motor"]
-    assert set(per) == {"B1", "salts"}
+    assert set(per) == {"B1", "salts", "openmc_gpu"}
     for m, gm in per.items():
         rel = f"etapes/S1/{gm['taula']}"                                  # el mateix prefix que posa la pàgina
         assert V.fitxer(d, rel).is_file(), f"{m}: la taula no és a {rel}"
-    assert [mm["motor"] for mm in s1["motors"]] == ["B1", "salts"]       # les targetes per motor, amb les seves dades
+    assert [mm["motor"] for mm in s1["motors"]] == ["B1", "salts", "openmc_gpu"]   # les targetes per motor, amb les seves dades
     assert s1["seleccio"] and len(s1["seleccio"]["files"]) == 4

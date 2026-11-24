@@ -17,7 +17,8 @@ Què es fixa (només el que no depèn dels punts N de neudet)
   pestanya nova; `resultats_per_motor` dona una entrada per motor del manifest (i el seu Geant4, germà
   `germa`/`germa_g4`) amb `eps_totals` i `metrics` verbatim del `candidats.csv`; `g4_comparacio` són les
   files del csv (biaix i estat llegits); guanyador/Pareto/verificats enllacen al full; la divergència
-  `motor: "xarxa B1 + salts"`/`"openmc_gpu"` fora del contracte §2 queda escrita amb el seu test.
+  `motor: "xarxa B1 + salts"`/`"openmc_gpu"` (artefacte i §2 d'acord des de neudet `fac3d329`, el lector de
+  simphy encara no) queda escrita amb el seu test.
 Sense neudet, els tests amb dades reals es salten.
 """
 from __future__ import annotations
@@ -89,7 +90,9 @@ def test_s1_a_mb10b_cd_letiqueta_son_els_motors_i_no_xarxa():
     _, v = _vista("mb10b_cd")
     sortida = _node_dades(ESCD + LABEL, "es => es.map(kMotorsEtiqueta)", v["etapes"])
     s1 = next((et, etq) for et, etq in zip(v["etapes"], sortida) if et["nom"] == "S1")
-    assert s1[1] == "B1 · salts", s1
+    # 24-11: `openmc_gpu` s'ha afegit a la mateixa etapa (COORDINACIO §6, neudet `2da50d8e`/`fac3d329`) — l'etiqueta
+    # segueix sent la llista de motors del manifest, mai la paraula «xarxa».
+    assert s1[1] == "B1 · salts · openmc_gpu", s1
     assert "xarxa" not in s1[1]
     for et, etq in zip(v["etapes"], sortida):
         ms = [str(m["nom"]) for m in (et.get("comparacio") or {}).get("motors", []) if m.get("aplicable") is not False and m.get("nom")]
@@ -138,11 +141,16 @@ def test_s2_a_mb10b_cd_el_temps_de_cache_no_es_pinta():
     s1 = _etapa(v, "S1")
     h = _taula(s1)
     aplicables = [m for m in s1["comparacio"]["motors"] if m.get("aplicable") is not False]
-    assert aplicables and all(m.get("avis_cache") for m in aplicables), \
-        "neudet ja va regenerar la comparació sense cache? actualitza aquest bessó (encàrrec N1)"
-    for m in aplicables:
+    amb_cache = [m for m in aplicables if m.get("avis_cache")]
+    # 24-11: `openmc_gpu` corre a la mateixa etapa i porta temps real de transport (1945,9 s, sense avís);
+    # els dos de xarxa segueixen amb el seu avís de cache. La regla no canvia: amb avís, ni temps ni FOM.
+    assert {m["nom"] for m in amb_cache} == {"B1", "salts"}, [m["nom"] for m in aplicables]
+    sense_cache = [m for m in aplicables if not m.get("avis_cache")]
+    assert {m["nom"] for m in sense_cache} == {"openmc_gpu"} and sense_cache[0]["temps_s"] == 1945.9
+    for m in amb_cache:
         assert f"{m['temps_s']} s" not in h, f"{m['nom']}: pinta el temps cru malgrat l'avís de cache"
-    assert h.count("no mesurat") == 2 * len(aplicables)   # cel·la de temps i FOM per motor
+    assert "1945" in h                                      # el temps que sí que és de transport, pintat (`f()` el formata)
+    assert h.count("no mesurat") == 2 * len(amb_cache)      # cel·la de temps i FOM, només pels que tenen avís
 
 
 # ── S3: «vista normal» obre el plegat del motor ──────────────────────────────
@@ -466,8 +474,10 @@ def test_s9_una_entrada_per_motor_del_manifest_i_el_geant4_al_costat():
           for m in e["motors"] if isinstance(m, dict)]
     # una entrada per motor i, per a cada motor que declara `g4`, la del seu Geant4 (mirall mb10b_cd 24-11)
     assert len(es) == len(ms) + sum(1 for m in ms if isinstance(m.get("g4"), dict))
+    # 24-11 (mirall `fac3d329`): `openmc_gpu` corre ara a la mateixa `S1` d'mb10b_cd i el manifest el declara,
+    # sense Geant4 propi (`motors/openmc_gpu/` no té `_g4`) — per això no té entrada germana.
     assert [e["retol"] for e in es] == [
-        "S1 · B1", "S1 · Geant4 (B1)", "S1 · salts", "S1 · Geant4 (salts)",
+        "S1 · B1", "S1 · Geant4 (B1)", "S1 · openmc_gpu", "S1 · salts", "S1 · Geant4 (salts)",
         "S1_anterior_2026-11-21_2 · B1", "S1_anterior_2026-11-21_3 · salts"]
     assert all(e["font"] == "neudet" for e in es)                # els camins són els del manifest de neudet
     b1, g = _ent(es, "S1 · B1"), _ent(es, "S1 · Geant4 (B1)")
@@ -508,18 +518,31 @@ def test_s11_g4_comparacio_són_les_files_del_candidat_al_csv():
 
 
 def test_divergencia_motor_fora_del_contracte_simphy_ui_seccio_2():
-    """Divergència escrita 24-11, pendent de decisió del neudet. El `resultats_tub.json` dels `salts`
-    d'mb10b_cd declara `motor: "xarxa B1 + salts"` i el d'mb10b_cd_openmc `"openmc_gpu"`; el contracte §2
-    (`~/projects/neudet/docs/site/contractes/simphy_ui.md:65`) només admet `xarxa B1 · geant4 · mcnp ·
-    openmc · fluka`, i simphy (`src/simphy/mcgen/results_tub.py:54` i `:162-166`) ho rebutja. La UI mostra
-    l'error de neudet tal com és: les entrades surten `error de lectura`, no silenci. Quan neudet decideixi
-    (corregir el valor o ampliar §2), actualitzeu aquest bessó — no es queda mut."""
+    """Divergència escrita 24-11 (refeta el mateix dia amb la decisió de l'Albert). El
+    `resultats_tub.json` dels `salts` d'mb10b_cd declara `motor: "xarxa B1 + salts"` i el d'mb10b_cd_openmc
+    `"openmc_gpu"`. Decisió (a) de l'Albert (24-11, neudet `fac3d329`): **no es reescriu cap artefacte**,
+    s'amplia el vocabulari — §2 (`~/projects/neudet/docs/site/contractes/simphy_ui.md:65`) admet ara els set
+    valors, amb aquests dos. Queda doncs una divergència **contra simphy**: la còpia del §2 que fa el lector
+    (`src/simphy/mcgen/results_tub.py:54`, `MOTORS`) segueix amb cinc valors i rebutja a la càrrega
+    (`:162-166`, que corre per a tot `versio != "1"`). La UI no calcula res ni relaxa res: les entrades surten
+    `error de lectura` amb el motiu tal com és. Aquest bessó fixa les tres mesures alhora (l'artefacte, el §2
+    ampliat i el rebuig de simphy); quan simphy hi afegeixi els dos valors, cauran les dues assertions
+    d'`ERROR_LECTURA` i s'actualitza aquí amb data — no es queda mut."""
     from simphy.mcgen import results_tub as RES
+    try:
+        contracte = (V.neudet_root() / "docs/site/contractes/simphy_ui.md").read_text(encoding="utf-8")
+    except Exception as e:
+        pytest.skip(f"neudet no és present: {e}")
+    linea = [l for l in contracte.splitlines() if l.startswith("| `motor` |")][0]
+    assert "`xarxa B1 + salts`" in linea and "`openmc_gpu`" in linea      # §2 ampliat (decisió de l'Albert)
+    assert RES.MOTORS == ("xarxa B1", "geant4", "mcnp", "openmc", "fluka")  # i simphy, encara amb cinc
     _, es = _per_motor("mb10b_cd")
     s = _ent(es, "S1 · salts")
     assert s["status"] == RES.ERROR_LECTURA
     assert "motor 'xarxa B1 + salts' no és cap de xarxa B1, geant4, mcnp, openmc, fluka" in s["motiu"]
     assert _ent(es, "S1_anterior_2026-11-21_3 · salts")["status"] == RES.ERROR_LECTURA
+    # 24-11: `openmc_gpu` corre ara a la mateixa etapa (COORDINACIO §6) i el motiu és el mateix
+    assert "motor 'openmc_gpu' no és cap de" in _ent(es, "S1 · openmc_gpu")["motiu"]
     assert _ent(es, "S1 · Geant4 (salts)")["status"] == RES.OK   # el Geant4 propi, en canvi, sí que llegeix
     _, eo = _per_motor("mb10b_cd_openmc")
     o = _ent(eo, "S1 · openmc_gpu")
