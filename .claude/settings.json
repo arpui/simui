@@ -1,0 +1,28 @@
+{
+  "env": {
+    "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull --no-rebase:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(git -C:*)",
+      "Bash(bash scripts/puja.sh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git rebase:*)",
+      "Bash(git pull --rebase:*)",
+      "Bash(git pull -r:*)"
+    ]
+  }
+}
