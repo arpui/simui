@@ -38,6 +38,11 @@ ESCD = "const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
 LABEL = "const kMotorsEtiqueta" + INDEX.split("const kMotorsEtiqueta")[1].split("function kComparacio")[0]
 COMPARACIO = ("function kComparacio(e){" + INDEX.split("function kComparacio(e){")[1].split("// ── VERIF-UI")[0])
 INTENTS = INDEX.split("// INTENTS-DEF-BEGIN")[1].split("\n", 1)[1].split("// INTENTS-DEF-END")[0]
+DATES = INDEX.split("// DATES-DEF-BEGIN")[1].split("\n", 1)[1].split("// DATES-DEF-END")[0]
+G4RESUM = INDEX.split("// G4RESUM-DEF-BEGIN")[1].split("\n", 1)[1].split("// G4RESUM-DEF-END")[0]
+PARAMS = INDEX.split("// PARAMS-DEF-BEGIN")[1].split("\n", 1)[1].split("// PARAMS-DEF-END")[0]
+KDOC = "function kDoc(p, titol){" + INDEX.split("function kDoc(p, titol){")[1].split("}\n")[0] + "}"
+K_MD_STUB = "const kMd = (t, b) => 'MD' + String(t).length + ':' + b;"   # el resum del `.md` és feina de kMd
 PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
 
 
@@ -98,7 +103,8 @@ def test_s1_les_dues_capcaleres_usen_kMotorsEtiqueta():
 # ── S2: temps i FOM amb `avis_cache` ─────────────────────────────────────────
 
 def _taula(e):
-    return _node_dades(ESCD + "const kFit = s => 'fit:' + s;" + COMPARACIO, "kComparacio", e)
+    # `kComparacio` usa kFit i kPct100/kPctFix (bloc DATES) a la cel·la «contra Geant4»
+    return _node_dades(ESCD + "const kFit = s => 'fit:' + s;" + DATES + COMPARACIO, "kComparacio", e)
 
 
 @NODE
@@ -148,6 +154,51 @@ def test_s7_la_vista_passa_etapa_pla_del_manifest_sense_tocar_lo():
         assert et["etapa_pla"] == per_nom[et["nom"]].get("etapa_pla")   # tal com l'escriu neudet
 
 
+# ── S7/S5/S4/S6 (python): el que la vista ha de propagar del manifest ────────
+
+def test_vista_propaga_dates_judici_i_portes_tal_com_son():
+    d, v = _vista("mb10b_cd")
+    man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))["etapes"]
+    per_nom = {e["nom"]: e for e in man}
+    for et in v["etapes"]:
+        m = per_nom[et["nom"]]
+        for k in ("data_inici", "data_fi", "durada_cerca_s"):
+            assert et[k] == m.get(k), f"{et['nom']}: `{k}` no és el que diu el manifest"
+        if m.get("judici"):
+            assert et["judici"]["text"] == (d / m["judici"]).read_text(encoding="utf-8")
+        else:
+            assert et["judici"] is None
+        assert [p["md"] for p in et["portes"]] == list(m.get("portes") or [])
+
+
+def test_vista_multi_motor_no_publica_durada_i_el_intent_llarg_s():
+    _, v = _vista("mb10b_cd")
+    s1 = _etapa(v, "S1")
+    assert s1["data_inici"] and s1["data_fi"], "S1 sense finestres de data (N5 de neudet no hi és?)"
+    assert s1["durada_cerca_s"] is None, "multi-motor: neudet publica null i la UI no suma res"
+    i2 = _etapa(v, "S1_anterior_2026-11-21_2")
+    assert i2["durada_cerca_s"] == 2693.9, "la corrida de 45 min: és la dada mesurada a l'encàrrec"
+    assert i2["data_inici"] < i2["data_fi"]
+
+
+def test_vista_un_motor_publica_durada():
+    _, v = _vista("mb10b_anells")
+    s1 = _etapa(v, "S1")
+    assert isinstance(s1["durada_cerca_s"], (int, float)), "un sol meta: neudet publica la durada"
+
+
+def test_vista_les_variants_rep_la_riquesa_del_manifest_per_motor():
+    _, v = _vista("mb10b_cd")
+    s1 = _etapa(v, "S1")
+    assert s1["motors"], "mb10b_cd sense variants per motor? actualitza aquest bessó"
+    man = next(e for e in json.loads(V.dir_de("mb10b_cd").joinpath("campanya_ui.json").read_text(encoding="utf-8"))["etapes"] if e["nom"] == "S1")
+    for mv in s1["motors"]:
+        mm = next(x for x in man["motors"] if x["nom"] == mv["motor"])
+        assert mv["per_candidat"] == mm["per_candidat"], mv["motor"]   # params i metrices (N3), tal com venen
+        assert mv["g4_resum"] == mm["g4_resum"], mv["motor"]            # resum Geant4 per candidat (N2)
+        assert mv["resum"] and mv["resum"]["md"] == mm["resum"], mv["motor"]
+
+
 K_ETAPA_STUB = "const kEtapa = e => '|' + e.nom + (e.anterior === true ? 'A' : 'M') + '|';"
 
 
@@ -194,3 +245,149 @@ def test_s7_kPinta_usa_kEtapesAmbIntents_i_no_torna_al_map_directe():
     assert "kEtapesAmbIntents(v.etapes)" in INDEX
     assert "v.etapes.map(e => kEtapa(e)).join('')" not in INDEX
     assert "out.push(kSeccioNoDecl(v, e => kEtapa(e, true)));" in INDEX   # la línia que fixa test_etiq_no_decl.py, intacta
+
+
+# ── S7 (JS): la finestra de la cerca i la durada, a la meta de cada targeta ───
+
+@NODE
+def test_s7_b_mb10b_cd_finestra_tall_d_ISO_i_sense_durada_multi_motor():
+    _, v = _vista("mb10b_cd")
+    out = _node_dades(ESCD + DATES, "es => es.map(e => [kFinestra(e), kDurada(e)])", v["etapes"])
+    per = {e["nom"]: s for e, s in zip(v["etapes"], out)}
+    s1 = _etapa(v, "S1")
+    assert per["S1"][0] == s1["data_inici"][11:19] + " → " + s1["data_fi"][11:19] + " UTC"   # retall de l'ISO, cap matemàtica de zona
+    assert per["S1"][1] is None, "multi-motor: neudet publica null i la UI no suma res"
+    assert per["S1_anterior_2026-11-21_2"][1] == "la cerca 2693.9 s", "la corrida de 45 min de l'encàrrec"
+    for nom, (fin, dur) in per.items():
+        assert fin is None or fin.endswith(" UTC"), nom
+        assert dur is None or (dur.startswith("la cerca ") and dur.endswith(" s")), nom
+    assert any(f is not None for f, _ in per.values()), "cap etapa amb finestra? (N5 de neudet no hi és?)"
+
+
+@NODE
+def test_s7_b_mb10b_cd_openmc_un_motor_pinta_la_durada_mesurada():
+    """Divergència fixada (24-11): el neudet va escriure que S1 d'aquesta campanya porta `executada: false` i per
+    tant cap data; el manifest regenerat a `e6e9aeac` (mirall e0d29747) no porta la clau `executada` (entrada de flux
+    executada, neudet `test_v127_no_decl.py:64`) i porta les 3 claus d'N5 amb durada. La regla de la UI no canvia:
+    pinta la finestra i la durada que el manifest publica, o res, mai una suma."""
+    _, v = _vista("mb10b_cd_openmc")
+    s1 = _etapa(v, "S1")
+    assert "executada" not in s1 or s1["executada"] is not False
+    out = _node_dades(ESCD + DATES, "es => es.map(e => [kFinestra(e), kDurada(e)])", [s1])[0]
+    assert out[0] == "17:39:19 → 18:11:45 UTC"
+    assert out[1] == "la cerca 1945.9 s", "un sol motor (openmc_gpu): neudet publica la durada"
+
+
+def test_s7_kEtapa_crida_kFinestra_i_kDurada_a_la_meta():
+    assert "kFinestra(e), kDurada(e)]" in INDEX
+
+
+# ── S2 (JS): la cel·la «contra Geant4» pinta el veredicte de neudet ───────────
+
+@NODE
+def test_s2_b_g4cel_veredicte_de_neudet_i_mai_dins_tol():
+    e = {"nom": "S1", "fitxers": {"dir": "etapes/S1"}, "motors": [], "comparacio": {"motors": [{"nom": "B1", "aplicable": True}],
+        "g4": {"per_motor": {"B1": {   # les dades mesurades de mb10b_cd·S1·B1 (contracte §8)
+            "veredicte": "PASSA", "motius": [], "dins_tol": False,
+            "fora_tol_concloents": 28, "cel_les_concloents": 428, "pct_fora": 6.542056074766355,
+            "biaix_mitja": 0.00568, "err_rel_max": 0.21, "taula": "motors/B1/g4_comparacio.csv"}}}}}
+    h = _taula(e)
+    assert '<span class="tag t-ok">PASSA</span>' in h
+    assert "dins tolerància" not in h and "fora de tolerància" not in h   # mai `dins_tol` com a veredicte
+    assert "28 de 428 cel·les concloents fora (6.54 %)" in h              # pct_fora ja ve en percentatge: només decimals
+    assert "biaix +0.57 %" in h                                           # fracció ×100, signat (acord §8)
+    assert "fit:etapes/S1/motors/B1/g4_comparacio.csv" in h               # l'enllaç de la taula, intacte
+    e["comparacio"]["g4"]["per_motor"]["B1"].update({"veredicte": "NO CONCLOENT", "motius": ["pocs counts a (3, 180°)"]})
+    h2 = _taula(e)
+    assert '<span class="tag t-wa">NO CONCLOENT</span>' in h2 and "t-ok" not in h2
+    assert "pocs counts a (3, 180°)" in h2   # `motius` buits només quan PASSA; si n'hi ha, es pinten
+
+
+def test_s2_g4cel_no_llegeix_dins_tol():
+    assert "gm.dins_tol" not in INDEX   # la regla sencera: dins_tol no és mai un veredicte a la UI
+
+
+@NODE
+def test_s2_b_mb10b_cd_el_veredicte_real_es_pinta():
+    _, v = _vista("mb10b_cd")
+    s1 = _etapa(v, "S1")
+    pm = ((s1.get("comparacio") or {}).get("g4") or {}).get("per_motor") or {}
+    assert pm, "neudet no publica `g4.per_motor`? actualitza aquest bessó (N2 fusionat)"
+    h = _taula(s1)
+    assert "dins tolerància" not in h and "fora de tolerància" not in h
+    for nom, gm in pm.items():
+        assert gm.get("veredicte") in {"PASSA", "NO PASSA", "NO CONCLOENT"}, (nom, gm.get("veredicte"))
+        assert f">{gm['veredicte']}</span>" in h, f"{nom}: el veredicte de neudet no es pinta"
+
+
+@NODE
+def test_s2_b_mb10b_cd_openmc_el_resum_N2_es_pinta():
+    """mb10b_cd_openmc (fusió b2ff74e0 + regeneració e6e9aeac): `comparacio_motors.json` porta el resum d'N2 amb
+    veredicte PASSA 37/423 — fixat aquí amb el que hi ha al mirall, no amb el que diu cap missatge."""
+    _, v = _vista("mb10b_cd_openmc")
+    s1 = _etapa(v, "S1")
+    gm = ((s1.get("comparacio") or {}).get("g4") or {}).get("per_motor", {}).get("openmc_gpu")
+    assert gm and gm["veredicte"] == "PASSA" and gm["fora_tol_concloents"] == 37 and gm["cel_les_concloents"] == 423
+    h = _taula(s1)
+    assert "37 de 423 cel·les concloents fora (8.75 %)" in h   # pct_fora = 8.747044917257684, arrodonit a la presentació
+    assert "biaix +0.00 %" in h                                 # biaix_mitja = 3.237742253265046e-05 → +0,00 % (com diu neudet)
+    assert "dins tolerància" not in h
+
+
+# ── S6 (JS): resum Geant4 per candidat a la variant ───────────────────────────
+
+@NODE
+def test_s6_b_g4_resum_real_una_fila_per_candidat_del_manifest():
+    _, v = _vista("mb10b_cd")
+    mv = _etapa(v, "S1")["motors"][0]
+    h = _node_dades(ESCD + DATES + G4RESUM, "kG4Resum", mv)
+    r = mv["g4_resum"]
+    assert r, "el manifest no porta `g4_resum`? (N2 fusionat a b2cd155a)"
+    assert h.count("<tr>") - 1 == len(r), "una fila per candidat del manifest"
+    for nom, g in r.items():
+        assert f"<b>{nom}</b>" in h
+        assert f"{g['fora_tol']} / {g['cel_les']}" in h
+        assert f"{g['fora_tol_concloents']} / {g['cel_les_concloents']}" in h
+        assert f"{g['pct_fora']:.2f} %" in h
+        assert f"tub {g['pitjor_cel_la']['tub']} · {g['pitjor_cel_la']['E_MeV']} MeV" in h   # dict llegible, mai JSON cru
+    assert "dins_tol" not in h and "[object" not in h
+
+
+# ── S4 (JS): paràmetres del motor per candidat (manifest `per_candidat[]`) ────
+
+@NODE
+def test_s4_b_params_per_candidat_reals():
+    _, v = _vista("mb10b_cd")
+    mv = _etapa(v, "S1")["motors"][0]
+    h = _node_dades(ESCD + DATES + PARAMS, "kParamsCandidats", mv)
+    pcs = [c for c in mv["per_candidat"] if c.get("params")]
+    assert pcs and h.count("<tr>") - 1 == len(pcs), f"{mv['motor']}: una fila per candidat del manifest"
+    for k in ("a0", "a1", "moderator_density"):
+        assert f"<th>{k}</th>" in h
+    c = pcs[0]
+    assert f"<b>{c['nom']}</b>" in h
+    assert "r=6 n=2" in h   # `a0` és geometria anidada {r, n, phi, …}: es pinta clau=valor, mai JSON cru
+    assert "[object" not in h
+
+
+# ── S5 (JS): judici i portes de l'etapa, resum del motor ─────────────────────
+
+def test_s5_kEtapa_i_kVariantCos_criden_kDoc():
+    assert 'kDoc(e.judici, "Judici' in INDEX
+    assert "kDoc(p, \"Portes" in INDEX
+    assert 'kDoc(v.resum, "Resum del motor' in INDEX
+
+
+@NODE
+def test_s5_b_judici_portes_i_resum_es_pleguen_tal_com_ve():
+    _, v = _vista("mb10b_cd")
+    s1 = _etapa(v, "S1")
+    assert s1["judici"], "S1 sense `judici` al manifest? (neudet l'escriu a etapes/S1/judici_S1.md)"
+    mv = s1["motors"][0]
+    js = "x => [kDoc(x.e.judici, 'Judici'), kDoc(null, 'Judici'), x.e.portes.map(p => kDoc(p, 'Portes')), kDoc(x.mv.resum, 'Resum')]"
+    out = _node_dades(ESCD + K_MD_STUB + KDOC, js, {"e": s1, "mv": mv})
+    assert "etapes/S1/judici_S1.md" in out[0]
+    assert f"MD{len(s1['judici']['text'])}:{s1['judici']['base']}" in out[0]   # el text íntegre, amb la base per les figures
+    assert out[1] == "", "sense manifest no es pinta res"
+    assert out[2] and all("Portes" in p for p in out[2])
+    assert mv["resum"]["md"] in out[3] and f"MD{len(mv['resum']['text'])}:{mv['resum']['base']}" in out[3]

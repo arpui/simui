@@ -41,11 +41,14 @@ RETOLADOR = "intent anterior (apartat; no l’useu com a resultat)"
 # `kEtapa` crida els altres retoladors d'una etapa; aquí només ens interessa la capçalera i els motius.
 # Hi entra també el bloc pur del cens (`NO-DECL-DEF`): `kEtapa` fa servir `kVaAlPareto` i `RETOL_NO_DECL`.
 PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
+# UI-MULTIMOTOR S7: la meta ara crida kFinestra/kDurada — el bloc pur entra de veritat (les dates són de la vista);
+# kDoc (S5) és un plegat de `.md` que aquí no ens interessa: buit.
+DATES = INDEX.split("// DATES-DEF-BEGIN")[1].split("\n", 1)[1].split("// DATES-DEF-END")[0]
 BUIDES = ("const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
           "const KC = {v: {pareto: {eixos: null}, diagnostic: null}}, buits = () => '';"
           "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
           " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '',"
-          " kComparacio = buits, kVerificacio = buits, kVariants = buits;" + PURE +
+          " kComparacio = buits, kVerificacio = buits, kVariants = buits, kDoc = buits;" + PURE + DATES +
           # UI-MULTIMOTOR S1: la capçalera ara passa per `kMotorsEtiqueta`; entra de veritat, no en versió buida.
           "const kMotorsEtiqueta" + INDEX.split("const kMotorsEtiqueta")[1].split("function kComparacio")[0] +
           "function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])

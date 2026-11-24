@@ -2857,6 +2857,27 @@ function kEtapesAmbIntents(etapes) {
     + Object.keys(orfes).map(k => fold(k, orfes[k])).join('');
 }
 // INTENTS-DEF-END
+// ── UI-MULTIMOTOR S7/S2 (encàrrec 2026-11-23): dades del manifest que la UI mostra sense calcular-les. La finestra
+// de la cerca surt de `data_inici`/`data_fi` (neudet N5, ab1e47cf): l'hora és un retall de l'ISO, sense cap matemàtica
+// de zona horària. La durada `durada_cerca_s` només quan neudet publica un nombre (en multi-motor publica null i aquí
+// no se suma res). `kPct100` passa una fracció a percentatge signat (el ×100 de `biaix_mitja`, acordat a §8;
+// `pct_fora` ja ve en percentatge i no es toca). Bloc pur — el bessó de `tests/test_ui_multimotor.py` el talla. ──
+// DATES-DEF-BEGIN
+function kFinestra(e) {
+  const hh = s => (typeof s === 'string' && s.length >= 19) ? s.slice(11, 19) : null;
+  const a = hh(e && e.data_inici), b = hh(e && e.data_fi);
+  return (a && b) ? a + ' → ' + b + ' UTC' : (b ? 'fi ' + b + ' UTC' : null);
+}
+function kDurada(e) {
+  return (e && typeof e.durada_cerca_s === 'number') ? 'la cerca ' + String(e.durada_cerca_s) + ' s' : null;
+}
+function kPct100(x) {
+  return typeof x === 'number' ? (x >= 0 ? '+' : '') + (x * 100).toFixed(2) + ' %' : null;
+}
+function kPctFix(x) {   // percentatge que ja ve en percentatge (`pct_fora`): només es fixen decimals, no es multiplica
+  return typeof x === 'number' ? x.toFixed(2) + ' %' : null;
+}
+// DATES-DEF-END
 // ── MOTORS-UI (contracte §26): la comparació l'escriu neudet a `etapes/<E>/comparacio_motors.json`; aquí es llegeix
 // tal com ve i es presenta amb una columna per motor. Un motor «no aplicable» mostra el motiu de neudet, no desapareix.
 // Sense fitxer, la vista d'avui (encàrrec, punt 3): `kComparacio` i `kVariants` no pinten res. ──
@@ -2879,11 +2900,27 @@ function kComparacio(e){
     : '<div class="hint"><code>comparacio_motors.json</code> no diu si els guanyadors coincideixen (neudet).</div>';
   const finalists = Array.isArray(g4.finalistes) && g4.finalistes.length
     ? `<div class="hint">Geant4 verifica la unió dels finalistes: ${g4.finalistes.map(x => escD(String(x))).join(', ')}.</div>` : '';
+  // UI-MULTIMOTOR S2: el veredicte és `veredicte` de neudet (PASSA / NO PASSA / NO CONCLOENT), mai `dins_tol`
+  // (mb10b_cd·S1·B1: PASSA amb `dins_tol: false`, encàrrec §8). `motius` buit quan PASSA; `pct_fora` ja ve en
+  // percentatge i `biaix_mitja` és fracció → kPct100. El que no hi és al manifest, no surt.
   const g4cel = m => { const gm = per[m.nom]; if(!gm || typeof gm !== 'object') return '—';
+    const tag = gm.veredicte === 'PASSA' ? '<span class="tag t-ok">PASSA</span>'
+      : gm.veredicte === 'NO PASSA' ? '<span class="tag t-no">NO PASSA</span>'
+      : gm.veredicte === 'NO CONCLOENT' ? '<span class="tag t-wa">NO CONCLOENT</span>'
+      : '<span class="hint">neudet no en dóna veredicte</span>';
+    const motius = Array.isArray(gm.motius) && gm.motius.length
+      ? `<ul class="msgs">${gm.motius.map(s => `<li>${escD(String(s))}</li>`).join('')}</ul>` : '';
+    const pct = kPctFix(gm.pct_fora);
+    const cel = (gm.fora_tol_concloents != null && gm.cel_les_concloents != null)
+      ? `${escD(String(gm.fora_tol_concloents))} de ${escD(String(gm.cel_les_concloents))} cel·les concloents fora` +
+        (pct ? ` (${pct})` : '') : null;
+    const biaix = kPct100(typeof gm.biaix_mitja === 'number' ? gm.biaix_mitja : null);
+    const det = [cel, biaix ? `biaix ${biaix}` : null, gm.err_rel_max != null ? `error rel. màx. ${f(gm.err_rel_max)}` : null]
+      .filter(Boolean).join(' · ');
     // `taula` és relatiu al directori d'etapa (neudet `comparacio_motors.py`: «motors/<m>/g4_comparacio.csv»); l'endpoint el resol contra l'arrel de la campanya.
     const trel = (e.fitxers && e.fitxers.dir ? e.fitxers.dir + '/' : '') + gm.taula;
-    return `error rel. màx. ${f(gm.err_rel_max)} · ${gm.dins_tol ? '<span class="tag t-ok">dins tolerància</span>' : '<span class="tag t-no">fora de tolerància</span>'}` +
-      (gm.taula ? ` · <a href="${escD(kFit(trel))}" target="_blank">taula</a>` : ''); };
+    return `${tag}${motius}${det ? `<div class="hint">${det}</div>` : ''}` +
+      (gm.taula ? ` <a href="${escD(kFit(trel))}" target="_blank">taula</a>` : ''); };
   const norm = m => { const v = (e.motors || []).find(x => x.nom === `${e.nom} · ${m.nom}`);
     return v ? `<a href="#" data-kvopen="${escD(v.nom)}">vista normal</a>` : '<span class="hint">neudet no n\'ha escrit la carpeta</span>'; };
   // UI-MULTIMOTOR S2: si neudet avisa que les respostes venen de la cache (camp `avis_cache`), el temps no és
@@ -2928,6 +2965,48 @@ function kVerificacio(e){
     ${cos}${selv}</div>`;
 }
 // VERIF-DEF-END
+// ── UI-MULTIMOTOR S6/S4 (encàrrec 2026-11-23): per motor, del manifest (`motors[].g4_resum` neudet N2 a b2cd155a,
+// `motors[].per_candidat` N3). Dict indexat pel nom del candidat; el que no hi és, no surt i no s'inventa. Blocs
+// pur — el bessó de `tests/test_ui_multimotor.py` els talla amb aquests marcadors i els corre sobre la vista real. ──
+// G4RESUM-DEF-BEGIN
+function kG4Resum(v){
+  const r = (v && v.g4_resum && typeof v.g4_resum === 'object') ? v.g4_resum : null;
+  if(!r || !Object.keys(r).length) return '';
+  const f = x => (x === null || x === undefined || x === '') ? '—' : escD(String(x));
+  const parell = (a, b) => (a != null && b != null) ? `${f(a)} / ${f(b)}` : '—';
+  const pct = x => kPctFix(typeof x === 'number' ? x : null) ?? '—';
+  // `pitjor_cel_la` és un dict de neudet {tub, E_MeV, err_rel, …}: es pinta llegible, mai JSON cru.
+  const pitjor = p => (p && typeof p === 'object') ? `tub ${f(p.tub)} · ${f(p.E_MeV)} MeV` : f(p);
+  const files = Object.keys(r).map(n => { const g = r[n] || {};
+    return `<tr><td><b>${escD(String(n))}</b></td><td>${parell(g.fora_tol, g.cel_les)}</td>` +
+      `<td>${parell(g.fora_tol_concloents, g.cel_les_concloents)}</td>` +
+      `<td>${pct(g.pct_fora)}</td>` +
+      `<td>${kPct100(typeof g.biaix_mitja === 'number' ? g.biaix_mitja : null) ?? '—'}</td>` +
+      `<td>${pitjor(g.pitjor_cel_la)}</td><td>${f(g.err_rel_max)}</td></tr>`; }).join('');
+  return `<div class="tblw"><table class="tbl"><thead><tr><th>candidat</th><th>fora / cel·les</th>` +
+    `<th>fora / concloents</th><th>% fora</th><th>biaix mitjà</th><th>pitjor cel·la</th><th>err. rel. màx.</th>` +
+    `</tr></thead><tbody>${files}</tbody></table></div>`;
+}
+// G4RESUM-DEF-END
+// PARAMS-DEF-BEGIN
+function kParamsCandidats(v){
+  const pc = (v && Array.isArray(v.per_candidat)) ? v.per_candidat : [];
+  const files = pc.filter(c => c && c.params && typeof c.params === 'object');
+  if(!files.length) return '';
+  const claus = [];
+  files.forEach(c => Object.keys(c.params).forEach(k => { if(!claus.includes(k)) claus.push(k); }));
+  // `params` pot ser escalar (`moderator_density: 0.95`) o geometria anidada (`a0: {r, n, phi, …}`):
+  // el dict es pinta com `clau=valor` llegible, mai JSON cru.
+  const f = x => (x === null || x === undefined || x === '') ? '—'
+    : (typeof x === 'object') ? escD(Object.keys(x).map(k => k + '=' + String(x[k])).join(' ')) : escD(String(x));
+  const cos = files.map(c => `<tr><td><b>${escD(String(c.nom))}</b></td><td>${f(c.ronda)}</td><td>${f(c.pareto_rang)}</td>` +
+    claus.map(k => `<td>${f(c.params[k])}</td>`).join('') + '</tr>').join('');
+  return `<details class="fold"><summary>Paràmetres del motor per candidat ` +
+    `<span class="hint">(manifest <code>per_candidat[]</code>, neudet N3 — ${files.length} candidats)</span></summary>` +
+    `<div class="tblw"><table class="tbl"><thead><tr><th>candidat</th><th>ronda</th><th>rang Pareto</th>` +
+    `${claus.map(k => `<th>${escD(k)}</th>`).join('')}</tr></thead><tbody>${cos}</tbody></table></div></details>`;
+}
+// PARAMS-DEF-END
 // Les variants són etapes com les altres (les dades les munta `campanya_vista._motors`), però no són al manifest:
 // les API de criteris i de fórmules demanen el nom d'una etapa declarada, i aquí no les oferim.
 function kVariants(e){
@@ -2940,8 +3019,9 @@ function kVariantCos(v){
   const meta = [`${(v.candidats || []).length} candidats a la taula`,
     v.energies_MeV ? `${v.energies_MeV.length} energies` : null].filter(Boolean).join(' · ');
   return `<div class="meta">${escD(meta)} <span class="hint">(<code>${escD((v.fitxers && v.fitxers.dir) || '—')}/</code>)</span></div>
-    ${kPla(v)}${kResposta(v)}
+    ${kPla(v)}${kResposta(v)}${kDoc(v.resum, "Resum del motor (de l'etapa per motor de neudet)")}
     <div class="tblw">${kTaula(v)}</div>
+    ${kParamsCandidats(v)}${kG4Resum(v)}
     ${kFormMetr(v)}
     ${eix ? kPareto(v, eix) : ''}
     ${v.figures.length ? kGaleria(v.figures) : ''}`;
@@ -2959,7 +3039,8 @@ function kEtapa(e, noDecl){
   const eix = kVaAlPareto(KC.v, noDecl) ? KC.v.pareto.eixos : null;
   const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
     e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null,
-    Array.isArray(e.intents_anteriors) && e.intents_anteriors.length ? `${e.intents_anteriors.length} intents anteriors apartats` : null]
+    Array.isArray(e.intents_anteriors) && e.intents_anteriors.length ? `${e.intents_anteriors.length} intents anteriors apartats` : null,
+    kFinestra(e), kDurada(e)]
     .filter(Boolean).join(' · ');
   return `<article class="card" style="margin-bottom:14px">
     <header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(kMotorsEtiqueta(e))}</span>` +
@@ -2972,6 +3053,8 @@ function kEtapa(e, noDecl){
     ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
     ${kComparacio(e)}
     ${kVerificacio(e)}
+    ${kDoc(e.judici, "Judici de l'etapa (de neudet)")}
+    ${(Array.isArray(e.portes) ? e.portes : []).map(p => kDoc(p, "Portes de l'etapa (de neudet)")).join('')}
     ${kPla(e)}
     ${kResposta(e)}
     ${KC.v.diagnostic && KC.v.diagnostic.actiu ? `<div class="diag-av" data-diag-xifres>⚠ ${escD(diagTxt(KC.v.diagnostic))} — les xifres d'aquesta taula</div>` : ''}
@@ -3334,6 +3417,13 @@ function kResposta(e){
   if(!r) return `<div class="hint" style="margin:6px 0">Aquesta etapa encara no té <code>resposta.md</code> (la fa neudet quan l'etapa acaba).</div><div>${dades}</div>`;
   return `<details class="fold" open><summary>Resposta de l'etapa <span class="hint">(${escD(r.md)})</span></summary>` +
     `<div class="kresp">${kMd(r.text, r.base)}</div><div>${enllac('resposta.md', r.md)} ${dades}</div></details>`;
+}
+// UI-MULTIMOTOR S5: un `.md` que el manifest assenyala i la vista porta com a `{md, base, text}` (judici, portes,
+// resum per motor). Tal com l'escriu neudet; si el manifest no en diu cap, no es pinta res.
+function kDoc(p, titol){
+  return (p && typeof p === 'object' && p.text != null)
+    ? `<details class="fold"><summary>${escD(titol)} <span class="hint">(<code>${escD(String(p.md))}</code>)</span></summary>` +
+      `<div class="kresp">${kMd(p.text, p.base)}</div></details>` : '';
 }
 function kTaula(e){
   const cols = [{k: 'nom', t: 'nom'}, {k: 'hash', t: 'hash'}, {k: 'ronda', t: 'ronda'}, {k: 'n', t: 'n'}, {k: 'pareto_rang', t: 'rang Pareto'},

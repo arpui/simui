@@ -183,9 +183,10 @@ def _la_llista_la_ui(id_: str) -> bool:
 
 
 def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
-    """Sobre els 36 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
+    """Sobre els 37 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
     `882facd7`; 5 més de l'endreç mb10b del 23-11, `821a06b6`: `mb10b_cd`, `mb10b_motors`, `mb10b_motors_sensecd`,
-    `mb10b_ref`, `mb10b_temps`), el nostre provisional diu el mateix flux i el mateix cens que ells — la divergència
+    `mb10b_ref`, `mb10b_temps`; el 37è, `mb10b_cd_openmc`, fusionat per ells a `b2ff74e0` del 24-11), el nostre
+    provisional diu el mateix flux i el mateix cens que ells — la divergència
     que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 12 (mesurat 23-11:
     `mb10b_motors_sensecd` s'hi ha afegit amb MAN-FORAT `6d06c41b`, que amb el criteri nou compta els directoris
     només-amotors com a execució i hi deixa `S1_interromput_2026-11-20`; abans, `mb10b_cd` s'hi havia afegit amb
@@ -241,22 +242,26 @@ def test_a_c04_draft_el_que_ha_corregut_és_al_cens_i_no_al_flux(c04):
 
 # ── el mirall de la forma del cens (decret `7585843`, neudet `06de072`) ──────
 
-# el joc de claus que ells es fixen literalment a `tests/test_v127_no_decl.py:47-50`; si en reanomenen o en
+# el joc de claus que ells es fixen literalment a `tests/test_v127_no_decl.py:46-51`; si en reanomenen o en
 # trellen una, peta aquí i a la vegada als seus — és el mateix pacte pels dos costats del contracte.
 CLAUS_ETAPA = {"nom", "motor", "etapa_pla", "pla", "resposta", "candidats_csv", "resultats_tub",
                "meta", "figures", "n_candidats", "citable", "verificada_per", "anterior",
                "aturada", "intents_anteriors", "formules",
-               "judici", "portes", "motors", "comparacio_motors"}   # MAN-FORAT (23-11, neudet `6d06c41b`): additives, mai reanomenades
+               "judici", "portes", "motors", "comparacio_motors",   # MAN-FORAT (23-11, neudet `6d06c41b`): additives, mai reanomenades
+               "data_inici", "data_fi", "durada_cerca_s"}           # UI-MULTIMOTOR N5 (23-11, neudet `ab1e47cf`): igualment additives
 
 
 def test_el_cens_porta_el_mateix_joc_de_claus_que_el_flux():
-    """Divergència tancada: el cens ja no és minimal. Sobre els 36 manifests reals (30 de `6559acd`,
-    `mb10b_anells` de `882facd7` i 5 de l'endreç `821a06b6` del 23-11), cada entrada de cens porta
-    el joc de 20 claus d'una entrada de flux (16 + les 4 additives de MAN-FORAT `6d06c41b`) — com a molt una de més, `motiu_aturada` (additiva, decret
-    `7585843`) — i `anterior: null` sempre. Neudet se'n fixa el mateix a `test_v127_no_decl.py:53-82`."""
+    """Divergència tancada: el cens ja no és minimal. Sobre els 37 manifests reals (30 de `6559acd`,
+    `mb10b_anells` de `882facd7`, 5 de l'endreç `821a06b6` del 23-11 i `mb10b_cd_openmc` de `b2ff74e0` del 24-11),
+    cada entrada de cens porta
+    el joc de 23 claus d'una entrada de flux (16 + les 4 additives de MAN-FORAT `6d06c41b` + les 3 de N5 `ab1e47cf`)
+    — com a molt una de més, `motiu_aturada` (additiva, decret `7585843`) — i `anterior: null` sempre.
+    Neudet se'n fixa el mateix a `test_v127_no_decl.py:46-51`."""
     ds = sorted(f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
-    assert len(ds) == 36, f"són {len(ds)} manifests, no 36 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
-                          f"+ 5 de l'endreç mb10b `821a06b6` del 23-11: cd, motors, motors_sensecd, ref, temps)"
+    assert len(ds) == 37, f"són {len(ds)} manifests, no 37 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
+                          f"+ 5 de l'endreç mb10b `821a06b6` del 23-11: cd, motors, motors_sensecd, ref, temps " \
+                          f"+ `mb10b_cd_openmc` de `b2ff74e0` del 24-11)"
     n_cens = 0
     for d in ds:
         man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))

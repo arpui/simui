@@ -647,6 +647,16 @@ def _verificacio_g4(d: Path, etapes: List[Dict[str, Any]], avisos: List[str]) ->
                                             "fitxers": g["fitxers"], "candidats": cs})
 
 
+def _md(d: Path, rel: str, què: str) -> Dict[str, Any]:
+    """Un `.md` que el manifest indica, amb el text tal com neudet l'escriu (UI-MULTIMOTOR S5:
+    `judici_<etapa>.md`, `portes_*.md`, `resum.md` per motor). Si el manifest diu un fitxer que no
+    hi és, peta dient on mirar — mai un text inventat. `base` és la carpeta del `.md`."""
+    f = _dins(d, rel, què)
+    if not f.is_file():
+        raise CampanyaError(f"{què}: el manifest diu {rel} i no hi és")
+    return {"md": rel, "base": str(PurePosixPath(rel).parent), "text": f.read_text(encoding="utf-8")}
+
+
 def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """La resposta d'etapa (contracte UI §12): `resposta` del manifest, o `<dir de l'etapa>/resposta.md` si hi és.
     La UI en mostra el text tal com és (neudet l'escriu; aquí no se'n calcula res). `base` és la carpeta del
@@ -663,6 +673,17 @@ def _resposta(d: Path, e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return {"md": rel, "base": str(PurePosixPath(rel).parent), "text": f.read_text(encoding="utf-8")}
 
 
+def _dates_i_judici(d: Path, e: Dict[str, Any]) -> Dict[str, Any]:
+    """UI-MULTIMOTOR S7 + S5: les dates N5 i el `judici`/les `portes` de l'etapa. Són camins que escriu
+    neudet; aquí només se'n serveix el text, tal com és. `durada_cerca_s` només ve quan hi ha una sola
+    `meta`: en multi-motor neudet hi escriu `null` i aquí no se'n suma ni se'n calcula res."""
+    out = {"data_inici": e.get("data_inici"), "data_fi": e.get("data_fi"),
+           "durada_cerca_s": e.get("durada_cerca_s")}
+    out["judici"] = _md(d, e["judici"], e["nom"]) if e.get("judici") else None
+    out["portes"] = [_md(d, p, e["nom"]) for p in (e.get("portes") or [])]
+    return out
+
+
 def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[str, Any], List[str]]:
     if not e.get("candidats") and (e.get("motors") or                                  # MAN-FORAT (neudet `6d06c41b`): el manifest declara motors, o
                                    (e.get("dir") and (d / PurePosixPath(e["dir"])       # al provisional, ho diu el fitxer de comparació al seu directori —
@@ -677,6 +698,7 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
                              "resultats_tub": e.get("resultats_tub"), "meta": e.get("meta")},
                  "columnes": [], "energies_MeV": None, "candidats": [],
                  "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),   # UI-MULTIMOTOR S7: neudet diu a quin pla pertany un apartat
+                 **_dates_i_judici(d, e),                                          # S7 dates + S5 judici/portes, tal com les escriu neudet
                  "aturada": e.get("aturada"),
                  "motiu_aturada": e.get("motiu_aturada"),
                  "intents_anteriors": e.get("intents_anteriors"),
@@ -687,6 +709,7 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
                  "motius": [], "figures": [], "fitxers": {"dir": None, "candidats": None, "resultats_tub": None, "meta": None},
                  "columnes": [], "energies_MeV": None, "candidats": [], "executada": False,
                  "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),
+                 **_dates_i_judici(d, e),
                  "aturada": e.get("aturada"),
                  "intents_anteriors": e.get("intents_anteriors"),
                  "pla": e["pla"] if isinstance(e.get("pla"), str) and e["pla"].strip() else None,
@@ -710,6 +733,7 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "motius": list(e.get("motius") or []), "figures": list(e.get("figures") or []),
              "fitxers": fit, "columnes": header,
              "anterior": e.get("anterior"), "etapa_pla": e.get("etapa_pla"),
+             **_dates_i_judici(d, e),
              "aturada": e.get("aturada"),
              "motiu_aturada": e.get("motiu_aturada"),            # v1.27: el text de neudet per a una no declarada
              "intents_anteriors": e.get("intents_anteriors"),
@@ -719,10 +743,14 @@ def _etapa_vista(d: Path, e: Dict[str, Any], avisos: List[str]) -> Tuple[Dict[st
              "candidats": cands}, header)
 
 
-def _motors(d: Path, ev: Dict[str, Any], avisos: List[str]) -> None:
+def _motors(d: Path, ev: Dict[str, Any], avisos: List[str], ment: Optional[Dict[str, Any]] = None) -> None:
     """MOTORS-UI (contracte §26): si neudet ha escrit `etapes/<E>/comparacio_motors.json`, es serveix tal com és
     (aquí no se'n calcula res) i s'hi afegeix la vista normal de cada `motors/<motor>/` amb `candidats.csv`.
-    Sense el fitxer, l'etapa queda com la vista d'avui (encàrrec MOTORS-UI, punt 3)."""
+    Sense el fitxer, l'etapa queda com la vista d'avui (encàrrec MOTORS-UI, punt 3).
+
+    UI-MULTIMOTOR (S4/S5/S6): cada variant rep a més el que neudet declara per aquell motor al manifest
+    (`motors[]`, unit pel `nom`): `per_candidat[]` (params i metrices), `resum.md`, `g4_resum` i les seves
+    figures. Tal com venen: un manifest vell que no hi tingui aquelles claus dona `None` i la UI ho tolera."""
     ev["comparacio"] = None
     ev["motors"] = []
     base = ev["fitxers"].get("dir")
@@ -751,6 +779,12 @@ def _motors(d: Path, ev: Dict[str, Any], avisos: List[str]) -> None:
             if (d / vdir / arxiu).is_file():
                 e2[clau] = (vdir / arxiu).as_posix()
         vv, _h = _etapa_vista(d, e2, avisos)
+        mm = next((x for x in ((ment or {}).get("motors") or [])
+                   if isinstance(x, dict) and x.get("nom") == nom), None)
+        vv["figures"] = _figures(d, d / vdir)                        # les figures reals del motor, no res inventat
+        vv["resum"] = _md(d, mm["resum"], f"{ev['nom']} · {nom}") if mm and mm.get("resum") else None
+        vv["per_candidat"] = mm.get("per_candidat") if mm else None
+        vv["g4_resum"] = mm.get("g4_resum") if mm else None
         ev["motors"].append(vv)
 
 
@@ -830,7 +864,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
     columnes: List[str] = []
     for e in m["etapes"]:
         ev, header = _etapa_vista(d, e, avisos)
-        _motors(d, ev, avisos)                      # MOTORS-UI (§26): comparació i variants, si neudet les ha escrites
+        _motors(d, ev, avisos, e)                   # MOTORS-UI (§26): comparació i variants, si neudet les ha escrites; `e` porta la riquesa per motor
         etapes.append(ev)
         columnes.extend(c for c in header if c not in columnes)
     #: El cens de no declarades (v1.27) es tracta com una etapa —les dades són les mateixes—; el que diu la
