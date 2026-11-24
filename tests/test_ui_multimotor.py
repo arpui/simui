@@ -52,6 +52,7 @@ KDOC = "function kDoc(p, titol){" + INDEX.split("function kDoc(p, titol){")[1].s
 K_ENLLAC = next(l for l in INDEX.splitlines() if l.startswith("const kEnllacCand"))   # S10: enllaç al full del candidat
 RTOTALS = INDEX.split("// RTOTALS-DEF-BEGIN")[1].split("\n", 1)[1].split("// RTOTALS-DEF-END")[0]
 RG4VAL = INDEX.split("// RG4VAL-DEF-BEGIN")[1].split("\n", 1)[1].split("// RG4VAL-DEF-END")[0]
+COMPCOMP = INDEX.split("// COMPCOMP-DEF-BEGIN")[1].split("\n", 1)[1].split("// COMPCOMP-DEF-END")[0]
 FMTNUM = "function fmtNum(x){" + INDEX.split("function fmtNum(x){")[1].split("\n}")[0] + "\n}"
 K_MD_STUB = "const kMd = (t, b) => 'MD' + String(t).length + ':' + b;"   # el resum del `.md` és feina de kMd
 PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
@@ -621,6 +622,92 @@ def test_s11_c_no_concloent_i_geant4_divergent_queda_escrit():
     assert '<span class="tag t-nt">NO CONCLOENT</span>' in r["html"]
     _, eo = _per_motor("mb10b_cd_openmc")                        # sens files: bloc buit, no una taula a zeros
     assert _node_dades(pre, "rG4Valor", eo) == {"avisos": [], "html": ""}
+
+
+# ── comparativa per tub i ε total: entre MOTORS d'UNA etapa (encàrrec 24-11, mb10b_cd S1) ──
+#
+# Albert, 24-11: «ara les columnes són etapes (S1, S1_anterior_2026-11-21_2, S1_prova10k), totes amb B1, més
+# Geant4. Ha de ser: una etapa triada (per defecte S1) i una columna per motor d'aquella etapa». Primer la
+# diagnosi: si neudet dóna els valors per tub dels tres motors, el problema és de la UI.
+
+def test_besso_neudet_dona_els_valors_per_tub_dels_tres_motors_no_falta_cap_artefacte():
+    """Diagnòstic 24-11 (mb10b_cd `S1`, candidat `18f5eb0ba3c0`): els tres artefactes són al seu lloc i porten
+    dades per tub — 10 tubs × 11 energies, amb ε i σ no nuls a les tres bandes. Per tant **no falta cap
+    artefacte i no s'escriu cap lletra al neudet**: la llista de motors que surt sense columna és problema del
+    lector (test de la divergència §2, més amunt) i el que cal arreglar és aquí. Si algú escriu un artefacte
+    buit o el mou de lloc, aquest bessó peta abans que la taula calli."""
+    d, _ = _per_motor("mb10b_cd")
+    for carpeta, motor in (("B1", "xarxa B1"), ("salts", "xarxa B1 + salts"), ("openmc_gpu", "openmc_gpu")):
+        p = d / "etapes" / "S1" / "motors" / carpeta / "resultats_tub.json"
+        assert p.is_file(), f"no hi és {p}"
+        j = json.loads(p.read_text(encoding="utf-8"))
+        assert j["motor"] == motor and j["versio"] == "1.1", (carpeta, j.get("motor"), j.get("versio"))
+        assert len(j["energies_MeV"]) == 11
+        tubs = j["candidats"][HASH_PROVA]["tubs"]
+        assert len(tubs) == 10 and all(len(t["eps"]) == 11 for t in tubs)
+        assert sum(1 for t in tubs for v in t["eps"] if v) == 110, f"{carpeta}: ε per tub buides"
+
+
+def test_comparativa_una_columna_per_motor_de_letpa_triada_sense_barre_les_altres():
+    """L'abast de la taula: `results_tub.comparativa` rep només les entrades de l'etapa triada (més les de
+    simphy, que són un motor més amb `etapa: "simphy"`). Abans d'això, a mb10b_cd sortien columnes de
+    `S1_anterior_2026-11-21_2` al costat de les d'S1."""
+    from simui import api
+    _, es = _per_motor("mb10b_cd")
+    r = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")
+    cols = r["comparativa"]["columnes"]
+    assert [(c["etapa"], c["motor"], c["path"].rsplit("/", 1)[-1]) for c in cols] == [
+        ("S1", "xarxa B1", "B1"), ("S1", "geant4", "B1_g4"), ("S1", "geant4", "salts_g4")]
+    assert all(c["etapa"] == "S1" for c in cols)
+    # per defecte, l'etapa triada és la primera amb dades de l'ordre del manifest: S1 (el que demana l'encàrrec).
+    # El selector de la pàgina (`rCarrega`) es construeix amb aquest ordre i la pàgina sempre envia `stage`.
+    assert [e["retol"] for e in r["entries"] if e["status"] == "ok"][0] == "S1 · B1"
+    # els dos motors que simphy rebutja no tenen columna; no és que no hi siguin dades (test de dalt)
+    for retol in ("S1 · salts", "S1 · openmc_gpu"):
+        assert _ent(es, retol)["path"] not in {c["path"] for c in cols}
+    # i si se'n tria una altra, la taula és la d'aquella etapa, no un resum de totes
+    alt = _ent(es, "S1_anterior_2026-11-21_2 · B1")["path"]
+    c2 = api.results(HASH_PROVA, stage=alt, energia=4.0, campanya="mb10b_cd")["comparativa"]
+    assert [(c["etapa"], c["path"].rsplit("/", 1)[-1]) for c in c2["columnes"]] == [
+        ("S1_anterior_2026-11-21_2", "B1")]
+
+
+@NODE
+def test_c_compmeta_un_retol_distint_per_columna_i_nom_els_motors_sense_columna():
+    """El mirall (marcadors `COMPCOMP-DEF`): `etapaEntries` deixa l'etapa triada + simphy i `compMeta` posa el
+    `retol` de neudet a cada capçalera —els dos Geant4 d'una etapa es dirien tots dos «geant4»— i llista, amb
+    el seu motiu literal, els motors de l'etapa que no tenen columna. No se n'afegeix ni se'n treu cap."""
+    from simui import api
+    _, es = _per_motor("mb10b_cd")
+    comp = api.results(HASH_PROVA, energia=4.0, campanya="mb10b_cd")["comparativa"]
+    sel = _ent(es, "S1 · B1")["path"]
+    extra = {"font": "simphy", "etapa": "simphy", "path": "/simphy/mcnp", "retol": "simphy · mcnp", "status": "ok"}
+    sortida = _node_dades(ESCD + COMPCOMP, "d => { const s = etapaEntries(d.entries, d.sel);"
+                        " const a = etapaEntries([...d.entries, d.extra], d.sel);"
+                        " return [s.map(e => e.retol), compMeta(d.comp, s),"
+                        " a.map(e => e.retol), compMeta(d.comp, a)]; }",
+                        {"comp": comp, "entries": es, "sel": sel, "extra": extra})
+    de_letpa, meta, retols_amb_simphy, meta_amb_simphy = sortida
+    assert de_letpa == ["S1 · B1", "S1 · Geant4 (B1)", "S1 · openmc_gpu", "S1 · salts", "S1 · Geant4 (salts)"]
+    assert "S1_anterior_2026-11-21_2 · B1" not in de_letpa             # les altres etapes, fora
+    assert [c["rotol"] for c in meta["caps"]] == ["S1 · B1", "S1 · Geant4 (B1)", "S1 · Geant4 (salts)"]
+    assert [a["rotol"] for a in meta["absents"]] == ["S1 · openmc_gpu", "S1 · salts"]
+    assert all("no és cap de" in a["motiu"] for a in meta["absents"])   # el motiu amb què se'ls rebutja, tal com és
+    assert "simphy · mcnp" in retols_amb_simphy                         # simphy no és una etapa: hi és
+    assert meta_amb_simphy == meta                                      # i no mou ni caps ni absents
+    buit = _node_dades(ESCD + COMPCOMP, "d => compMeta(d.c, d.e)",
+                       {"c": None, "e": [{"path": "/x", "etapa": "S2", "status": "error de lectura", "motiu": "m"}]})
+    assert buit == {"caps": [], "absents": [{"rotol": "S2 · ?", "motiu": "m"}]}
+
+
+def test_c_letapa_triada_es_fa_servir_també_pels_blocs_d_epsilon_total_i_g4_valor():
+    assert "const deEtapa = etapaEntries(RS.entries, Q('#r-stage').value);" in INDEX
+    assert "Q('#r-totals').innerHTML = rTotals(deEtapa);" in INDEX          # les files, els motors de l'etapa
+    assert "const gv = rG4Valor(deEtapa);" in INDEX
+    assert "<h3>Comparativa per tub entre els motors de l'etapa triada</h3>" in INDEX
+    assert "Sense columna a la comparativa" in INDEX                         # i no desapareixen en silenci
+    assert "${escD(k.campanya)} · ${escD(k.rotol)}" in INDEX                 # la pista del cap, amb el retol
+    assert "fetch(" not in COMPCOMP and "Q(" not in COMPCOMP and "RS." not in COMPCOMP   # mirable a node
 
 
 def test_s8_el_full_té_adreça_pròpia_i_sobre_en_pestanya_nova():

@@ -292,7 +292,8 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
     """Les etapes de neudet amb aquest hash i el seu resultat per tub (totes les energies).
 
     Amb `energia` (MeV), a més, el visor XY de l'etapa (`stage`, o la primera amb dades) pintat
-    per ε a aquella energia, i la `comparativa` per tub entre motors (`results_tub.comparativa`).
+    per ε a aquella energia, i la `comparativa` per tub entre els motors de l'etapa triada
+    (`results_tub.comparativa`): una columna per motor, no per etapa.
     Un hash sense cap etapa dona `entries: []`: no és un error.
 
     Amb `campanya` (UI-MULTIMOTOR S9), primer els resultats de cada motor de la campanya amb les
@@ -307,10 +308,15 @@ def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = No
         entries = extra + [e for e in entries if (e["campanya"], e["etapa"]) not in vistes]
     out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None, "comparativa": None}
     if energia not in (None, ""):
-        # la taula per tub entre motors (neudet i simphy): lectura i quocient, sense física
-        out["comparativa"] = RES.comparativa(entries, float(energia))
         e = next((x for x in entries if x["status"] == RES.OK
                   and (stage is None or x["path"] == stage)), None)
+        # la taula per tub és entre motors d'UNA etapa: la triada (per defecte la primera amb dades).
+        # Les altres etapes que tenen aquest hash (intents apartats, proves) no hi comparen. Les de
+        # simphy porten `etapa: "simphy"` — no són una etapa de la campanya, són un motor més— i es queden.
+        comparats = [x for x in entries if x.get("font") == "simphy"
+                     or (e is not None and (x["campanya"], x["etapa"]) == (e["campanya"], e["etapa"]))]
+        # lectura i quocient, sense física
+        out["comparativa"] = RES.comparativa(comparats, float(energia))
         dat = CAT.per_hash(hash_)
         if e is not None and dat is not None:
             k = RES.index_of_energy(e["energies_MeV"], float(energia))

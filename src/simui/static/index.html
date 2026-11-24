@@ -434,7 +434,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
     <div class="svgbox" id="r-xy"></div>
     <h3>ε per tub i energia</h3>
     <div class="tblwrap" id="r-taula"></div>
-    <h3>Comparativa per tub entre motors</h3>
+    <h3>Comparativa per tub entre els motors de l'etapa triada</h3>
     <div id="r-comp-avisos"></div>
     <div class="tblwrap" id="r-comp"></div>
     <div id="r-totals"></div>
@@ -4178,16 +4178,37 @@ function rTaula(){
     en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
   return `${e.diagnostic ? '<div class="diag-av" data-diag-xifres>⚠ diagnòstic, no citable — les xifres d\'aquesta taula</div>' : ''}<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
+// COMPCOMP-DEF-BEGIN
+// La comparativa per tub i la ε total per energia són entre MOTORS D'UNA ETAPA: la del selector. Les altres
+// etapes que tenen aquest hash (intents apartats, proves) no hi van —l'API ja deixa fora
+// de la `comparativa` les que no són de l'etapa triada; els altres blocs fan aquí el mateix filtre—. Les
+// entrades de simphy porten `etapa: "simphy"`: no són una etapa de la campanya, són un motor més, i hi són.
+// Les columnes les fa `results_tub.comparativa`: aquí no se n'afegeix ni se'n treu cap. `compMeta` posa nom a
+// cada columna (els dos Geant4 d'una mateixa etapa es dirien tots dos «geant4» sense el seu `retol`) i llista
+// els motors de l'etapa que no hi tenen columna, amb el motiu amb què se'ls rebutja: no desapareixen en silenci.
+function etapaEntries(entries, selPath){
+  const sel = entries.find(e => e.path === selPath) || null;
+  return entries.filter(e => e.font === 'simphy' || (sel && e.campanya === sel.campanya && e.etapa === sel.etapa));
+}
+function compMeta(comp, entries){
+  const cols = (comp && comp.columnes) || [];
+  const caps = cols.map(k => Object.assign({}, k, {
+    rotol: (entries.find(x => x.path === k.path) || {}).retol || (k.etapa + ' · ' + (k.motor || '?'))}));
+  const vists = new Set(cols.map(k => k.path));
+  const absents = entries.filter(e => !vists.has(e.path) && e.status !== 'ok')
+    .map(e => ({rotol: e.retol || (e.etapa + ' · ' + (e.motor || '?')), motiu: e.motiu || e.status}));
+  return {caps, absents};
+}
+// COMPCOMP-DEF-END
 // La comparativa ja ve calculada de l'API (`results_tub.comparativa`): aquí només es pinta.
-function rComp(){
-  const c = RS.comp;
-  if(!c || !c.columnes || !c.columnes.length) return '<div class="panel">Cap entrada amb dades per tub a aquesta energia.</div>';
-  const head = c.columnes.map(k => {
+function rComp(caps){
+  if(!caps || !caps.length) return '<div class="panel">Cap entrada amb dades per tub a aquesta energia.</div>';
+  const head = caps.map(k => {
     const prov = k.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>';
     const font = k.font === 'simphy' ? '<span class="tag t-nt">simphy</span>' : '<span class="tag t-nt">neudet</span>';
     const dt = k.deteccio ? `<br><span class="hint">detecció <code>${escD(k.deteccio)}</code>${k.sig_tipus ? ' · sig ' + escD(k.sig_tipus) : ''}</span>` : '';
     const mot = k.motiu ? `<br><span class="hint">${escD(k.motiu)}</span>` : '';
-    return `<th>${escD(k.motor)}<br><span class="hint">${escD(k.campanya)} · ${escD(k.etapa)}</span><br>${font} ${prov}${dt}${mot}</th>`;
+    return `<th>${escD(k.motor)}<br><span class="hint">${escD(k.campanya)} · ${escD(k.rotol)}</span><br>${font} ${prov}${dt}${mot}</th>`;
   }).join('');
   const rows = c.files.map(f => {
     const cells = f.cols.map(x => {
@@ -4208,7 +4229,8 @@ const fmtPos = t => [t.x, t.y, t.z].map(v => { const r = Math.round(Number(v) * 
 // UI-MULTIMOTOR S9/S11: la ε total per energia, `eps_mitja` i `planor_f` de cada font (motor i Geant4).
 // Tot ve de neudet: les columnes `eps_<E>MeV`/`sig_<E>MeV` i les mètriques del `candidats.csv` de cada
 // motor (`entries[].eps_totals`, `entries[].metrics`). Aquí només es dibuixa: no se sumen ε, no
-// s'interpola. El Geant4 (`es_g4`) va de traç discontínu, al costat del seu motor.
+// s'interpola. El Geant4 (`es_g4`) va de traç discontínu, al costat del seu motor. Les `entries` que rep
+// són les de l'etapa triada (més les de simphy): les filtra `etapaEntries` a `rPinta`.
 function rTotals(entries){
   const amb = entries.filter(e => e.status === 'ok' && (e.eps_totals || []).length);
   if(!amb.length) return '';
@@ -4300,13 +4322,18 @@ function rPinta(){
   Q('#r-avisos').innerHTML = v && v.avisos_valors && v.avisos_valors.length
     ? `<div class="panel warn">${v.avisos_valors.map(escD).join('<br>')}</div>` : '';
   Q('#r-taula').innerHTML = rTaula();
-  Q('#r-comp').innerHTML = rComp();
+  const deEtapa = etapaEntries(RS.entries, Q('#r-stage').value);
+  const cmp = compMeta(RS.comp, deEtapa);
+  Q('#r-comp').innerHTML = rComp(cmp.caps);
   const cc = RS.comp || {};
   Q('#r-comp-avisos').innerHTML = [
     ...(cc.avisos || []).map(a => `<div class="panel warn">${escD(a)}</div>`),
-    cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : ''].join('');
-  Q('#r-totals').innerHTML = rTotals(RS.entries);
-  const gv = rG4Valor(RS.entries);
+    cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : '',
+    cmp.absents.length
+      ? `<div class="panel warn">Sense columna a la comparativa, ${cmp.absents.length} motors d'aquesta etapa: ` +
+        cmp.absents.map(a => `<code>${escD(a.rotol)}</code> — ${escD(a.motiu)}`).join('; ') + '</div>' : ''].join('');
+  Q('#r-totals').innerHTML = rTotals(deEtapa);
+  const gv = rG4Valor(deEtapa);
   Q('#r-g4v').innerHTML = gv.avisos.map(a => `<div class="panel warn">${escD(a)}</div>`).join('') + gv.html;
 }
 Q('#r-stage').onchange = () => { rEnergies(); rVista().then(dTantejaEstat).catch(e => rErr(e.message)); };
