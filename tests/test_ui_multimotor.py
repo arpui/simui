@@ -485,6 +485,17 @@ def test_s9_una_entrada_per_motor_del_manifest_i_el_geant4_al_costat():
     assert g["germa"] == b1["path"] and b1["germa_g4"] == g["path"]   # el Geant4, al costat del seu motor
 
 
+def test_s9_el_recompte_dentrades_depén_del_candidat_i_no_del_llegidor():
+    """Reconciliació 24-11 amb el planificador de neudet (portada a §5, `ea61d3cd`): ells mesuren **6**
+    entrades i nosaltres **7** — són candidats diferents, no dos recomptes del mateix. A `00b387c84bb2` els
+    `salts` no tenen bessó `_g4`, així que no hi ha entrada germana; a `18f5eb0ba3c0` sí. El full és el que
+    declara el manifest per cada candidat: la UI no suma ni treu entrades."""
+    _, sis = _per_motor("mb10b_cd", "00b387c84bb2")
+    _, set_ = _per_motor("mb10b_cd", HASH_PROVA)
+    assert len(sis) == 6 and len(set_) == 7
+    assert {e["retol"] for e in set_} - {e["retol"] for e in sis} == {"S1 · Geant4 (salts)"}
+
+
 def test_s9_entrada_ok_porta_tubs_eps_total_i_metrics_que_són_de_neudet():
     _, es = _per_motor("mb10b_cd")
     b1 = _ent(es, "S1 · B1")
@@ -536,6 +547,15 @@ def test_divergencia_motor_fora_del_contracte_simphy_ui_seccio_2():
     linea = [l for l in contracte.splitlines() if l.startswith("| `motor` |")][0]
     assert "`xarxa B1 + salts`" in linea and "`openmc_gpu`" in linea      # §2 ampliat (decisió de l'Albert)
     assert RES.MOTORS == ("xarxa B1", "geant4", "mcnp", "openmc", "fluka")  # i simphy, encara amb cinc
+    # l'abast de la divergència, mesurat 24-11 (el neudet ho porta a §5 amb `ea61d3cd`): dels
+    # `resultats_tub.json` de l'arbre, 12 declaren un motor fora dels cinc de simphy — 5 `openmc_gpu`
+    # + 7 `xarxa B1 + salts`. Són aquests, i ells sols, els que fan `error de lectura`.
+    from collections import Counter
+    arts = Counter(json.loads(p.read_text(encoding="utf-8")).get("motor")
+                   for p in (V.neudet_root() / "disseny" / "campanyes").glob(
+                       "*/etapes/*/motors/*/resultats_tub.json"))
+    assert arts["openmc_gpu"] == 5 and arts["xarxa B1 + salts"] == 7
+    assert sum(c for m, c in arts.items() if m not in RES.MOTORS) == 12
     _, es = _per_motor("mb10b_cd")
     s = _ent(es, "S1 · salts")
     assert s["status"] == RES.ERROR_LECTURA
