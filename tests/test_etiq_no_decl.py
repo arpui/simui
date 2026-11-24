@@ -183,17 +183,19 @@ def _la_llista_la_ui(id_: str) -> bool:
 
 
 def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
-    """Sobre els 37 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
+    """Sobre els 40 manifests reals de neudet (30 des de `6559acd`; el 31è, `mb10b_anells`, afegit per ells a
     `882facd7`; 5 més de l'endreç mb10b del 23-11, `821a06b6`: `mb10b_cd`, `mb10b_motors`, `mb10b_motors_sensecd`,
-    `mb10b_ref`, `mb10b_temps`; el 37è, `mb10b_cd_openmc`, fusionat per ells a `b2ff74e0` del 24-11), el nostre
+    `mb10b_ref`, `mb10b_temps`; el 37è, `mb10b_cd_openmc`, fusionat per ells a `b2ff74e0` del 24-11; 3 més el 24-11
+    a `94909d5e`: `c02_cd_2grups`, `c03_3anells_grups`, `cil_test_a012`), el nostre
     provisional diu el mateix flux i el mateix cens que ells — la divergència
-    que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 12 (mesurat 23-11:
+    que havíem escrit a `mb10b_anells` és TANCADA: el van regenerar a `821a06b6` (assert dins del bucle). El cens no és buit a 13 (mesurat 24-11; eren 12
+    el 23-11: hi va entrar `c02_cd_2grups` amb `94909d5e` pel seu `S3_ind`;
     `mb10b_motors_sensecd` s'hi ha afegit amb MAN-FORAT `6d06c41b`, que amb el criteri nou compta els directoris
     només-amotors com a execució i hi deixa `S1_interromput_2026-11-20`; abans, `mb10b_cd` s'hi havia afegit amb
     l'endreç `821a06b6`, que hi deixa `S1_prova10k`; eren 10 tornat a mesurar 2026-11-14 a les
     16:15: `cert_lnd_252285_E12_fin` s'hi havia afegit amb la represa PARET-Q2, que ha creat `S0_pq2_p2_amb`/`_sense`
-    com a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 12, la UI en llista 4 —`dir_de` mira
-    `disseny/campanyes` i prou (`c04_draft`, `c0_2anells`, `mb10b_cd`, `mb10b_motors_sensecd`), i les altres vuit són a `disseny/certificacio`
+    com a etapa declarada i hi ha deixat les dues variants `_l125k`); de les 13, la UI en llista 5 —`dir_de` mira
+    `disseny/campanyes` i prou (`c02_cd_2grups`, `c04_draft`, `c0_2anells`, `mb10b_cd`, `mb10b_motors_sensecd`), i les altres vuit són a `disseny/certificacio`
     i a `disseny/experiments`.
     Que la UI les llisti és una altra fila, no aquesta. Llista congelada = dada viscuda: si neudet corre,
     aquesta xifra es mou i el test ho diu; el que no es mou és que les dues parts coincideixen cama a cama."""
@@ -216,13 +218,14 @@ def test_besso_a_totes_les_campanyes_amb_manifest_repartim_igual():
         if man.get(CENS):
             amb_cens.append(man["id"])
     assert sorted(amb_cens) == [
-        "c04_draft", "c0_2anells",
+        "c02_cd_2grups", "c04_draft", "c0_2anells",
         "cert_lnd_252248", "cert_lnd_252250", "cert_lnd_252285_E",
         "cert_lnd_252285_E12_fin", "cert_lnd_252285_E12_sol_fin",
         "cert_lnd_2523_E12_sol_fin", "cert_rs_p4_1624_213", "mb10b_cd", "mb10b_motors_sensecd", "x06_banc_pe_lnd252285",
     ], f"el cens ha canviat d'abast: {sorted(amb_cens)}. Cal reexplicar la fila: les que la UI llista tenen un significat nou."
-    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == ["c04_draft", "c0_2anells", "mb10b_cd", "mb10b_motors_sensecd"], \
-        "la llista de la UI ha canviat; el que diu aquest test de les 11 és el que cal reescriure"
+    assert sorted(i for i in amb_cens if _la_llista_la_ui(i)) == \
+        ["c02_cd_2grups", "c04_draft", "c0_2anells", "mb10b_cd", "mb10b_motors_sensecd"], \
+        "la llista de la UI ha canviat; el que diu aquest test de les 13 és el que cal reescriure"
 
 
 def test_a_c04_draft_el_que_ha_corregut_és_al_cens_i_no_al_flux(c04):
@@ -252,16 +255,18 @@ CLAUS_ETAPA = {"nom", "motor", "etapa_pla", "pla", "resposta", "candidats_csv", 
 
 
 def test_el_cens_porta_el_mateix_joc_de_claus_que_el_flux():
-    """Divergència tancada: el cens ja no és minimal. Sobre els 37 manifests reals (30 de `6559acd`,
-    `mb10b_anells` de `882facd7`, 5 de l'endreç `821a06b6` del 23-11 i `mb10b_cd_openmc` de `b2ff74e0` del 24-11),
+    """Divergència tancada: el cens ja no és minimal. Sobre els 40 manifests reals (30 de `6559acd`,
+    `mb10b_anells` de `882facd7`, 5 de l'endreç `821a06b6` del 23-11, `mb10b_cd_openmc` de `b2ff74e0` del 24-11
+    i els 3 de `94909d5e` del 24-11: `c02_cd_2grups`, `c03_3anells_grups`, `cil_test_a012`),
     cada entrada de cens porta
     el joc de 23 claus d'una entrada de flux (16 + les 4 additives de MAN-FORAT `6d06c41b` + les 3 de N5 `ab1e47cf`)
     — com a molt una de més, `motiu_aturada` (additiva, decret `7585843`) — i `anterior: null` sempre.
     Neudet se'n fixa el mateix a `test_v127_no_decl.py:46-51`."""
     ds = sorted(f.parent for f in _neudet().glob("disseny/**/campanya_ui.json") if ".claude" not in f.parts)
-    assert len(ds) == 37, f"són {len(ds)} manifests, no 37 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
+    assert len(ds) == 40, f"són {len(ds)} manifests, no 40 (30 des de `06de072` + `mb10b_anells` de `882facd7` " \
                           f"+ 5 de l'endreç mb10b `821a06b6` del 23-11: cd, motors, motors_sensecd, ref, temps " \
-                          f"+ `mb10b_cd_openmc` de `b2ff74e0` del 24-11)"
+                          f"+ `mb10b_cd_openmc` de `b2ff74e0` del 24-11 " \
+                          f"+ `c02_cd_2grups`, `c03_3anells_grups` i `cil_test_a012` de `94909d5e` del 24-11)"
     n_cens = 0
     for d in ds:
         man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
