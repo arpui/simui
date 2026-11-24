@@ -113,6 +113,7 @@ def test_el_bloc_pinta_el_que_es_diu_amb_dades_reals_de_forma():
     kEnc = next(l for l in INDEX.splitlines() if l.startswith("const kEnc"))
     kFit = next(l for l in INDEX.splitlines() if l.startswith("function kFit"))
     fmtNum = "function fmtNum(x){" + INDEX.split("function fmtNum(x){")[1].split("\n}")[0] + "\n}"
+    kEnllac = next(l for l in INDEX.splitlines() if l.startswith("const kEnllacCand"))   # S10: l'enllaç al full
     dades = """
     const etapa = {nom: 'S1', verificacions: [{etapa: 'S1_g4', n_candidats: 2,
       fitxers: {candidats: 'etapes/S1_g4/candidats.csv', resultats_tub: 'etapes/S1_g4/resultats_tub.json'},
@@ -126,7 +127,7 @@ def test_el_bloc_pinta_el_que_es_diu_amb_dades_reals_de_forma():
       candidats: [{nom: '"><s', hash: '"><s', eps_xarxa: 0.02, eps_g4: 0.02}]}], seleccio: null});
     console.log(JSON.stringify([kVerificacio(etapa), sense, brutes]));"""
     js = (INDEX.split("// VERIF-DEF-BEGIN")[1].split("\n", 1)[1].split("// VERIF-DEF-END")[0] +
-          "\n" + escD + "\n" + kEnc + "\n" + kFit + "\n" + fmtNum + "\nconst KC = {id: 'c'};\n" + dades)
+          "\n" + escD + "\n" + kEnc + "\n" + kFit + "\n" + fmtNum + "\n" + kEnllac + "\nconst KC = {id: 'c'};\n" + dades)
     r = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True)
     bloc, sense, brutes = json.loads(r.stdout)
 
@@ -138,9 +139,12 @@ def test_el_bloc_pinta_el_que_es_diu_amb_dades_reals_de_forma():
     assert "etapes%2FS1_g4%2Fcandidats.csv" in bloc               # l'enllaç, codificat per `kFit`/`kEnc`
     assert ">etapes/S1_verificacio/seleccio.csv</code>" in bloc   # el camí, llegible a sobre
     assert "la UI no el calcula" in bloc                         # cel·les fora/biaix: on haurien d'estar escrits
+    # S10 (encàrrec 24-11): el candidat verificat té el mateix enllaç al full que la taula de l'etapa
+    assert '<a href="#" data-full="9076caec067e">2x7_cd0p667a360c0_8x21</a>' in bloc
 
     assert sense == ""                                           # sense dades de verificació, no pinta res
-    assert '&quot;&gt;&lt;s' in brutes and '<b>&quot;&gt;&lt;s</b>' in brutes
+    assert '&quot;&gt;&lt;s' in brutes   # S10: dins l'enllaç; l'escapament segueix sent d'`escD`, per les dues bandes
+    assert '<b><a href="#" data-full="&quot;&gt;&lt;s">&quot;&gt;&lt;s</a></b>' in brutes
 
 
 # ── els punts de la pantalla, pins de text ────────────────────────────────────

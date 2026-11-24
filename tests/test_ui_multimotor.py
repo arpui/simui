@@ -13,10 +13,16 @@ Què es fixa (només el que no depèn dels punts N de neudet)
 - **S7 — intents apartats plegats sota la seva etapa**: `kEtapesAmbIntents` agrupa els que neudet marca
   `anterior: true` pel camp `etapa_pla` (mai el nom de la carpeta — UI-X06); sense targeta principal,
   plegat a part; les no declarades van al plegat «Proves» del cens. mb10b_anells (cap apartat) no canvia.
+- **S8/S9/S10/S11 (revisió 24-11)**: el full té adreça pròpia `#neudet/<camp>/full/<hash>` i s'obre en
+  pestanya nova; `resultats_per_motor` dona una entrada per motor del manifest (i el seu Geant4, germà
+  `germa`/`germa_g4`) amb `eps_totals` i `metrics` verbatim del `candidats.csv`; `g4_comparacio` són les
+  files del csv (biaix i estat llegits); guanyador/Pareto/verificats enllacen al full; la divergència
+  `motor: "xarxa B1 + salts"`/`"openmc_gpu"` fora del contracte §2 queda escrita amb el seu test.
 Sense neudet, els tests amb dades reals es salten.
 """
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 import subprocess
@@ -42,6 +48,10 @@ DATES = INDEX.split("// DATES-DEF-BEGIN")[1].split("\n", 1)[1].split("// DATES-D
 G4RESUM = INDEX.split("// G4RESUM-DEF-BEGIN")[1].split("\n", 1)[1].split("// G4RESUM-DEF-END")[0]
 PARAMS = INDEX.split("// PARAMS-DEF-BEGIN")[1].split("\n", 1)[1].split("// PARAMS-DEF-END")[0]
 KDOC = "function kDoc(p, titol){" + INDEX.split("function kDoc(p, titol){")[1].split("}\n")[0] + "}"
+K_ENLLAC = next(l for l in INDEX.splitlines() if l.startswith("const kEnllacCand"))   # S10: enllaç al full del candidat
+RTOTALS = INDEX.split("// RTOTALS-DEF-BEGIN")[1].split("\n", 1)[1].split("// RTOTALS-DEF-END")[0]
+RG4VAL = INDEX.split("// RG4VAL-DEF-BEGIN")[1].split("\n", 1)[1].split("// RG4VAL-DEF-END")[0]
+FMTNUM = "function fmtNum(x){" + INDEX.split("function fmtNum(x){")[1].split("\n}")[0] + "\n}"
 K_MD_STUB = "const kMd = (t, b) => 'MD' + String(t).length + ':' + b;"   # el resum del `.md` és feina de kMd
 PURE = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
 
@@ -340,12 +350,16 @@ def test_s2_b_mb10b_cd_openmc_el_resum_N2_es_pinta():
 def test_s6_b_g4_resum_real_una_fila_per_candidat_del_manifest():
     _, v = _vista("mb10b_cd")
     mv = _etapa(v, "S1")["motors"][0]
-    h = _node_dades(ESCD + DATES + G4RESUM, "kG4Resum", mv)
+    h = _node_dades(ESCD + DATES + K_ENLLAC + G4RESUM, "kG4Resum", mv)
     r = mv["g4_resum"]
     assert r, "el manifest no porta `g4_resum`? (N2 fusionat a b2cd155a)"
     assert h.count("<tr>") - 1 == len(r), "una fila per candidat del manifest"
+    hpc = {c["nom"]: c.get("hash") for c in (mv.get("per_candidat") or [])}
     for nom, g in r.items():
-        assert f"<b>{nom}</b>" in h
+        if hpc.get(nom):   # S10: el manifest dona el hash → el mateix enllaç al full que a la taula
+            assert f'<b><a href="#" data-full="{hpc[nom]}">{nom}</a></b>' in h
+        else:              # sense hash a les dades, text pla: no se n'inventa cap
+            assert f"<b>{nom}</b>" in h
         assert f"{g['fora_tol']} / {g['cel_les']}" in h
         assert f"{g['fora_tol_concloents']} / {g['cel_les_concloents']}" in h
         assert f"{g['pct_fora']:.2f} %" in h
@@ -391,3 +405,186 @@ def test_s5_b_judici_portes_i_resum_es_pleguen_tal_com_ve():
     assert out[1] == "", "sense manifest no es pinta res"
     assert out[2] and all("Portes" in p for p in out[2])
     assert mv["resum"]["md"] in out[3] and f"MD{len(mv['resum']['text'])}:{mv['resum']['base']}" in out[3]
+
+
+# ── S10 (JS): candidats escollits clicables ───────────────────────────────────
+
+@NODE
+def test_s10_guanyador_i_pareto_enllacen_al_full_i_sense_hash_text_pla():
+    """El guanyador i el Pareto de cada motor tenen el mateix enllaç que la taula de l'etapa (pestanya nova amb
+    l'adreça `#neudet/<camp>/full/<hash>`, handler `data-full` de k-out). El hash ve de `e.candidats`; si no hi
+    és, text pla — mai se n'inventa un."""
+    e = {"nom": "S1", "fitxers": {"dir": "etapes/S1"}, "motors": [],
+         "candidats": [{"nom": "aa", "hash": "aabbccddeeff"}],
+         "comparacio": {"motors": [
+             {"nom": "B1", "aplicable": True, "guanyador": "aa", "pareto": ["aa", "zz"]},
+             {"nom": "openmc", "aplicable": True, "guanyador": "bb", "pareto": []}], "g4": {}}}
+    h = _taula(e)
+    assert h.count('<a href="#" data-full="aabbccddeeff">aa</a>') == 2   # guanyador i Pareto del B1
+    assert ">bb</b>" in h and 'data-full="bb"' not in h                  # «bb» no és a les dades: text pla
+    assert ", zz" in h and 'data-full="zz"' not in h                     # «zz» al Pareto, pla i sense hash
+
+
+@NODE
+def test_s10_a_mb10b_cd_el_guanyador_real_enllaca():
+    """`guanyador`/`pareto` del manifest són hashos (mirall mb10b_cd): l'enllaç en porta el i el text, el nom
+    del `per_candidat` — el mateix que pinta la taula de l'etapa."""
+    _, v = _vista("mb10b_cd")
+    s1 = _etapa(v, "S1")
+    h = _taula(s1)
+    pcs = {c["hash"]: c["nom"] for mvv in (s1.get("motors") or []) for c in (mvv.get("per_candidat") or [])}
+    assert pcs, "els motors no porten `per_candidat`? (N3 de neudet no hi és?)"
+    for m in s1["comparacio"]["motors"]:
+        for val in [m.get("guanyador")] + list(m.get("pareto") or []):
+            if val in pcs:
+                assert f'data-full="{val}">{pcs[val]}</a>' in h, f"{m['nom']}: {val} no enllaça al seu full"
+            else:   # no inventar: si el hash no és a les dades, no surt com a enllaç
+                assert f'data-full="{val}"' not in h
+
+
+# ── S9/S11: el full per motor, ε total per energia, motor contra Geant4 valor a valor ──
+
+HASH_PROVA = "18f5eb0ba3c0"     # `2x6_cd0p667a360c0b2_8x13` d'mb10b_cd: verificat, amb `g4_comparacio.csv`
+NOM_PROVA = "2x6_cd0p667a360c0b2_8x13"
+
+
+def _per_motor(camp: str, hash_: str = HASH_PROVA):
+    d = V.dir_de(camp)
+    if not (d / "campanya.yaml").is_file():
+        pytest.skip(f"{camp} no és a aquest mirall de neudet")
+    return d, V.resultats_per_motor(camp, hash_)
+
+
+def _ent(es, retol):
+    return next(e for e in es if e["retol"] == retol)
+
+
+def test_s9_una_entrada_per_motor_del_manifest_i_el_geant4_al_costat():
+    d, es = _per_motor("mb10b_cd")
+    man = json.loads((d / "campanya_ui.json").read_text(encoding="utf-8"))
+    ms = [m for e in man["etapes"] if isinstance(e.get("motors"), list)
+          for m in e["motors"] if isinstance(m, dict)]
+    # una entrada per motor i, per a cada motor que declara `g4`, la del seu Geant4 (mirall mb10b_cd 24-11)
+    assert len(es) == len(ms) + sum(1 for m in ms if isinstance(m.get("g4"), dict))
+    assert [e["retol"] for e in es] == [
+        "S1 · B1", "S1 · Geant4 (B1)", "S1 · salts", "S1 · Geant4 (salts)",
+        "S1_anterior_2026-11-21_2 · B1", "S1_anterior_2026-11-21_3 · salts"]
+    assert all(e["font"] == "neudet" for e in es)                # els camins són els del manifest de neudet
+    b1, g = _ent(es, "S1 · B1"), _ent(es, "S1 · Geant4 (B1)")
+    assert g["es_g4"] is True and b1["es_g4"] is False
+    assert g["germa"] == b1["path"] and b1["germa_g4"] == g["path"]   # el Geant4, al costat del seu motor
+
+
+def test_s9_entrada_ok_porta_tubs_eps_total_i_metrics_que_són_de_neudet():
+    _, es = _per_motor("mb10b_cd")
+    b1 = _ent(es, "S1 · B1")
+    assert b1["status"] == "ok"
+    assert len(b1["tubs"]) == 10 and len(b1["eps_totals"]) == 11
+    assert [t["E"] for t in b1["eps_totals"]] == sorted(t["E"] for t in b1["eps_totals"])
+    with open(Path(b1["path"]) / "candidats.csv", newline="", encoding="utf-8") as fh:
+        row = next(r for r in csv.DictReader(fh) if r["hash"] == HASH_PROVA)
+    for t in b1["eps_totals"]:      # la ε total per energia = les columnes `eps_<E>MeV` del candidats.csv, verbatim
+        assert t["eps"] == float(row[f"eps_{t['E']:g}MeV"])
+        assert t["sig"] == float(row[f"sig_{t['E']:g}MeV"])
+    assert b1["metrics"]["eps_mitja"] == 0.132529 and b1["metrics"]["planor_f"] == 1.44819
+
+
+def test_s11_g4_comparacio_són_les_files_del_candidat_al_csv():
+    d, es = _per_motor("mb10b_cd")
+    b1 = _ent(es, "S1 · B1")
+    assert len(b1["g4_comparacio"]) == 110
+    with open(d / "etapes" / "S1" / "motors" / "B1" / "g4_comparacio.csv", newline="", encoding="utf-8") as fh:
+        files = [r for r in csv.DictReader(fh) if r["id"] == NOM_PROVA]
+    assert len(files) == 110
+    per = {(int(r["tub"]), float(r["E_MeV"])): r for r in files}
+    for f in b1["g4_comparacio"]:
+        r = per[(f["tub"], f["E"])]
+        assert f["eps_motor"] == float(r["eps_motor"]) and f["eps_g4"] == float(r["eps_g4"])
+        assert f["biaix"] == float(r["biaix"])                   # biaix i estat: llegits, no recomposats
+        assert f["concloent"] is (r["concloent"] == "True")
+        assert f["dins_tol"] is (r["dins_tol"] == "True")
+    # un intent apartat sense `g4_comparacio` escrit: buida, no inventada
+    assert _ent(es, "S1_anterior_2026-11-21_2 · B1")["g4_comparacio"] == []
+
+
+def test_divergencia_motor_fora_del_contracte_simphy_ui_seccio_2():
+    """Divergència escrita 24-11, pendent de decisió del neudet. El `resultats_tub.json` dels `salts`
+    d'mb10b_cd declara `motor: "xarxa B1 + salts"` i el d'mb10b_cd_openmc `"openmc_gpu"`; el contracte §2
+    (`~/projects/neudet/docs/site/contractes/simphy_ui.md:65`) només admet `xarxa B1 · geant4 · mcnp ·
+    openmc · fluka`, i simphy (`src/simphy/mcgen/results_tub.py:54` i `:162-166`) ho rebutja. La UI mostra
+    l'error de neudet tal com és: les entrades surten `error de lectura`, no silenci. Quan neudet decideixi
+    (corregir el valor o ampliar §2), actualitzeu aquest bessó — no es queda mut."""
+    from simphy.mcgen import results_tub as RES
+    _, es = _per_motor("mb10b_cd")
+    s = _ent(es, "S1 · salts")
+    assert s["status"] == RES.ERROR_LECTURA
+    assert "motor 'xarxa B1 + salts' no és cap de xarxa B1, geant4, mcnp, openmc, fluka" in s["motiu"]
+    assert _ent(es, "S1_anterior_2026-11-21_3 · salts")["status"] == RES.ERROR_LECTURA
+    assert _ent(es, "S1 · Geant4 (salts)")["status"] == RES.OK   # el Geant4 propi, en canvi, sí que llegeix
+    _, eo = _per_motor("mb10b_cd_openmc")
+    o = _ent(eo, "S1 · openmc_gpu")
+    assert o["status"] == RES.ERROR_LECTURA and "motor 'openmc_gpu' no és cap de" in o["motiu"]
+    assert _ent(eo, "S1 · Geant4 (openmc_gpu)")["status"] == RES.OK
+
+
+@NODE
+def test_s9_c_rtotals_pinta_taula_i_gràfic_amb_el_geant4_de_traç_discontínu():
+    _, es = _per_motor("mb10b_cd")
+    pre = ESCD + "\n" + FMTNUM + "\n" + RTOTALS
+    h = _node_dades(pre, "rTotals", es)
+    oks = [e for e in es if e["status"] == "ok" and e["eps_totals"]]
+    assert "<h3>ε total per energia</h3>" in h and "<svg" in h
+    assert h.count("<polyline") == len(oks)                      # una línia per font, cap calcul nou
+    for e in oks:
+        assert e["retol"] in h                                   # la llegenda, amb el nom de neudet
+    assert 'stroke-dasharray="6 4"' in h                         # el Geant4, de traç discontínu
+    assert "<th>eps_mitja</th><th>planor_f</th>" in h
+    assert _node_dades(pre, "rTotals", [{"status": "error de lectura", "eps_totals": []}]) == ""
+
+
+@NODE
+def test_s11_c_una_columna_per_motor_contra_el_geant4_valors_reals():
+    _, es = _per_motor("mb10b_cd")
+    r = _node_dades(ESCD + "\n" + FMTNUM + "\n" + RG4VAL, "rG4Valor", es)
+    assert r["avisos"] == []                                     # un sol motor amb files: cap divergència
+    h = r["html"]
+    assert "<h3>Motor contra Geant4, valor a valor</h3>" in h
+    b1 = _ent(es, "S1 · B1")
+    assert h.count("<tr>") - 1 == len(b1["g4_comparacio"]) == 110
+    assert "<th>S1 · B1 ε ± σ</th><th>S1 · B1/G4 − 1</th><th>estat</th>" in h
+    dins = sum(1 for f in b1["g4_comparacio"] if f["concloent"] and f["dins_tol"])
+    fora = sum(1 for f in b1["g4_comparacio"] if f["concloent"] and not f["dins_tol"])
+    assert h.count('<span class="tag t-ok">dins</span>') == dins == 102
+    assert h.count('<span class="tag t-no">fora</span>') == fora == 8
+    assert "-0.90 %" in h                                        # biaix de la primera fila, fmtPct del `biaix`
+
+
+@NODE
+def test_s11_c_no_concloent_i_geant4_divergent_queda_escrit():
+    pre = ESCD + "\n" + FMTNUM + "\n" + RG4VAL
+
+    def fil(p, tub, E, g4, conc=True, dins=True):
+        return {"path": p, "tub": tub, "E": E, "eps_motor": 0.035, "sig_motor": 0.0005,
+                "eps_g4": g4, "sig_g4": 0.0006, "biaix": 0.01, "err_rel": 0.02,
+                "concloent": conc, "dins_tol": dins}
+    r = _node_dades(pre, "rG4Valor", [
+        {"status": "ok", "retol": "S1 · B1", "path": "/x/B1",
+         "g4_comparacio": [fil("/x/B1", 0, 1.0, 0.035), fil("/x/B1", 0, 2.0, 0.03, conc=False)]},
+        {"status": "ok", "retol": "S1 · salts", "path": "/x/salts",
+         "g4_comparacio": [fil("/x/salts", 0, 1.0, 0.036), fil("/x/salts", 0, 2.0, 0.03, conc=False)]}])
+    assert any("no coincideixen en el Geant4 del tub 1 a 1 MeV" in a for a in r["avisos"])
+    assert '<td class="t-no">divergent</td>' in r["html"]        # un G4 en què no coincideixen, no pintat com si
+    assert ">G4 " in r["html"]                                   # cada columna porta el seu G4 escrit
+    assert '<span class="tag t-nt">NO CONCLOENT</span>' in r["html"]
+    _, eo = _per_motor("mb10b_cd_openmc")                        # sens files: bloc buit, no una taula a zeros
+    assert _node_dades(pre, "rG4Valor", eo) == {"avisos": [], "html": ""}
+
+
+def test_s8_el_full_té_adreça_pròpia_i_sobre_en_pestanya_nova():
+    assert "const en = e.target.closest('a[data-full]');" in INDEX
+    assert "if(en){ e.preventDefault(); nzObrirPestanya(KC.id, en.dataset.full); return; }" in INDEX
+    assert "if(tr){ nzObrirPestanya(KC.id, tr.dataset.h); return; }" in INDEX    # també des de la taula completa
+    assert "if(s[1] === 'full' && s[2]) return nzFull(s[0], s[2]);" in INDEX     # ruta #neudet/<camp>/full/<hash>
+    assert "if(camp && d.hash) return 'neudet/' + camp + '/full/' + d.hash;" in INDEX  # la pàgina reescriu la seva adreça
+    assert ("window.open(location.pathname + '#neudet/' + encodeURIComponent(camp) + '/full/'"
+            " + encodeURIComponent(hash), '_blank')") in INDEX

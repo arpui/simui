@@ -334,7 +334,8 @@ def test_el_mateix_hash_en_dues_campanyes_no_es_fon(url):
     assert {x["campanya"] for x in e} >= {"c0_2t0611", "c0b_2t0611"}          # les dues campanyes, present
     assert len({x["path"] for x in e}) == len(e)                              # clau del selector = camí, no etapa
     pagina = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
-    for text in ('value="${escD(e.path)}"', "escD(e.campanya)} · ", "escD(e.etapa)} ("):
+    # S9 (24-11): l'etiqueta de l'opció és el `retol` (etapa · motor); el replegament segueix sent etapa amb parèntesi
+    for text in ('value="${escD(e.path)}"', "escD(e.campanya)} · ", "e.etapa + ' (' + (e.motor || '') + ')'"):
         assert text in pagina, text                                          # la llista diu de quina campanya és
 
 

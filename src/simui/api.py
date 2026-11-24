@@ -287,14 +287,24 @@ def design_ask(body: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = None) -> Dict[str, Any]:
+def results(hash_: str, stage: Optional[str] = None, energia: Optional[str] = None,
+            campanya: Optional[str] = None) -> Dict[str, Any]:
     """Les etapes de neudet amb aquest hash i el seu resultat per tub (totes les energies).
 
     Amb `energia` (MeV), a més, el visor XY de l'etapa (`stage`, o la primera amb dades) pintat
     per ε a aquella energia, i la `comparativa` per tub entre motors (`results_tub.comparativa`).
     Un hash sense cap etapa dona `entries: []`: no és un error.
+
+    Amb `campanya` (UI-MULTIMOTOR S9), primer els resultats de cada motor de la campanya amb les
+    rutes del manifest (`etapes[].motors[]`): `for_design` només coneix l'`etapes/<E>/resultats_tub.json`
+    d'un sol motor i en una etapa multi-motor no en troba cap. De la mateixa etapa, mana el manifest:
+    l'entrada top-level de `for_design` no es repeteix.
     """
     entries = RES.for_design(hash_)
+    if campanya:
+        extra = CV.resultats_per_motor(campanya, hash_)
+        vistes = {(e["campanya"], e["etapa"]) for e in extra}
+        entries = extra + [e for e in entries if (e["campanya"], e["etapa"]) not in vistes]
     out: Dict[str, Any] = {"hash": hash_, "entries": entries, "vista": None, "comparativa": None}
     if energia not in (None, ""):
         # la taula per tub entre motors (neudet i simphy): lectura i quocient, sense física

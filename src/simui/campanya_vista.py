@@ -937,3 +937,151 @@ def fitxer(dir_: PathLike, rel: str) -> Path:
 def tipus_de(f: Path) -> str:
     """El Content-Type d'un fitxer servible (vegeu `TIPUS`)."""
     return TIPUS.get(Path(f).suffix.lower(), "application/octet-stream")
+
+
+# ── UI-MULTIMOTOR S9/S11 (encàrrec 2026-11-24): els resultats per tub de cada motor ──────────────
+# `simphy.mcgen.results_tub.for_design` busca `etapes/*/resultats_tub.json` (arrel d'etapa, un motor);
+# en una etapa multi-motor els fitxers són a `etapes/<E>/motors/<m>/` i no els troba: el full surt buit.
+# Aquí les rutes les dona el manifest (`etapes[].motors[]`, neudet N3/N4): `resultats_tub`, el `g4` de
+# cada motor (carpeta `<m>_g4`) i el `g4_comparacio.csv`. Cap xifra no es calcula: `candidats.csv` ja
+# porta els totals per energia (`eps_<E>MeV`, `sig_<E>MeV`, `eps_mitja`, `planor_f`) i
+# `g4_comparacio.csv` ja porta el biaix (`eps_motor/eps_g4 − 1`) i l'estat (`concloent`, `dins_tol`)
+# de cada cel·la. Les entrades tenen la mateixa forma que les de `for_design` (el full les pinta
+# igual), amb quatre extre: `retol` («S1 · B1», «S1 · Geant4 (B1)»), `motor_clau`, `eps_totals` i
+# `g4_comparacio`.
+
+
+def _fila_candidat(csvp: Path, hash_: str) -> Optional[Dict[str, str]]:
+    """La fila de `candidats.csv` amb aquell hash (com `RES.metrics`, però la necessitem crua pels
+    totals per energia, que `metrics` ja retorna numéricos igualment)."""
+    if not csvp.is_file():
+        return None
+    with open(csvp, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("hash") == hash_:
+                return row
+    return None
+
+
+def _num(v: Any) -> Optional[float]:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _totals_per_energia(row: Optional[Dict[str, str]], energies: List[float]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """`eps_totals`: [{E, eps, sig}] llegides de la fila del candidat a `candidats.csv`. El nom del
+    camp és el que escriu neudet amb `%g`: `eps_0.0001MeV`, `eps_1MeV`, `eps_1.5MeV`. El que no hi és
+    no s'inventa: surt a `avisos` amb la columna que falta."""
+    if not row:
+        return [], []
+    out: List[Dict[str, Any]] = []
+    que_falten: List[str] = []
+    for E in energies:
+        col = f"eps_{E:g}MeV"
+        if col not in row:
+            que_falten.append(col)
+            continue
+        out.append({"E": E, "eps": _num(row.get(col)), "sig": _num(row.get(f"sig_{E:g}MeV"))})
+    return out, que_falten
+
+
+def _files_g4_comparacio(f: Path, nom: str) -> List[Dict[str, Any]]:
+    """Les files del `g4_comparacio.csv` del candidat (columna `id` = nom). Neudet ja hi escriu el
+    biaix i l'estat: aquí es llegeixen, no es recomponen (S11)."""
+    out: List[Dict[str, Any]] = []
+    with open(f, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("id") != nom:
+                continue
+            out.append({"tub": int(row["tub"]), "E": _num(row["E_MeV"]),
+                        "eps_motor": _num(row["eps_motor"]), "sig_motor": _num(row["sig_motor"]),
+                        "eps_g4": _num(row["eps_g4"]), "sig_g4": _num(row["sig_g4"]),
+                        "biaix": _num(row["biaix"]), "err_rel": _num(row["err_rel"]),
+                        "concloent": row["concloent"] == "True", "dins_tol": row["dins_tol"] == "True"})
+    return out
+
+
+def _entrada_un_motor(d: Path, etapa: str, m: Dict[str, Any], hash_: str, *,
+                      g4: bool = False, germa: str = "") -> Optional[Dict[str, Any]]:
+    """Una entrada del full per al resultat d'un motor (o del seu Geant4). None si el candidat no hi
+    és (no és un error: el motor no el va simular, o Geant4 no el va verificar)."""
+    rel = m.get("resultats_tub")
+    if not rel:
+        return None
+    rt = _dins(d, rel, etapa)
+    campanya = d.name
+    retol = f"{etapa} · Geant4 ({m.get('nom')})" if g4 else f"{etapa} · {m.get('nom')}"
+    base = {"path": str(rt.parent), "etapa": etapa, "etapa_json": None, "campanya": campanya,
+            "motor": None, "motiu": "", "nom": None, "ronda": None, "n": None,
+            "pareto_rang": None, "robusta": None, "energies_MeV": [], "provenance": None,
+            "warnings": [], "metrics": None, "diagnostic": None, "tubs": [], "font": "neudet",
+            "deteccio": None, "sig_tipus": None, "retol": retol, "motor_clau": m.get("nom"),
+            "es_g4": g4, "germa": germa, "eps_totals": [], "g4_comparacio": [], "avisos": []}
+    try:
+        doc = RES.load(rt)
+    except RES.ResultsError as exc:
+        return {**base, "status": RES.ERROR_LECTURA, "motiu": str(exc)}
+    c = doc["candidats"].get(hash_)
+    if c is None:
+        return None
+    try:
+        prov = RES.provenance(rt).as_dict()
+    except RES.ResultsError as exc:
+        prov = {"citable": False, "motius": [str(exc)], "meta": None}
+    csvp = rt.parent / "candidats.csv"
+    met = RES.metrics(rt.parent, hash_)
+    totals, que_falten = _totals_per_energia(_fila_candidat(csvp, hash_), doc["energies_MeV"])
+    g4files: List[Dict[str, Any]] = []
+    if not g4 and m.get("g4_comparacio"):
+        cf = _dins(d, m["g4_comparacio"], etapa)
+        if cf.is_file():
+            g4files = _files_g4_comparacio(cf, c["nom"])
+        else:
+            base["avisos"].append(f"el manifest diu {m['g4_comparacio']} i no hi és")
+    if que_falten:
+        base["avisos"].append(f"{csvp.relative_to(d)} no té les columnes {', '.join(que_falten)}: "
+                              "la ε total per energia surt incompleta")
+    return {**base, "status": RES.OK, "etapa_json": doc.get("etapa"),
+            "campanya": doc.get("campanya", campanya), "motor": doc.get("motor"),
+            "nom": c["nom"], "ronda": c.get("ronda"), "n": c.get("n"),
+            "pareto_rang": c.get("pareto_rang"), "robusta": c.get("robusta"),
+            "energies_MeV": list(doc["energies_MeV"]), "provenance": prov,
+            "warnings": RES.warnings(doc), "metrics": met,
+            "tubs": [{"i": t["i"], "x": t["x"], "y": t["y"], "z": t["z"], "tipus": t["tipus"],
+                      "comptes": list(t["comptes"]), "eps": list(t["eps"]), "sig": list(t["sig"])}
+                     for t in c["tubs"]],
+            "deteccio": doc.get("deteccio"), "sig_tipus": doc.get("sig_tipus"),
+            "eps_totals": totals, "g4_comparacio": g4files}
+
+
+def resultats_per_motor(id_: str, hash_: str) -> List[Dict[str, Any]]:
+    """Els resultats per tub de cada motor (i del Geant4 de cada motor) de la campanya, per a aquell
+    hash, amb les rutes del manifest. Una etapa sense `motors[]` no hi surt (el full ja la troba per
+    `for_design`). El manifest no hi és? Llista buida: no s'endevina cap carpeta."""
+    d = dir_de(id_)
+    f = d / MANIFEST
+    if not f.is_file():
+        return []
+    man = _json(f)
+    out: List[Dict[str, Any]] = []
+    for e in man.get("etapes") or []:
+        ms = e.get("motors")
+        if not isinstance(ms, list):
+            continue
+        for m in ms:
+            if not isinstance(m, dict):
+                continue
+            ent = _entrada_un_motor(d, e.get("nom") or "?", m, hash_)
+            if ent is None:
+                continue
+            out.append(ent)
+            g4 = m.get("g4")
+            if isinstance(g4, dict):
+                gent = _entrada_un_motor(d, e.get("nom") or "?", {**g4, "nom": m.get("nom")}, hash_,
+                                         g4=True, germa=ent["path"])
+                if gent is not None:
+                    ent["germa_g4"] = gent["path"]
+                    out.append(gent)
+    return out

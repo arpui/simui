@@ -79,7 +79,8 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_escenari, q.get("nom", ""))
         elif path == "/api/results":
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
-            self._tracta(api.results, q.get("hash", ""), q.get("stage") or None, q.get("energia"))
+            self._tracta(api.results, q.get("hash", ""), q.get("stage") or None, q.get("energia"),
+                         q.get("campanya") or None)
         elif path == "/api/campanyes":
             self._tracta(api.campanyes)
         elif path == "/api/campanya/vista":

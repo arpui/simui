@@ -437,6 +437,8 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
     <h3>Comparativa per tub entre motors</h3>
     <div id="r-comp-avisos"></div>
     <div class="tblwrap" id="r-comp"></div>
+    <div id="r-totals"></div>
+    <div id="r-g4v"></div>
 
     <h2>Inputs dels quatre codis</h2>
     <div class="hint">La part de simphy: el paquet amb els decks de FLUKA, MCNP, OpenMC i Geant4 i el visor. No és de neudet.</div>
@@ -2925,9 +2927,16 @@ function kComparacio(e){
     return v ? `<a href="#" data-kvopen="${escD(v.nom)}">vista normal</a>` : '<span class="hint">neudet no n\'ha escrit la carpeta</span>'; };
   // UI-MULTIMOTOR S2: si neudet avisa que les respostes venen de la cache (camp `avis_cache`), el temps no és
   // de transport complet: mostrem l'avís de neudet i ni temps ni FOM. Si no, temps i FOM amb les unitats.
+  // S10: a `comparacio_motors.json` el guanyador i el Pareto són **hashos** (mirall mb10b_cd; l'encàrrec demana
+  // el mateix enllaç que la taula, que pinta noms). El nom surt de `candidats` de l'etapa o del `per_candidat`
+  // dels motors; si el valor no és a les dades, text pla — mai se n'inventa ni nom ni hash.
+  const pool = (e.candidats || []).concat((e.motors || []).flatMap(v => (v && v.per_candidat) || []));
+  const tria = val => { const c = pool.find(x => x && (x.hash === val || x.nom === val));
+    return c ? kEnllacCand(c.nom || val, c.hash || val) : escD(String(val)); };
+  const escollit = v => (v === null || v === undefined || v === '') ? '—' : `<b>${tria(String(v))}</b>`;
   return `${verdicte}<div class="tblw"><table class="tbl"><thead><tr><th></th>${cap}</tr></thead><tbody>
-    ${fila('guanyador', m => `<b>${f(m.guanyador)}</b>`)}
-    ${fila('Pareto', m => Array.isArray(m.pareto) && m.pareto.length ? m.pareto.map(x => escD(String(x))).join(', ') : '—')}
+    ${fila('guanyador', m => escollit(m.guanyador))}
+    ${fila('Pareto', m => Array.isArray(m.pareto) && m.pareto.length ? m.pareto.map(x => tria(String(x))).join(', ') : '—')}
     ${fila('temps', m => m.avis_cache ? `<span class="tag t-wa">no mesurat</span> <span class="hint">${escD(String(m.avis_cache))}</span>`
       : `${f(m.temps_s)} s <span class="hint">(${f(m.n_hist)} històries${m.gpu ? ` · GPU ${escD(String(m.gpu))}` : ''}${m.t_transport_s != null ? ` · transport ${f(m.t_transport_s)} s` : ''})</span>`)}
     ${fila('FOM mitjana', m => m.avis_cache ? '<span class="hint">no mesurat (cache): vegeu la fila temps</span>'
@@ -2936,6 +2945,10 @@ function kComparacio(e){
     ${fila('execució del motor', norm)}
   </tbody></table></div>${finalists}`;
 }
+// S10 (encàrrec 2026-11-24): un candidat escollit (guanyador, Pareto, verificats, resum Geant4) té el mateix
+// enllaç al full que la taula de l'etapa: pestanya nova amb la seva adreça (el handler `data-full` de k-out).
+// Sense hash a les dades, text pla: no se n'inventa cap.
+const kEnllacCand = (nom, hash) => hash ? `<a href="#" data-full="${escD(String(hash))}">${escD(String(nom))}</a>` : escD(String(nom));
 // ── VERIF-UI (encàrrec 2026-11-23): bloc «Verificació amb Geant4» de cada etapa. Les dades són de neudet:
 // quins candidats va verificar el bessó `_g4` i amb quin ε mitjà (`verificacions` de `campanya_vista`, mirats
 // pel hash) i els motius de la selecció (`<E>_verificacio/seleccio.csv`). Aquí no es calcula res: les dades
@@ -2950,7 +2963,7 @@ function kVerificacio(e){
     return x && x.motius ? String(x.motius).split(';').map(s => s.trim()).filter(Boolean).map(escD).join(' · ')
       : '<span class="hint">neudet no en diu el motiu a <code>seleccio.csv</code></span>'; };
   const cos = vs.map(v => {
-    const cs = (v.candidats || []).map(c => `<tr><td><b>${escD(String(c.nom))}</b><div class="hint">${motius(c.hash)}</div></td>`
+    const cs = (v.candidats || []).map(c => `<tr><td><b>${kEnllacCand(c.nom, c.hash)}</b><div class="hint">${motius(c.hash)}</div></td>`
       + `<td>${fmtNum(c.eps_xarxa)}</td><td>${fmtNum(c.eps_g4)}</td></tr>`).join('');
     const enl = [];
     if(v.fitxers && v.fitxers.candidats) enl.push(`<a href="${escD(kFit(v.fitxers.candidats))}" target="_blank">candidats.csv</a>`);
@@ -2977,8 +2990,10 @@ function kG4Resum(v){
   const pct = x => kPctFix(typeof x === 'number' ? x : null) ?? '—';
   // `pitjor_cel_la` és un dict de neudet {tub, E_MeV, err_rel, …}: es pinta llegible, mai JSON cru.
   const pitjor = p => (p && typeof p === 'object') ? `tub ${f(p.tub)} · ${f(p.E_MeV)} MeV` : f(p);
+  const pc = Array.isArray(v && v.per_candidat) ? v.per_candidat : [];   // S10: el hash, si el manifest el porta
+  const hDe = nom => { const c = pc.find(x => x && x.nom === nom); return c ? c.hash : null; };
   const files = Object.keys(r).map(n => { const g = r[n] || {};
-    return `<tr><td><b>${escD(String(n))}</b></td><td>${parell(g.fora_tol, g.cel_les)}</td>` +
+    return `<tr><td><b>${kEnllacCand(n, hDe(n))}</b></td><td>${parell(g.fora_tol, g.cel_les)}</td>` +
       `<td>${parell(g.fora_tol_concloents, g.cel_les_concloents)}</td>` +
       `<td>${pct(g.pct_fora)}</td>` +
       `<td>${kPct100(typeof g.biaix_mitja === 'number' ? g.biaix_mitja : null) ?? '—'}</td>` +
@@ -3576,8 +3591,12 @@ document.getElementById('k-out').addEventListener('click', e => {
     KC.ordre[st] = o.k === c ? {k: c, asc: !o.asc} : {k: c, asc: true};
     kPinta(); return;
   }
+  // S8: un candidat (fila o punt del Pareto) obre el seu full en una pestanya nova, amb la seva adreça
+  // pròpia; la pàgina de la campanya es queda on era. S10: els enllaços `data-full` fan el mateix.
+  const en = e.target.closest('a[data-full]');
+  if(en){ e.preventDefault(); nzObrirPestanya(KC.id, en.dataset.full); return; }
   const tr = e.target.closest('tr.kc, circle.kpt');
-  if(tr){ nzObreCandidat({hash: tr.dataset.h, nom: tr.dataset.n, de: KC.id}).catch(err => dErr(err.message)); return; }
+  if(tr){ nzObrirPestanya(KC.id, tr.dataset.h); return; }
   const b = e.target.closest('button[data-k="tanteja"]');
   if(b) cPrenTanteig({de: KC.id}).catch(err => kErr(err.message));
   if(e.target.closest('#k-conf-si')) kConfirma();
@@ -3631,11 +3650,25 @@ function nzErr(msg){ Q('#n-err').innerHTML = `<div class="panel bad pre">${escD(
 function nzPrincipal(){ const p = KC.lista.find(c => c.grup === 'principal') || KC.lista[0]; return p ? p.id : null; }
 async function nzInicia(sub){
   await nzLlegeixLlista();
-  if(sub === 'nova') return nzNova();
-  if(sub === 'solt') return nzSolt();
-  if(sub) return nzCampanya(KC.lista.some(c => c.id === sub) ? sub : nzPrincipal());
+  const s = Array.isArray(sub) ? sub : (sub ? [sub] : []);
+  if(s[0] === 'nova') return nzNova();
+  if(s[0] === 'solt') return nzSolt();
+  if(s[1] === 'full' && s[2]) return nzFull(s[0], s[2]);      // S8: `#neudet/<camp>/full/<hash>`
+  if(s[0]) return nzCampanya(KC.lista.some(c => c.id === s[0]) ? s[0] : nzPrincipal());
   if(NZ.sel) return nzVeu();                       // tornar a la pestanya: el mateix lloc
   return nzCampanya(NZ.ultima || nzPrincipal());
+}
+// S8 (encàrrec 2026-11-24): el full d'un candidat té adreça pròpia, `#neudet/<camp>/full/<hash>`, i s'obre
+// en una pestanya nova per no perdre la pàgina de la campanya. El nom ve de la vista carregada; si el hash
+// no hi és, el full igualment obre el disseny pel hash (l'adreça mana) i ho diu amb el nom de l'hash.
+const nzObrirPestanya = (camp, hash) =>
+  window.open(location.pathname + '#neudet/' + encodeURIComponent(camp) + '/full/' + encodeURIComponent(hash), '_blank');
+async function nzFull(camp, hash){
+  if(!KC.lista.some(c => c.id === camp))
+    throw new Error(`la campanya ${camp} no és a la llista de neudet (disseny/campanyes/)`);
+  await nzCampanya(camp);
+  const cand = ((KC.v && KC.v.etapes) || []).flatMap(x => x.candidats || []).find(c => c.hash === hash);
+  return nzObreCandidat({hash, nom: cand ? cand.nom : hash, de: camp});
 }
 // La llista es torna a llegir en cada visita: una proposta desada des del formulari hi ha d'aparèixer.
 async function nzLlegeixLlista(){
@@ -3659,7 +3692,12 @@ function nzMarcaLlista(){
 }
 function nzHash(){
   const s = NZ.sel || {}, d = NZ.dis;
-  if(d) return 'neudet/' + ((d.volta || {}).id || '');
+  if(d){
+    const camp = d.de || (d.volta || {}).id || '';
+    // S8: el full té adreça pròpia; sense campanya (no n'hi ha al manifest) la ruta queda com abans.
+    if(camp && d.hash) return 'neudet/' + camp + '/full/' + d.hash;
+    return 'neudet/' + camp;
+  }
   if(s.k === 'solt') return 'neudet/solt';
   if(s.k === 'nova') return 'neudet/nova';
   if(s.k === 'camp' || s.k === 'form') return 'neudet/' + (s.id || '');
@@ -4063,8 +4101,11 @@ const RS = {entries: [], vista: null, comp: null, seq: 0};
 function rErr(msg){ Q('#r-etapes').innerHTML = `<div class="panel bad">${escD(msg)}</div>`; }
 function rBuit(msg){
   Q('#r-etapes').innerHTML = `<div class="hint">${msg}</div>`;
-  ['#r-avisos', '#r-xy', '#r-taula', '#r-comp', '#r-comp-avisos'].forEach(s => Q(s).innerHTML = '');
+  ['#r-avisos', '#r-xy', '#r-taula', '#r-comp', '#r-comp-avisos', '#r-totals', '#r-g4v'].forEach(s => Q(s).innerHTML = '');
 }
+// UI-MULTIMOTOR S9: la campanya del full obert. Amb `campanya`, l'API afegeix els resultats de cada
+// motor amb les rutes del manifest (`etapes[].motors[]`); `for_design` sol no en troba cap, d'un multi-motor.
+const rCampDe = () => (dCtx() || {}).de || (NZ.dis && NZ.dis.de) || null;
 async function rLoad(){
   const c = dCtx(), seq = ++RS.seq;
   if(!c || !c.hash){
@@ -4072,12 +4113,15 @@ async function rLoad(){
     return;
   }
   try{
-    const base = await api('/api/results?hash=' + encodeURIComponent(c.hash));
+    const q = new URLSearchParams({hash: c.hash});
+    const de = rCampDe();
+    if(de) q.set('campanya', de);
+    const base = await api('/api/results?' + q.toString());
     if(seq !== RS.seq) return;
     RS.entries = base.entries;
     const oks = RS.entries.filter(e => e.status === 'ok');
     const sel = Q('#r-stage'), prev = sel.value;
-    sel.innerHTML = oks.map(e => `<option value="${escD(e.path)}">${escD(e.campanya)} · ${escD(e.etapa)} (${escD(e.motor || '')})</option>`).join('');
+    sel.innerHTML = oks.map(e => `<option value="${escD(e.path)}">${escD(e.campanya)} · ${escD(e.retol || (e.etapa + ' (' + (e.motor || '') + ')'))}</option>`).join('');
     if(prev && oks.some(e => e.path === prev)) sel.value = prev;
     rEnergies();
     await rVista();
@@ -4095,6 +4139,8 @@ function rEnergies(){
 async function rVista(){
   const c = dCtx(); if(!c || !c.hash) return;
   const q = new URLSearchParams({hash: c.hash});
+  const de = rCampDe();
+  if(de) q.set('campanya', de);
   const st = Q('#r-stage').value, en = Q('#r-energia').value;
   if(st) q.set('stage', st);
   if(en) q.set('energia', en);
@@ -4103,7 +4149,7 @@ async function rVista(){
   rPinta();
 }
 function metricsHtml(m){
-  const keys = ['eps_mitja','cv','eps_min','res_E_k','err_grups','pareto_rang','robusta','ronda','n'];
+  const keys = ['eps_mitja','planor_f','cv','eps_min','res_E_k','err_grups','pareto_rang','robusta','ronda','n'];
   const chips = keys.filter(k => m[k] !== undefined && m[k] !== null && m[k] !== '')
     .map(k => `<span class="chip">${escD(k)} <b>${escD(typeof m[k] === 'number' ? fmtNum(m[k]) : m[k])}</b></span>`).join('');
   return chips ? `<div class="chips">${chips}</div>` : '';
@@ -4115,9 +4161,10 @@ function rCard(e){
   const motius = e.provenance && !e.provenance.citable
     ? `<ul class="msgs">${e.provenance.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : '';
   const motiu = !ok && e.motiu ? `<div class="hint" style="padding:8px 14px 0">${escD(e.motiu)}</div>` : '';
-  const warns = (e.warnings || []).map(w => `<div class="panel warn" style="margin:8px 14px 0">${escD(w)}</div>`).join('');
+  const warns = [...(e.warnings || []), ...(e.avisos || [])]
+    .map(w => `<div class="panel warn" style="margin:8px 14px 0">${escD(w)}</div>`).join('');
   return `<article class="card" style="margin-bottom:12px">
-    <header><h3>${escD(e.campanya)} · ${escD(e.etapa)}</h3>${tag}${prov}${e.diagnostic ? diagTag({actiu: true}) : ''}
+    <header><h3>${escD(e.campanya)} · ${escD(e.retol || e.etapa)}</h3>${tag}${prov}${e.diagnostic ? diagTag({actiu: true}) : ''}
     <span class="meta">${escD(e.motor || '')}${e.nom ? ' · ' + escD(e.nom) : ''}</span></header>
     ${e.diagnostic ? `<div class="diag-av" style="margin:8px 14px 0">⚠ diagnòstic, no citable</div>` : ''}${motiu}${motius}${warns}${e.metrics ? metricsHtml(e.metrics) : ''}</article>`;
 }
@@ -4156,6 +4203,84 @@ function rComp(){
 }
 // posició d'un tub per llegir (no per calcular): 3 decimals i sense -0
 const fmtPos = t => [t.x, t.y, t.z].map(v => { const r = Math.round(Number(v) * 1000) / 1000; return String(Object.is(r, -0) ? 0 : r); }).join(', ');
+
+// RTOTALS-DEF-BEGIN
+// UI-MULTIMOTOR S9/S11: la ε total per energia, `eps_mitja` i `planor_f` de cada font (motor i Geant4).
+// Tot ve de neudet: les columnes `eps_<E>MeV`/`sig_<E>MeV` i les mètriques del `candidats.csv` de cada
+// motor (`entries[].eps_totals`, `entries[].metrics`). Aquí només es dibuixa: no se sumen ε, no
+// s'interpola. El Geant4 (`es_g4`) va de traç discontínu, al costat del seu motor.
+function rTotals(entries){
+  const amb = entries.filter(e => e.status === 'ok' && (e.eps_totals || []).length);
+  if(!amb.length) return '';
+  const Es = [...new Set(amb.flatMap(e => e.eps_totals.map(t => t.E)))].sort((a, b) => a - b);
+  const cel = (e, E) => {
+    const t = e.eps_totals.find(x => x.E === E);
+    return t ? `<td>${fmtNum(t.eps)} ± ${fmtNum(t.sig)}</td>` : '<td class="hint">—</td>';
+  };
+  const head = '<th>font</th>' + Es.map(E => `<th>${E} MeV</th>`).join('') + '<th>eps_mitja</th><th>planor_f</th>';
+  const files = amb.map(e => `<tr><td>${escD(e.retol || (e.etapa + ' · ' + (e.motor || '')))}</td>` +
+    Es.map(E => cel(e, E)).join('') +
+    `<td>${fmtNum((e.metrics || {}).eps_mitja)}</td><td>${fmtNum((e.metrics || {}).planor_f)}</td></tr>`).join('');
+  const taula = `<div class="tblwrap"><table class="tbl"><thead><tr>${head}</tr></thead><tbody>${files}</tbody></table></div>`;
+  // gràfic: una línia per font, x = energia (posats per ordre, com a la taula), y = ε. Dibuix, no càlcul.
+  const cols = ['#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#8c564b', '#e377c2', '#17becf', '#bcbd22'];
+  const W = 760, H = 300, ml = 62, mr = 12, mt = 12, mb = 34;
+  const ymax = Math.max(...amb.flatMap(e => e.eps_totals.map(t => t.eps || 0))) * 1.05 || 1;
+  const px = i => ml + (Es.length === 1 ? (W - ml - mr) / 2 : i * (W - ml - mr) / (Es.length - 1));
+  const py = v => mt + (1 - (v || 0) / ymax) * (H - mt - mb);
+  const linies = amb.map((e, j) => {
+    const pts = Es.map((E, i) => { const t = e.eps_totals.find(x => x.E === E); return t && t.eps != null ? `${px(i).toFixed(1)},${py(t.eps).toFixed(1)}` : null; })
+      .filter(Boolean).join(' ');
+    if(!pts) return '';
+    return `<polyline fill="none" stroke="${cols[j % cols.length]}" stroke-width="2"${e.es_g4 ? ' stroke-dasharray="6 4"' : ''} points="${pts}"/>`;
+  }).join('');
+  const eixos = `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${H - mb}" stroke="#888"/><line x1="${ml}" y1="${H - mb}" x2="${W - mr}" y2="${H - mb}" stroke="#888"/>` +
+    [0, .5, 1].map(f => `<text x="${ml - 6}" y="${py(ymax * f) + 4}" text-anchor="end" font-size="11">${fmtNum(ymax * f)}</text>` +
+      `<line x1="${ml}" y1="${py(ymax * f)}" x2="${W - mr}" y2="${py(ymax * f)}" stroke="#ddd"/>`).join('') +
+    Es.map((E, i) => `<text x="${px(i)}" y="${H - mb + 16}" text-anchor="middle" font-size="11">${E}</text>`).join('');
+  const legend = amb.map((e, j) => `<span class="chip"><b style="color:${cols[j % cols.length]}">▬</b> ${escD(e.retol || (e.etapa + ' · ' + (e.motor || '')))}</span>`).join(' ');
+  return `<h3>ε total per energia</h3>${taula}<div class="svgbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="ε total per energia">${eixos}${linies}</svg></div><div class="chips">${legend}</div>`;
+}
+// RTOTALS-DEF-END
+// RG4VAL-DEF-BEGIN
+// UI-MULTIMOTOR S11: motor contra Geant4, valor a valor, per als candidats verificats. Les dades són
+// les files de `motors/<m>/g4_comparacio.csv` de neudet (a l'entrada com a `g4_comparacio`): el biaix
+// (`eps_motor/eps_g4 − 1`, que ells anomenen `biaix`) i l'estat (`concloent`, `dins_tol`) es llegeixen,
+// no es recomponen. Una columna per motor al costat de Geant4.
+function rEstatCel(f){
+  return !f.concloent ? '<span class="tag t-nt">NO CONCLOENT</span>'
+    : f.dins_tol ? '<span class="tag t-ok">dins</span>' : '<span class="tag t-no">fora</span>';
+}
+const fmtPct = x => x == null ? '—' : (x >= 0 ? '+' : '') + (100 * x).toFixed(2) + ' %';
+function rG4Valor(entries){
+  const amb = entries.filter(e => e.status === 'ok' && (e.g4_comparacio || []).length);
+  if(!amb.length) return {avisos: [], html: ''};
+  const claus = new Map();
+  const avisos = [];
+  for(const e of amb) for(const f of e.g4_comparacio){
+    const k = f.tub + '|' + f.E;
+    let c = claus.get(k);
+    if(!c){ c = {tub: f.tub, E: f.E, eps_g4: f.eps_g4, sig_g4: f.sig_g4, divergent: false, cel: {}}; claus.set(k, c); }
+    else if(c.eps_g4 !== f.eps_g4 || c.sig_g4 !== f.sig_g4){
+      if(!c.divergent){ avisos.push(`els motors no coincideixen en el Geant4 del tub ${f.tub + 1} a ${f.E} MeV: cada columna en porta el seu`); c.divergent = true; }
+    }
+    c.cel[e.path] = f;
+  }
+  const files = [...claus.values()].sort((a, b) => a.tub - b.tub || a.E - b.E).map(c => {
+    const g4 = c.divergent ? '<td class="t-no">divergent</td>' : `<td>${fmtNum(c.eps_g4)} ± ${fmtNum(c.sig_g4)}</td>`;
+    const perMotor = amb.map(e => {
+      const f = c.cel[e.path];
+      if(!f) return '<td class="hint">—</td><td class="hint">—</td><td class="hint">—</td>';
+      const g4part = c.divergent ? `<br><span class="hint">G4 ${fmtNum(f.eps_g4)}</span>` : '';
+      return `<td>${fmtNum(f.eps_motor)} ± ${fmtNum(f.sig_motor)}${g4part}</td><td>${fmtPct(f.biaix)}</td><td>${rEstatCel(f)}</td>`;
+    }).join('');
+    return `<tr><td>${c.tub + 1}</td><td>${c.E}</td>${g4}${perMotor}</tr>`;
+  }).join('');
+  const head = '<th>tub</th><th>E (MeV)</th><th>Geant4 ε ± σ</th>' +
+    amb.map(e => `<th>${escD(e.retol)} ε ± σ</th><th>${escD(e.retol)}/G4 − 1</th><th>estat</th>`).join('');
+  return {avisos, html: `<h3>Motor contra Geant4, valor a valor</h3><div class="tblwrap"><table class="tbl"><thead><tr>${head}</tr></thead><tbody>${files}</tbody></table></div>`};
+}
+// RG4VAL-DEF-END
 function rPinta(){
   const c = dCtx(), ents = RS.entries;
   // primer les que tenen dades per tub (i les de Geant4 sense, que neudet vol veure);
@@ -4180,14 +4305,18 @@ function rPinta(){
   Q('#r-comp-avisos').innerHTML = [
     ...(cc.avisos || []).map(a => `<div class="panel warn">${escD(a)}</div>`),
     cc.nota_deteccio ? `<div class="panel">${escD(cc.nota_deteccio)}</div>` : ''].join('');
+  Q('#r-totals').innerHTML = rTotals(RS.entries);
+  const gv = rG4Valor(RS.entries);
+  Q('#r-g4v').innerHTML = gv.avisos.map(a => `<div class="panel warn">${escD(a)}</div>`).join('') + gv.html;
 }
 Q('#r-stage').onchange = () => { rEnergies(); rVista().then(dTantejaEstat).catch(e => rErr(e.message)); };
 Q('#r-energia').onchange = () => rVista().catch(e => rErr(e.message));
 Q('#r-go').onclick = () => rVista().catch(e => rErr(e.message));
 
 QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
-const [n0, sub0] = (location.hash || '#sim').slice(1).split('/');
-showTab(n0, sub0);
+// S8: la ruta porta els segments sencers (`neudet/<camp>`, `neudet/<camp>/full/<hash>`, `neudet/solt`…).
+const ruta0 = (location.hash || '#sim').slice(1).split('/');
+showTab(ruta0[0], ruta0.slice(1));
 </script>
 
 <div id="fx" hidden role="dialog" aria-modal="true" aria-label="visor de fitxers de la campanya">
