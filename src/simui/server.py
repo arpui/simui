@@ -3,7 +3,8 @@
 Rutes: `/` (la pàgina), `/api/meta`, `/api/llm`, `/api/render`, `/api/ask` (Simulació) i
 `/api/design/{meta,load,check,view,export,ask}` + `/api/results` (el full de disseny) i
 `/api/campanya/{schema,defaults,yaml,comprova,compta,objectius,desa,confirma,tanteig}` (Definició de campanya) i
-`/api/campanyes`, `/api/campanya/{vista,carrega,fitxer}` (Campanyes: la campanya com a conjunt).
+`/api/campanyes`, `/api/campanya/{vista,carrega,fitxer}` (Campanyes: la campanya com a conjunt) i
+`/api/inventari/{tubs,fitxa}` (Inventari de tubs: només lectura del que n'hi ha a neudet).
 Els errors d'un disseny o d'un resultat són un 400 amb el motiu (`{"error": …}`), no un
 forat: el que la pàgina ha de dir és què falta.
 """
@@ -19,6 +20,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 from . import api
 from .api import ask, llm_status, meta, render_all
 from . import campanya_vista as CV
+from . import inventari as INV
 
 PAGE_PATH = Path(__file__).resolve().parent / "static" / "index.html"   # es llegeix a cada petició: un canvi es veu recarregant, sense reiniciar
 PAGE = PAGE_PATH.read_text()   # només per compatibilitat (scripts/serve.py l'importa); el servidor no el fa servir
@@ -109,6 +111,10 @@ class Handler(BaseHTTPRequestHandler):
             self._tracta(api.campanya_entre, q)
         elif path == "/api/campanya/fitxer":
             self._fitxer_campanya(parse_qs(url.query))
+        elif path == "/api/inventari/tubs":                    # només lectura (GET): l'inventari de neudet, tal com és
+            self._tracta(api.inventari_tubs)
+        elif path == "/api/inventari/fitxa":                   # el .md que anomena validacions.json per un tub del catàleg
+            self._fitxa_inventari(parse_qs(url.query))
         else:
             self._json({"error": f"no hi ha {path}"}, 404)
 
@@ -133,6 +139,25 @@ class Handler(BaseHTTPRequestHandler):
         if f.suffix.lower() == ".svg":
             extra["Content-Security-Policy"] = "sandbox"       # un SVG servit no executa res
         self._send(200, f.read_bytes(), CV.tipus_de(f), extra)
+
+    def _fitxa_inventari(self, q: Dict[str, Any]) -> None:
+        """La fitxa d'un tub del catàleg (INVENTARI-UI): el .md que anomena `validacions.json`.
+
+        El camí no el tria la pàgina: només se'n serveixen els que `inventari.fitxes()` ha donat
+        (relatius a neudet); qualsevol altre, un 403. Les mateixes capçaleres de camí i data que
+        el visor de campanyes, perquè el visor les llegeix igual.
+        """
+        try:
+            f = INV.fitxa_fitxer(q.get("rel", [""])[0])
+        except PermissionError as exc:
+            self._json({"error": str(exc)}, 403)
+            return
+        except _ERRORS_D_ENTRADA as exc:
+            self._json({"error": str(exc) or type(exc).__name__}, 400)
+            return
+        self._send(200, f.read_bytes(), CV.tipus_de(f),
+                   {"X-Content-Type-Options": "nosniff",
+                    "X-Cam-i": quote(str(f)), "X-Mtime": CV.mtime_iso(f)})
 
     def do_POST(self) -> None:                                 # noqa: N802
         try:

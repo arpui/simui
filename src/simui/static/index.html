@@ -101,6 +101,8 @@ table.tbl{border-collapse:collapse;font-size:12px;background:#fff}
 table.tbl th,table.tbl td{border:1px solid var(--line);padding:3px 6px;text-align:left;white-space:nowrap}
 table.tbl th{background:var(--panel);font-weight:700}
 table.tbl td.hl,table.tbl th.hl{background:#dbeaf1}
+#pg-inventari tr.i-rep td{background:#fbeeee}   // serial repetit: la ratlla a més de la marca, per veure-ho d'un cop d'ull
+#pg-inventari td.wrap{white-space:normal;min-width:200px;overflow-wrap:anywhere}   // comentari i «interpretat…» són text llarg
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px 0}
 .chip{font-size:12px;color:var(--muted);background:var(--panel);padding:2px 7px;border-radius:4px}
 .chip b{color:var(--ink);font-weight:700}
@@ -235,6 +237,7 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
   <nav class="ptabs" role="tablist">
     <button class="ptab on" data-tab="sim">Simulació</button>
     <button class="ptab" data-tab="neudet">Neudet</button>
+    <button class="ptab" data-tab="inventari">Inventari de tubs</button>
   </nav>
 </header>
 
@@ -452,6 +455,140 @@ background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:4px;
 </section>
 </main>
 </div>
+
+<div class="pg" id="pg-inventari" hidden>
+<div id="i-err"></div>
+<main>
+<aside>
+  <h2>Font</h2>
+  <div class="hint" id="i-font">llegint neudet…</div>
+  <h2>Filtres · la llista</h2>
+  <label>model (Excel)<select id="i-f-model"></select></label>
+  <label>lloc<select id="i-f-lloc"></select></label>
+  <label class="hint"><input type="checkbox" id="i-f-rep"> només les files amb el serial repetit</label>
+  <div class="hint">Filtren només la llista. La taula «Resum» és la de neudet i es mostra sencera.</div>
+  <h2>Marques</h2>
+  <div class="hint"><span class="tag t-no">serial repetit</span> el mateix número de serial surt en més d'una fila de l'Excel.</div>
+  <div class="hint"><span class="tag t-wa">interpretat</span> el tub del catàleg no ve de la columna del catàleg: el text tal com és, a l'última columna de la fila.</div>
+  <h2>La fitxa</h2>
+  <div class="hint">La fitxa d'un tub del catàleg és el <code>document</code> que n'anomena l'entrada de <code>validacions.json</code>
+    (neudet, <code>docs/site/detector/certificacio_tubs.md:51</code>). Si no hi és, o el camí no és un fitxer de neudet,
+    no hi ha enllaç i es diu per què.</div>
+  <div class="hint">Pantalla de només lectura: no es calcula, no s'edita i no es desa res. Per tornar-la a fer, a neudet.</div>
+</aside>
+<section class="out">
+  <article class="card"><header><h3>Resum (tub del catàleg × lloc × n)</h3></header>
+    <div class="tblwrap" id="i-resum"></div></article>
+  <article class="card"><header><h3>Llista de tubs</h3><span class="hint" id="i-comte"></span></header>
+    <div class="tblwrap" id="i-llista"></div></article>
+</section>
+</main>
+</div>
+<script>
+// ── Inventari de tubs (INVENTARI-UI, encàrrec del coordinador 2026-11-25) · NOMÉS LECTURA ──────
+// El que surt és el JSON de neudet (`disseny/inventari/inventari_tubs.json`), fila per fila: aquí no es
+// recompta, no es reetiqueta i no s'interpreta res de nou. Els filtres treuen files de la llista; no en fan
+// la mitjana ni el total. Les funcions es defineixen aquí i es criden des de `showTab` (més avall), perquè
+// `Q`/`api` són `const` d'un bloc posterior.
+// INVENTARI-DEF-BEGIN  (el tros pur: `tests/test_inventari_tubs_ui.py` l'executa amb node i dades reals)
+let INVT = null;
+const I_RETOL = {fila_excel:'fila Excel', model_excel:'model (Excel)', item:'item', serial:'serial', lloc:'lloc',
+  propietari:'propietari', comentari:'comentari', cataleg:'tub del catàleg',
+  cataleg_via:"com s'ha sabut el tub del catàleg", n:'n'};
+function invErr(msg){ Q('#i-err').innerHTML = `<div class="panel bad pre">${escD(msg)}</div>`; }
+async function invInicia(){
+  INVT = await api('/api/inventari/tubs');
+  Q('#i-err').innerHTML = '';
+  Q('#i-font').innerHTML = `<code>${escD(INVT.font)}</code>` +
+    (INVT.que ? `<div>${escD(INVT.que)}</div>` : '') +
+    (INVT.regenera ? `<div>Es torna a generar a neudet amb <code>${escD(INVT.regenera)}</code>.</div>` : '');
+  invOpcions(); invPinta();
+}
+function invOpcions(){
+  const omplir = (sel, vals, tots) => {
+    const el = Q(sel), abans = el.value;
+    el.innerHTML = `<option value="">${tots}</option>` +
+      vals.map(v => `<option value="${escD(v)}">${escD(v)}</option>`).join('');
+    el.value = vals.includes(abans) ? abans : '';        // si el filtre ha deixat d'existir, «tots»
+  };
+  omplir('#i-f-model', INVT.models, 'tots els models');
+  omplir('#i-f-lloc', INVT.llocs, 'tots els llocs');
+}
+function invFiltrats(){
+  const m = Q('#i-f-model').value, l = Q('#i-f-lloc').value, rep = Q('#i-f-rep').checked, c = INVT._sel;
+  return INVT.tubs.filter(t => (!c || t.cataleg === c) && (!m || t.model_excel === m) &&
+                               (!l || t.lloc === l) && (!rep || t.serial_repetit));
+}
+function invCel(v, cls){
+  const buida = v === null || v === undefined || v === '';
+  return `<td${cls ? ` class="${cls}"` : ''}>` + (buida ? '<span class="hint">—</span>' : escD(v)) + '</td>';
+}
+function invTaula(files, cols, cel, atr){
+  if(!files.length) return '<div class="panel">Cap fila amb aquests filtres.</div>';
+  return '<table class="tbl"><thead><tr>' + cols.map(c => `<th>${escD(I_RETOL[c] || c)}</th>`).join('') +
+    '</tr></thead><tbody>' +
+    files.map(r => `<tr${atr ? atr(r) : ''}>${cel(r)}</tr>`).join('') + '</tbody></table>';
+}
+// El tub del catàleg, amb l'enllaç a la fitxa (si n'hi ha) i el motiu si no n'hi ha.
+// `etiquetat` (la llista) el posa com a text; a la taula del resum és un enllaç que filtra la llista per aquell tub.
+function invCataleg(c, etiquetat, extra = ''){
+  if(!c) return etiquetat ? invCel(null) : '<span class="hint">—</span>';
+  const f = (INVT.fitxes || {})[c];
+  const nom = etiquetat ? `<code>${escD(c)}</code>` : `<a href="#" data-cataleg="${escD(c)}">${escD(c)}</a>`;
+  const link = f && f.rel
+    ? ` <a href="#" data-fitxa="${escD(f.rel)}" data-nom="${escD(c)}" title="${escD(f.document)}">fitxa</a>` : '';
+  const nota = !f ? '<div class="hint">no és a la llista: la fitxa no es coneix</div>'
+    : f.rel ? (f.estat ? `<div class="hint">validacions.json: ${escD(f.estat)}${f.data ? ' · ' + escD(f.data) : ''}</div>` : '')
+    : `<div class="hint">sense enllaç: ${escD(f.motiu || 'validacions.json no en dona motiu')}</div>`;
+  const cos = nom + link + extra + nota;
+  return etiquetat ? `<td>${cos}</td>` : cos;
+}
+// La taula del resum llegeix per tub del catàleg: prémer-lo filtra la llista per aquell tub (els altres filtres, a zero).
+function invSelCataleg(c){
+  INVT._sel = c;
+  ['#i-f-model', '#i-f-lloc'].forEach(s => Q(s).value = '');
+  Q('#i-f-rep').checked = false;
+  invPinta();
+  Q('#i-comte').scrollIntoView({block:'start'});
+}
+function invVia(v){
+  const t = String(v ?? '');
+  if(!t) return '<td><span class="hint">—</span></td>';
+  // «interpretat: …» és una interpretació feta a neudet; el text surt sencer, tal com és al JSON
+  return `<td class="wrap">${t.startsWith('interpretat') ? '<span class="tag t-wa">interpretat</span> ' : ''}${escD(t)}</td>`;
+}
+function invPinta(){
+  Q('#i-resum').innerHTML = invTaula(INVT.resum, ['cataleg', 'lloc', 'n'], r =>
+    invCataleg(r.cataleg) + invCel(r.lloc) + invCel(r.n));
+  const files = invFiltrats();
+  Q('#i-comte').innerHTML = `${files.length} de ${INVT.tubs.length} files` +
+    (INVT._sel ? ` · pel tub del catàleg <code>${escD(INVT._sel)}</code> <button class="ghost" id="i-neteja">treure el filtre</button>` : '');
+  const neteja = Q('#i-neteja');
+  if(neteja) neteja.onclick = () => { INVT._sel = null; invPinta(); };
+  Q('#i-llista').innerHTML = invTaula(files,
+    ['fila_excel', 'model_excel', 'item', 'serial', 'lloc', 'propietari', 'comentari', 'cataleg', 'cataleg_via'],
+    r => invCel(r.fila_excel) + invCel(r.model_excel) + invCel(r.item) + invCel(r.serial) + invCel(r.lloc) +
+         invCel(r.propietari) + invCel(r.comentari, 'wrap') +
+         invCataleg(r.cataleg, true, r.serial_repetit ? ' <span class="tag t-no">serial repetit</span>' : '') +
+         invVia(r.cataleg_via),
+    r => r.serial_repetit ? ' class="i-rep"' : '');
+}
+function invEscolta(){
+  ['#i-f-model', '#i-f-lloc', '#i-f-rep'].forEach(s => Q(s).onchange = invPinta);
+  // els enllaços de dins les taules es busquen per delegació: les files es tornen a pintar amb cada filtre
+  Q('#pg-inventari').addEventListener('click', e => {
+    const c = e.target.closest('a[data-cataleg]');
+    if(c){ e.preventDefault(); invSelCataleg(c.dataset.cataleg); return; }
+    const f = e.target.closest('a[data-fitxa]');
+    if(f){ e.preventDefault(); invFitxa(f.dataset.fitxa, f.dataset.nom); }
+  });
+}
+function invFitxa(rel, nom){
+  fxCarrega('/api/inventari/fitxa?rel=' + kEnc(rel), rel, 'fitxa ' + nom)   // fxCarrega: el visor de només lectura
+    .catch(e => Q('#i-err').innerHTML = `<div class="panel bad pre">${escD(e.message)}</div>`);
+}
+// INVENTARI-DEF-END
+</script>
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 let META = null, SPEC = {};
@@ -3625,7 +3762,8 @@ const escD = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt
 const NZ = {sel: null, dis: null, ultima: null};
 const HEAD = {
   sim: ['', "Genera els fitxers d'entrada de FLUKA, MCNP, OpenMC i Geant4 des d'un mateix spec. No executa cap simulació."],
-  neudet: ['Neudet', "Campanyes, dissenys i resultats tal com els deixa neudet. Cada xifra porta la seva procedència; res no es recalcula aquí."]};
+  neudet: ['Neudet', "Campanyes, dissenys i resultats tal com els deixa neudet. Cada xifra porta la seva procedència; res no es recalcula aquí."],
+  inventari: ['Inventari de tubs', "Els tubs d'He-3 de l'Excel del laboratori, llegits de neudet a cada visita. Només lectura: no es recompta ni es desa res."]};
 // Els enllaços antics (#campanya, #campanyes, #disseny, #resultats) obren el nivell que els tocava.
 const VELL = {campanya: ['neudet', 'nova'], campanyes: ['neudet', null], disseny: ['neudet', 'solt'], resultats: ['neudet', 'solt']};
 
@@ -3642,6 +3780,8 @@ function showTab(name, sub){
   QA('.ptab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   Q('#h-title').textContent = HEAD[name][0]; Q('#h-sub').textContent = HEAD[name][1];
   if(name === 'sim') history.replaceState(null, '', '#sim');
+  // l'inventari es torna a llegir de neudet a cada visita: no se'n guarda cap còpia
+  else if(name === 'inventari'){ history.replaceState(null, '', '#inventari'); invInicia().catch(e => invErr(e.message)); }
   else nzInicia(sub).catch(e => nzErr(e.message));
 }
 function fmtNum(x){
@@ -4364,13 +4504,14 @@ Q('#r-stage').onchange = () => { rEnergies(); rVista().then(dTantejaEstat).catch
 Q('#r-energia').onchange = () => rVista().catch(e => rErr(e.message));
 Q('#r-go').onclick = () => rVista().catch(e => rErr(e.message));
 
+invEscolta();                                     // Inventari de tubs: els filtres i els enllaços de les files
 QA('.ptab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 // S8: la ruta porta els segments sencers (`neudet/<camp>`, `neudet/<camp>/full/<hash>`, `neudet/solt`…).
 const ruta0 = (location.hash || '#sim').slice(1).split('/');
 showTab(ruta0[0], ruta0.slice(1));
 </script>
 
-<div id="fx" hidden role="dialog" aria-modal="true" aria-label="visor de fitxers de la campanya">
+<div id="fx" hidden role="dialog" aria-modal="true" aria-label="visor de fitxers de només lectura">
   <div class="fxbox">
     <div class="fxhead">
       <code id="fx-nom"></code><span class="hint" id="fx-mtime"></span>
@@ -4390,12 +4531,17 @@ showTab(ruta0[0], ruta0.slice(1));
 // no hi ha cap botó de desar. El camí absolut i la data van amb la resposta (`X-Cam-i`, `X-Mtime`).
 const FX = {id: null, rel: null, text: '', cru: false};
 async function fxObre(id, rel, nom){
+  await fxCarrega('/api/campanya/fitxer?id=' + kEnc(id) + '&rel=' + kEnc(rel), rel, nom, id);
+}
+// El mateix visor per a qualsevol fitxer de només lectura: `/api/inventari/fitxa` (INVENTARI-UI) hi passa
+// amb `id = null`, perquè les figures del .md només es munten des de la campanya a què pertanyen.
+async function fxCarrega(url, rel, nom, id = null){
   FX.id = id; FX.rel = rel; FX.cru = false;
   Q('#fx').hidden = false;
   Q('#fx-nom').textContent = nom || rel;
   Q('#fx-cami').textContent = ''; Q('#fx-mtime').textContent = '';
   Q('#fx-body').innerHTML = '<div class="hint">llegint…</div>';
-  const r = await fetch('/api/campanya/fitxer?id=' + kEnc(id) + '&rel=' + kEnc(rel)).catch(() => null);
+  const r = await fetch(url).catch(() => null);
   if(!r){ Q('#fx-body').innerHTML = '<div class="panel bad">no s\'ha pogut llegir: error de xarxa</div>'; return; }
   if(!r.ok){
     let m = 'HTTP ' + r.status;
@@ -4417,7 +4563,7 @@ function fxPinta(){
   // que muntar la figura contra una altra campanya seria inventar-se una imatge)
   const dir = FX.rel.slice(0, FX.rel.lastIndexOf('/'));
   Q('#fx-body').innerHTML = md && !FX.cru
-    ? `<div>${kMd(FX.text, FX.id === KC.id && dir ? dir : null)}</div>`
+    ? `<div>${kMd(FX.text, FX.id !== null && FX.id === KC.id && dir ? dir : null)}</div>`
     : `<pre>${escD(FX.text)}</pre>`;
 }
 function fxTanca(){ FX.id = null; Q('#fx').hidden = true; }

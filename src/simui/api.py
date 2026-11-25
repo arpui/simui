@@ -40,6 +40,7 @@ from . import campanya_form as CF
 from . import campanya_check as CC
 from . import campanya_vista as CV
 from . import campanya_desa as CD
+from . import inventari as INV
 
 EXAMPLES = Path(_mcgen.__file__).resolve().parent / "examples"   # els exemples són del paquet simphy
 
@@ -213,6 +214,11 @@ def design_meta() -> Dict[str, Any]:
     except Exception as exc:                                  # noqa: BLE001
         out["llm"] = {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
     return out
+
+
+def inventari_tubs() -> Dict[str, Any]:
+    """L'inventari de tubs d'He-3 de neudet (INVENTARI-UI): llegit, no copiat — vegeu `inventari.py`."""
+    return INV.inventari()
 
 
 def design_load(body: Dict[str, Any]) -> Dict[str, Any]:

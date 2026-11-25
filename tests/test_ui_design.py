@@ -96,14 +96,14 @@ def _ruta_inexistent_o_pagina(url_base: str):
 
 
 # ── la pàgina i les rutes sense neudet ─────────────────────────────────────
-def test_la_pagina_te_nomes_dues_pestanyes_i_el_full_del_disseny(url):
-    """Simulació i Neudet són les dues pestanyes. Dins de Neudet, el full del disseny té les seves seccions:
-    el visor i la taula, els resultats per tub, els inputs dels quatre codis, i (només al disseny solt)
-    les fonts i l'editor d'anells."""
+def test_la_pagina_te_les_pestanyes_i_el_full_del_disseny(url):
+    """Simulació i Neudet (més «Inventari de tubs», de només lectura, des d'INVENTARI-UI 2026-11-25) són les
+    pestanyes. Dins de Neudet, el full del disseny té les seves seccions: el visor i la taula, els resultats
+    per tub, els inputs dels quatre codis, i (només al disseny solt) les fonts i l'editor d'anells."""
     status, _, data = _get(url, "/")
     txt = data.decode()
     assert status == 200
-    assert txt.count('data-tab="') == 2
+    assert txt.count('data-tab="') == 3
     for tab in ("sim", "neudet"):
         assert f'data-tab="{tab}"' in txt
     for ident in ("n-bread", "d-status", "d-tanteja", "d-font", "d-def", "d-anells", "d-json", "d-visor",

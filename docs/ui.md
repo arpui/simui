@@ -224,3 +224,34 @@ Una opció **permanent** del mètode: provar el que encara no està certificat s
   de què entén neudet, a cada taula de xifres (campanya i resultats) i com a etiqueta a les targetes. La vista (`campanya_vista._diagnostic`)
   i les entrades de resultats (`results_tub.diagnostic_de`) només LLEGEIXEN el yaml, el manifest i `meta.json` (`extra.diagnostic`).
 - Tests: `tests/test_diag_ui.py` (inclou el bessó: la plantilla no porta `diagnostic` i continua passant).
+
+
+## Pestanya «Inventari de tubs» (INVENTARI-UI, coordinador 2026-11-25)
+
+No és l'«inventari» de l'apartat de dalt (INV-UI, contracte v1.6 §10b), que és quants tubs de cada tipus posar en una tongada:
+aquesta és una **pestanya de dalt a part** per consultar l'inventari físic dels tubs d'He-3 del laboratori.
+
+- **La font és neudet, i no se'n copia res**: `disseny/inventari/inventari_tubs.json` (per `NEUDET_ROOT`), que fa
+  `scripts/inventari/extreu_tubs.py` a partir de l'Excel. Es torna a llegir a cada visita; `tubs` i `resum` surten **tal com són al
+  JSON** — la UI no recompta, no reetiqueta i no interpreta res (`src/simui/inventari.py`). Si el mirall de neudet és vell i el JSON
+  no hi és, la pàgina ho diu amb el camí i la comanda que el torna a fer (400), no una taula buida.
+- **1 · Resum**: la taula `resum` de neudet (tub del catàleg × lloc × n), sencera. Prémer un tub del catàleg filtra la llista per
+  aquell tub (els altres filtres, a zero; «treure el filtre» a sota de la xifra).
+- **2 · Llista**: una fila per tub, amb les columnes de l'Excel (`fila_excel`, `model_excel`, `item`, `serial`, `lloc`, `propietari`,
+  `comentari`, `cataleg`, `cataleg_via`) amb les etiquetes del mateix JSON. Filtres per **model** i per **lloc**, amb les opcions que
+  surten de les dades (no una taula a part). A dalt de la taula, «N de M **files**»: mai «N tubs», perquè un serial pot estar repetit.
+- **3 · Serial repetit**: la fila es pinta en vermell fluix (`tr.i-rep`) i la cel·la del catàleg porta l'etiqueta «serial repetit».
+  Les files les marca neudet (`serial_repetit`); la UI no en detecta cap de nova.
+- **4 · `cataleg_via` «interpretat…»**: surt el **text sencer**, tal com és al JSON, amb l'etiqueta «interpretat». No s'escurça ni se'n
+  fa un resum.
+- **5 · La fitxa de cada tub del catàleg** — la convenció és de neudet (`docs/site/detector/certificacio_tubs.md:51`: «la marca de
+  validat es llegeix sola de `validacions.json`, i el `document` hi enllaça»). Per això la fitxa és
+  `validacions.json → entrades["tub:<cataleg>"].document`, i només s'enllaça si el camí és **un fitxer dins de neudet** (el § de la
+  secció, si el porta, es mostra; l'enllaç és al fitxer). Una carpeta o una llista de camins no és un fitxer: no hi ha enllaç i la
+  pantalla diu per què, amb l'estat i la data de l'entrada quan els porta. S'hi obre al visor de només lectura (`#fx`), amb el camí
+  absolut i la data a dalt.
+- **Només lectura**: un sol GET per ruta (`/api/inventari/tubs`, `/api/inventari/fitxa`), cap POST i cap camp d'edició. `/api/inventari/fitxa`
+  no accepta el camí que vulgui la pàgina: només els que `inventari.fitxes()` ha donat; qualsevol altre, 403.
+- **Bessó**: `tests/test_inventari_tubs_ui.py`, amb el JSON real de neudet (files i textos `interpretat` idèntics, resum que quadra
+  amb la llista, cada tub del catàleg amb la fitxa resolta o amb el motiu escrit, els 403, i els recomptes dels filtres i les marques calculats a Python i mirats
+  amb node sobre les funcions de la pàgina, que és com es comprova també que cada tub amb fitxa enllaça i cada tub sense la té escrita).
