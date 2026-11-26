@@ -305,7 +305,9 @@ def test_results_c03_te_s3_amb_dades_i_s3_g4_sense(url):
     _neudet_o_skip()
     status, body = _json(_get(url, "/api/results?hash=e9039f26ad68"))
     assert status == 200 and body["hash"] == "e9039f26ad68"
-    by = {e["etapa"]: e for e in body["entries"]}
+    # el hash de c03 és compartit amb altres campanyes de neudet (espectro_e1…: 26-11): s'indexa per campanya, no només per etapa
+    assert {e["campanya"] for e in body["entries"]} >= {"c03_3anells_grups"}
+    by = {e["etapa"]: e for e in body["entries"] if e["campanya"] == "c03_3anells_grups"}
     assert by["S3"]["status"] == "ok" and by["S3"]["provenance"]["citable"] is True
     assert len(by["S3"]["tubs"]) == 8 and len(by["S3"]["tubs"][0]["eps"]) == 11
     assert by["S3_g4"]["status"] == "sense resultats per tub de Geant4"

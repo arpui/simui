@@ -201,6 +201,30 @@ def test_eps_gamma_es_soroll_de_neudet_i_la_ui_no_la_deixa_decidir():
     _pagina_filtra_soroll(s)
 
 
+def test_les_metriques_del_paper_son_de_neudet_poden_decidir_i_mai_s_afegeixen_soles():
+    """Bessó (neudet MB01-PARELLES P4, `97d8461a`): `eps_av_10`, `F_5`, `F_8`, `F_10` són a la taula de neudet amb el seu sentit
+    (`PAPER`), poden decidir (no són soroll), són a les `metriques` de la finalitat comptador i neudet no les afegeix mai soles
+    (`MAI_AUTO`): la UI no les posa a `informatives: auto` ni als noms per defecte, i una restricció o `pareto` que les citi
+    sense haver-les demanat a `metriques` rebota igual que qualsevol mètrica no calculada. La UI no en copia cap fórmula."""
+    _neudet()
+    from neudet.disseny import objectius as O
+    if not hasattr(O, "PAPER"):
+        pytest.skip("aquest neudet encara no té les mètriques del paper (MB01-PARELLES P4)")
+    s = CF.schema()["objectius"]
+    per_nom = {m["nom"]: m for m in s["metriques"]}
+    for nom, (fam, _x) in O.PAPER.items():
+        assert nom in CF.METRIQUES_LINIA and nom not in O.SOROLL and nom in O.MAI_AUTO, nom
+        assert per_nom[nom]["decideix"] is True, nom
+        assert nom in s["cicle_nou"]["finalitats"]["comptador"]["metriques"], nom
+        assert nom not in CF.AUTO_NOMS and nom not in CF.DEFECTE_NOMS, nom
+    assert {n: per_nom[n]["sentit"] for n in O.PAPER} == {"eps_av_10": "max", "F_5": "min", "F_8": "min", "F_10": "min"}
+    # el cicle d'abans: sense demanar-la a `metriques`, una mètrica del paper al pareto rebota; demanada, passa
+    ob = {"metriques": ["eps_mitja", "cv"], "pareto": [["eps_av_10", "max"], ["cv", "min"]]}
+    assert any("eps_av_10" in e and "no és a objectius.metriques" in e for e in CF._errors_objectius(_form(ob)))
+    ob["metriques"] = ["eps_mitja", "cv", "eps_av_10"]
+    assert not any("eps_av_10" in e for e in CF._errors_objectius(_form(ob)))
+
+
 def _pagina_filtra_soroll(s):
     """Executa amb node el que fa la pàgina amb AQUESTA taula de neudet: el soroll no surt a les tries d'objectiu ni
     a les informatives automàtiques, i no s'amaga si ja és escrit al formulari."""

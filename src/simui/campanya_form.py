@@ -71,40 +71,41 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 38, "cv": 39, "rang": 40, "planor_f": 45, "eps_min": 47, "cd_cm2": 48, "eps_gamma": 49,   # METRIQUES
-    "q_rang": 77, "q_monoton": 78, "res_E": 79,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 106, "sE_N": 107, "n_ef": 108,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 147, "err_grups": 148,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 52, "cv": 53, "rang": 54, "planor_f": 59, "eps_min": 61, "cd_cm2": 71, "eps_gamma": 72,   # METRIQUES
+    "eps_av_10": 66, "F_5": 68, "F_8": 69, "F_10": 70,                                # PAPER (MB01-PARELLES P4)
+    "q_rang": 100, "q_monoton": 101, "res_E": 102,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 129, "sE_N": 130, "n_ef": 131,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 170, "err_grups": 171,                                              # METRIQUES_GRUP3 (MET3)
 }
 #: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:257-259)
-AUTO_LINIA = 272
+AUTO_LINIA = 296
 #: sentit (objectius.py:425: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 440
+SENTITS_LINIA = 491
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
 #: les mètriques per defecte de l'objectiu (objectius.py:245): les que no són geomètriques ni de SOROLL
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 248, "letargia": 250}
-PESOS_DEFECTE_LINIA = 246
+PESOS_LINIA: Dict[str, int] = {"uniforme": 271, "letargia": 273}
+PESOS_DEFECTE_LINIA = 269
 #: energies: «totes» (objectius.py:226); subconjunt dins de la graella (objectius.py:231)
-ENERGIES_LINIA = 240
-GRAELLA_LINIA = 245
-K_SIGMA_LINIA = 275
-ERR_GRUPS_CAL_LINIA = 190        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+ENERGIES_LINIA = 263
+GRAELLA_LINIA = 268
+K_SIGMA_LINIA = 299
+ERR_GRUPS_CAL_LINIA = 213        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
 #: ε-restricció per defecte (objectius.py:255)
-RESTRICCIO_LINIA = 270
+RESTRICCIO_LINIA = 294
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
-DEFECTE_NOMS_LINIA = 259
+DEFECTE_NOMS_LINIA = 282
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) és la font de la llista de
 #: mètriques per finalitat, dels àlies i dels operadors: NO se'n copia res aquí (FORM-COPIA-UI, 2026-11-19 — la
 #: còpia `FINALITAT_METRIQUES` va quedar sense `planor_f` i tombava el formulari de `mb10b_ref`). La validació
 #: (`_errors_objectius_nou`) i `schema()` la llegeixen en directe; una mètrica nova a neudet s'accepta sense tocar simui.
 #: `schema()` només comprova el que no pot canviar sols: que cada mètrica que la taula declara existeixi a la llista
 #: de neudet, i que les línies citades siguin les reals.
-FINALITATS_LINIA = 525                       # FINALITATS: Dict[str, dict] = {
-TAULA_LINIA = 1292                           # def taula_objectius()
+FINALITATS_LINIA = 586                       # FINALITATS: Dict[str, dict] = {
+TAULA_LINIA = 1354                           # def taula_objectius()
 #: `eps_gamma` surt permesa perquè neudet la porta a `informatives` (família D «soroll»); NO pot decidir: la UI ho
 #: filtra amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 PESOS_NOUS = ("letargia", "uniforme")         # i {espectre: <fitxer>}
@@ -883,6 +884,16 @@ def _carpeta_escenaris() -> Optional[Path]:
     return d if d.is_dir() else None
 
 
+def _avis_format_components(e: Dict[str, Any]) -> Optional[str]:
+    """Divergència escrita (simphy TUB-SENTIT, vocabulari 1.22): un escenari pot portar `components` (el format del motor:
+    `component: bloc|tub`, `sentit`…) en lloc de `cossos`. La taula `domini.cossos` de la UI només llegeix `cossos`: aquest
+    escenari no es pot carregar a la taula i la UI no el converteix (no inventa la correspondència)."""
+    if e.get("cossos") is None and isinstance(e.get("components"), list):
+        return ("l'escenari és del format `components` de simphy (vocabulari "
+                f"{e.get('vocabulari')}), no del de `cossos`: la taula no el pot carregar i la UI no el converteix")
+    return None
+
+
 def escenaris_simphy() -> Dict[str, Any]:
     """Els escenaris que **simphy** ja té com a dada (`data/mcgen/escenarios/*.json`): la UI els llegeix, no els
     copia ni els inventa. Són el camí que tanca el cercle taula →yaml→ escenari → Geant4. Cada un porta els errors
@@ -903,6 +914,8 @@ def escenaris_simphy() -> Dict[str, Any]:
         cos = e.get("cossos")
         out.append({"nom": e.get("nom") or p.stem, "arxiu": str(p), "vocabulari": e.get("vocabulari"),
                     "n_cossos": len(cos) if isinstance(cos, list) else None,
+                    "n_components": len(e["components"]) if isinstance(e.get("components"), list) else None,
+                    "avis_format": _avis_format_components(e),
                     "què": e.get("_què"), "pendent": e.get("_pendent"), "errors": _errors_cossos(cos)})
     return {"disponible": True, "carpeta": str(d), "escenaris": out}
 
@@ -923,6 +936,7 @@ def escenari_cossos(nom: str) -> Dict[str, Any]:
         mon = e.get("mon")
         return {"nom": e.get("nom") or p.stem, "arxiu": str(p), "vocabulari": e.get("vocabulari"),
                 "què": e.get("_què"), "pendent": e.get("_pendent"), "cossos": mes,
+                "avis_format": _avis_format_components(e),
                 "mon_transport": (mon or {}).get("transport") if isinstance(mon, dict) else None,
                 "camps_fora": sorted({k for c in mes for k in c if k not in claus}),
                 "errors": _errors_cossos(mes)}

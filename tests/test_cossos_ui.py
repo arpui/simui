@@ -333,11 +333,27 @@ def test_lesceneris_vells_de_24_reboten_i_la_divergència_queda_escrita():
     for e in es["escenaris"]:
         assert "error" not in e, e
         c = CF.escenari_cossos(e["nom"])
+        if e.get("avis_format"):                                                  # format `components` (simphy 1.22, TUB-SENTIT)
+            assert not c["cossos"] and "components" in e["avis_format"] and e["n_components"], e
+            assert e["avis_format"] == c["avis_format"] and e["n_cossos"] is None, e
+            continue
         assert c["cossos"], e
         if e.get("vocabulari") == "1.21":                                         # §24 (v1.21): box/semides/eix/esfera…
             assert c["errors"] and c["camps_fora"], (e["nom"], c["errors"], c["camps_fora"])
             assert any("reservat" in x for x in c["errors"]), (e["nom"], c["errors"])
         assert e["errors"] == c["errors"], e["nom"]                              # el que ve la llista i el que carrega la taula: el mateix rebot
+
+
+def test_lescenari_de_components_de_simphy_no_es_carrega_a_la_taula_i_ho_diu():
+    """Divergència fixada: `parella_coaxial_invertida` (simphy 1.22) és del format `components`, no de `cossos`."""
+    es = CF.escenaris_simphy()
+    if not es["disponible"] or not any(e.get("nom") == "parella_coaxial_invertida" for e in es["escenaris"]):
+        pytest.skip("simphy no porta l'escenari parella_coaxial_invertida")
+    e = next(x for x in es["escenaris"] if x["nom"] == "parella_coaxial_invertida")
+    assert e["n_cossos"] is None and e["n_components"] == 3 and "components" in e["avis_format"], e
+    assert CF.escenari_cossos("parella_coaxial_invertida")["cossos"] == []
+    # els de `cossos` no porten l'avís
+    assert all(x["avis_format"] is None for x in es["escenaris"] if x.get("n_cossos"))
 
 
 def test_sense_lesceneri_no_s_inventa_res():
