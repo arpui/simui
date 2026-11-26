@@ -14,7 +14,14 @@
       "Bash(git merge:*)",
       "Bash(git push:*)",
       "Bash(git -C:*)",
-      "Bash(bash scripts/puja.sh:*)"
+      "Bash(bash scripts/puja.sh:*)",
+      "Agent",
+      "Task",
+      "EnterWorktree",
+      "ExitWorktree",
+      "Bash(git worktree add:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git worktree remove:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
