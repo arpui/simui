@@ -130,6 +130,12 @@ svg.bloc.mou, svg.blocl.mou{cursor:crosshair;outline:2px solid #c00000}
 /* Estil del formulari (Albert, 2026-11-19): cada apartat comença amb una línia i un toc de color suau; els
    subapartats i els camps van sangrats a la dreta, per veure a simple vista què és títol i què és d'aquell títol */
 #c-form > h2{margin:30px 0 10px;padding:6px 10px;border-top:1px solid #cfdce2;background:#eef3f5}
+/* Apartats plegables (UI-PLEGA): el títol és clicable i mostra la fletxa; el cos es plega amb una classe */
+#c-form > h2.plegable{cursor:pointer;user-select:none}
+#c-form > h2.plegable:hover{background:#e3edef}
+#c-form > h2.plegable::after{content:'▾';float:right;color:var(--muted);font-size:13px}
+#c-form > h2.plegable.plegat::after{content:'▸'}
+#c-form > .sec-body.plegat{display:none}
 #c-form > h3{margin:18px 0 6px 18px;padding-left:9px;border-left:3px solid var(--accent);font-size:13.5px}
 #c-form > :not(h2):not(.sticky-bloc){margin-left:18px}
 #c-form .row,#c-form .row3{max-width:calc(100% - 18px)}
@@ -2204,9 +2210,53 @@ function cFormHtml(){
   ${cCercaHtml(E, et)}`}`;
 }
 
+// UI-PLEGA: cada h2 del formulari és un apartat plegable; el cos (els fills fins a l'h2 següent, o el final) es plega
+// amb una classe. L'estat es recorda al navegador (localStorage, amb try/catch: sense clau = només COSSOS plegat).
+const PLEGA_KEY = 'simui.plegastate';
+function cPlegaLecta(){ try{ return JSON.parse(localStorage.getItem(PLEGA_KEY) || '{}') || {}; } catch(e){ return {}; } }
+function cPlegaGuardar(e){ try{ localStorage.setItem(PLEGA_KEY, JSON.stringify(e)); } catch(e){} }
+function cPlega(){ const form = Q('#c-form'); if(!form) return;
+  const snap = Array.from(form.children);
+  let cos = null;
+  for(const el of snap){
+    if(el.tagName === 'H2'){
+      const c = el.cloneNode(true);
+      c.querySelectorAll('.hint').forEach(n => n.remove());
+      let k = c.textContent.replace(/\s+/g, ' ').trim();
+      if(k.startsWith('Cerca')) k = 'Cerca';                                // «Cerca · etapa <nom>» canvia amb l'etapa
+      el.dataset.plega = k;
+      el.classList.add('plegable');
+      el.addEventListener('click', () => cPlegaToggle(el));
+      const cuerpo = document.createElement('div');
+      cuerpo.className = 'sec-body';
+      el.after(cuerpo);
+      cos = cuerpo;
+    } else if(cos) cos.appendChild(el);
+  }
+  cPlegaAplicar();
+}
+function cPlegaAplicar(){
+  const e = cPlegaLecta();
+  for(const h of Q('#c-form').querySelectorAll('h2.plegable')){
+    const k = h.dataset.plega;
+    const plegat = e[k] !== undefined ? e[k] : k === 'Cossos';           // COSSOS plegat per defecte; la resta desplegat
+    h.classList.toggle('plegat', plegat);
+    const cos = h.nextElementSibling;
+    if(cos && cos.classList.contains('sec-body')) cos.classList.toggle('plegat', plegat);
+  }
+}
+function cPlegaToggle(h){
+  const k = h.dataset.plega, e = cPlegaLecta();
+  const plegat = e[k] !== undefined ? e[k] : k === 'Cossos';
+  e[k] = !plegat;
+  cPlegaGuardar(e);
+  cPlegaAplicar();
+}
+
 function cPintaForm(){
   const y = window.scrollY;
   Q('#c-form').innerHTML = cFormHtml();
+  cPlega();
   cCongela();
   cEntrePropCarrega();                                                      // §17b/§23: fracció d'H2O i ρ, de neudet
   window.scrollTo(0, y);
