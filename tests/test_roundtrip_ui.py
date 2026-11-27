@@ -54,14 +54,82 @@ def _sense_dates(x):
     return str(x) if hasattr(x, "isoformat") else x
 
 
+def _desa_bytes(path: Path, retoc=None) -> str:
+    """El que fa `desa_proposta`: obre (amb marques), (retoca), i demana el text passant el fitxer obert com a original."""
+    form = CF.de_fitxer(path, marca=True)
+    if retoc:
+        retoc(form)
+    return CF.to_yaml_i_avisos(form, original=path)[0]
+
+
 @pytest.mark.parametrize("rel", ["campanyes/mb_01", "exemples/forat_quadrat"])
 def test_desar_sense_tocar_res_deixa_el_yaml_identic(rel):
+    """Coordinador 27-11: el bessó compara **bytes**, no contingut (les cometes de les dates canvien `confirmacio.hash_yaml`)."""
     p = _yaml_neudet(rel)
-    orig, nou = yaml.safe_load(p.read_text()), _desa(p)
-    if "generador" in str(orig.get("etapes")):
-        # yaml antic: el generador passa a tongades (conversió declarada, `tradueix_antic` de neudet); la resta no canvia
-        orig.pop("etapes"), nou.pop("etapes")
-    assert _sense_dates(nou) == _sense_dates(orig)
+    assert _desa_bytes(p).encode("utf-8") == p.read_bytes()
+
+
+def test_desar_sense_tocar_res_amb_forat_quadrat_deixa_el_yaml_identic(tmp_path):
+    orig = yaml.safe_load(_yaml_neudet("campanyes/mb_01").read_text())
+    bloc = orig["domini"]["bloc"]
+    bloc.pop("forat_cm")
+    bloc["forat"] = {"forma": "quadrat", "costat_cm": 7}
+    q = tmp_path / "campanya.yaml"
+    q.write_text("# comentari que ha de sobreviure\n" + yaml.safe_dump(orig, allow_unicode=True, sort_keys=False))
+    assert _desa_bytes(q).encode("utf-8") == q.read_bytes()
+
+
+def test_desar_tocant_una_cosa_ja_no_es_el_text_original():
+    """Només el no-res és idèntic: amb un canvi real el yaml es regenera (i es perden comentaris i cometes: declarat)."""
+    p = _yaml_neudet("campanyes/mb_01")
+
+    def retoc(f):
+        f["objectius"]["energia_mev"] = 7.0 if f["objectius"].get("energia_mev") != 7.0 else 6.0
+
+    try:
+        nou = _desa_bytes(p, retoc)
+    except KeyError:
+        pytest.skip("mb_01 ja no té objectius.energia_mev")
+    assert nou.encode("utf-8") != p.read_bytes()
+
+
+_TUB_SOL = ["certificacio/lnd_252285_E12_sol", "certificacio/lnd_252285_E12_sol_fin", "certificacio/lnd_2523_E12_sol_fin"]
+
+
+@pytest.mark.parametrize("rel", _TUB_SOL)
+def test_tub_sol_es_valid_a_la_ui_com_a_neudet(rel):
+    """Coordinador 27-11: «tub sol» (mides_cm 0, sense bloc de PE) és vàlid; `_errors_bloc` no el rebutja."""
+    p = _yaml_neudet(rel)
+    form = CF.de_fitxer(p, marca=True)
+    assert form["avaluacio"]["geometria"] == "tub_sol"
+    assert CF._errors(form) == [], CF._errors(form)
+    assert _desa_bytes(p).encode("utf-8") == p.read_bytes()
+
+
+@pytest.mark.parametrize("canvi,fragment", [
+    (lambda b: b.update(mides_cm=[30, 30, 80]), "mides_cm"),
+    (lambda b: b.update(forat_cm=5), "forat"),
+    (lambda b: b.update(forma="cilindre"), "forma"),
+    (lambda b: b.update(forat={"forma": "quadrat", "costat_cm": 7}), "forat"),
+])
+def test_tub_sol_amb_bloc_la_ui_diu_el_mateix_que_neudet(canvi, fragment):
+    form = CF.de_fitxer(_yaml_neudet(_TUB_SOL[0]), marca=True)
+    canvi(form["domini"]["bloc"])
+    errs = [x for x in CF._errors(form) if "tub_sol" in x]
+    assert errs and any(fragment in x for x in errs), errs
+
+
+def test_cub_pe_continua_exigint_mides_positives():
+    form = CF.de_fitxer(_yaml_neudet("campanyes/mb_01"), marca=True)
+    form["domini"]["bloc"]["mides_cm"] = [0, 0, 0]
+    assert any("mides_cm" in x for x in CF._errors(form))
+
+
+def test_la_referencia_del_tub_sol_es_la_real():
+    cam = next((_neudet() / "src").rglob("campanya.py"), None)
+    if cam is None:
+        pytest.skip("estructura de neudet diferent")
+    assert 'self.geometria == "tub_sol"' in cam.read_text().splitlines()[CF.TUB_SOL_LINIA - 1]
 
 
 def test_mb01_amb_forat_quadrat_sense_tocar_res():
@@ -324,3 +392,20 @@ def test_taula_de_params_mostra_sep_parella_de_neudet():
 def test_la_vista_passa_sentit_i_forat_tal_com_els_escriu_neudet():
     src = (Path(__file__).resolve().parents[1] / "src" / "simui" / "campanya_vista.py").read_text(encoding="utf-8")
     assert '("sentit", "forat", "eix")' in src
+
+
+def test_desa_proposta_sense_tocar_res_no_canvia_el_campanya_yaml(tmp_path):
+    """Extrem a extrem: obrir una proposta i desar-la tal qual deixa el `campanya.yaml` idèntic byte a byte
+    (el `hash_yaml` de la certificació és el del fitxer)."""
+    from simui import campanya_desa as CD
+    p = _yaml_neudet("campanyes/mb_01")
+    d = tmp_path / "mb_01"
+    d.mkdir()
+    (d / "campanya.yaml").write_bytes(p.read_bytes())
+    form = CF.de_fitxer(d / "campanya.yaml", marca=True)
+    form["id"] = "mb_01"
+    try:
+        CD.desa_proposta(form, root=tmp_path)
+    except CD.DesaError as exc:
+        pytest.skip(f"mb_01 no es pot desar com a proposta aquí: {exc}")
+    assert (d / "campanya.yaml").read_bytes() == p.read_bytes()

@@ -129,7 +129,8 @@ def desa_proposta(form: Any, root: Optional[Path] = None) -> Dict[str, Any]:
     f = copy.deepcopy(form)
     f["estat"] = ESTAT
     try:
-        text, retirats = CF.to_yaml_i_avisos(f)
+        # desar sense tocar res deixa el `campanya.yaml` idèntic byte a byte (el hash de la certificació és el del fitxer)
+        text, retirats = CF.to_yaml_i_avisos(f, original=d / FITXERS[0])
     except CF.FormError as exc:
         raise DesaError(f"no es desa: {exc}") from None
     try:
