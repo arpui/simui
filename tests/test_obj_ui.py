@@ -217,7 +217,7 @@ def test_les_metriques_del_paper_son_de_neudet_poden_decidir_i_mai_s_afegeixen_s
         assert per_nom[nom]["decideix"] is True, nom
         assert nom in s["cicle_nou"]["finalitats"]["comptador"]["metriques"], nom
         assert nom not in CF.AUTO_NOMS and nom not in CF.DEFECTE_NOMS, nom
-    assert {n: per_nom[n]["sentit"] for n in O.PAPER} == {"eps_av_10": "max", "F_5": "min", "F_8": "min", "F_10": "min"}
+    assert {n: per_nom[n]["sentit"] for n in O.PAPER} == {"eps_av_10": "max", "eps_av_5": "max", "F_5": "min", "F_8": "min", "F_10": "min"}
     # el cicle d'abans: sense demanar-la a `metriques`, una mètrica del paper al pareto rebota; demanada, passa
     ob = {"metriques": ["eps_mitja", "cv"], "pareto": [["eps_av_10", "max"], ["cv", "min"]]}
     assert any("eps_av_10" in e and "no és a objectius.metriques" in e for e in CF._errors_objectius(_form(ob)))

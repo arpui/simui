@@ -72,7 +72,7 @@ def test_desar_sense_tocar_res_deixa_el_yaml_identic(rel):
 def test_desar_sense_tocar_res_amb_forat_quadrat_deixa_el_yaml_identic(tmp_path):
     orig = yaml.safe_load(_yaml_neudet("campanyes/mb_01").read_text())
     bloc = orig["domini"]["bloc"]
-    bloc.pop("forat_cm")
+    bloc.pop("forat_cm", None)
     bloc["forat"] = {"forma": "quadrat", "costat_cm": 7}
     q = tmp_path / "campanya.yaml"
     q.write_text("# comentari que ha de sobreviure\n" + yaml.safe_dump(orig, allow_unicode=True, sort_keys=False))
@@ -136,7 +136,7 @@ def test_mb01_amb_forat_quadrat_sense_tocar_res():
     """mb_01 amb `forat: {forma: quadrat, costat_cm: 7}` en lloc de `forat_cm` (MB01-PARELLES P3)."""
     orig = yaml.safe_load(_yaml_neudet("campanyes/mb_01").read_text())
     bloc = orig["domini"]["bloc"]
-    bloc.pop("forat_cm")
+    bloc.pop("forat_cm", None)
     bloc["forat"] = {"forma": "quadrat", "costat_cm": 7}
     import tempfile
     with tempfile.TemporaryDirectory() as d:
@@ -304,7 +304,7 @@ def test_schema_porta_la_graella_del_paper_de_neudet():
     from neudet.disseny import objectius as O
     p = CF.schema()["objectius"]["paper"]
     assert p["graella_MeV"] == [float(x) for x in O.GRAELLA_PAPER_MEV] and len(p["graella_MeV"]) == 24
-    assert set(p["metriques"]) == set(O.PAPER) == {"eps_av_10", "F_5", "F_8", "F_10"}
+    assert set(p["metriques"]) == set(O.PAPER) == {"eps_av_10", "eps_av_5", "F_5", "F_8", "F_10"}
     assert set(p["mai_auto"]) == set(O.MAI_AUTO)
 
 

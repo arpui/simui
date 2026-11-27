@@ -826,6 +826,7 @@ function cParse(el){
     case 'str': return el.value;
     case 'ostr': return v === '' ? undefined : el.value;
     case 'num': return v === '' ? undefined : num(v);
+    case 'llista_num': return v === '' ? undefined : v.split(/[\s,;]+/).filter(Boolean).map(num);   // VER-24E: verificacio.energies_MeV (buit = sense clau)
     case 'tots_llista': return v === '' ? undefined : v === 'tots' ? 'tots' : v.split(/[\s,]+/).filter(Boolean).map(num);   // COMPOSICIO: anells_cd
     default: return el.value;
   }
@@ -1937,17 +1938,23 @@ function cMotAvisos(){
   <span class="hint">Els límits per motor (p. ex. PE i energies del nucli «salts») hi surten quan n'hi ha. Es refà en desar la proposta; no reflecteix els canvis encara no desats.</span></div>`;
 }
 
+// VER-24E (§31): verificacio.energies_MeV, llista de nombres en MeV (buit = sense clau); el botó posa la graella del paper de neudet, tal com és.
+function cVerEnergiesHtml(ver){
+  const v = ver.energies_MeV, PP = CP.schema.objectius && CP.schema.objectius.paper;
+  return `<input type="text" data-p="verificacio.energies_MeV" data-t="llista_num" placeholder="buit: les del domini" size="48" value="${escD(Array.isArray(v) ? v.join(', ') : (v ?? ''))}">
+    <div class="bar">${PP ? `<button class="ghost" data-act="ven-paper" title="graella de neudet (objectius.py:${escD(PP.linia ?? '')}) per a les mètriques del paper">Graella del paper (${PP.graella_MeV.length})</button>` : ''}<button class="ghost" data-act="ven-buida">Sense clau (les del domini)</button></div>`;
+}
 // Verificació (Geant4): tot de lectura. Cap d'aquests camps no el llegeix neudet encara.
 function cVerifHtml(f){
   const V = CP.schema.verificacio, ver = f.verificacio || {};
   const claus = [...Object.keys(V), ...Object.keys(ver).filter(k => !(k in V))];
   const items = claus.map(k => {
     const info = V[k];
-    const val = k === 'mon_mig_cm' ? cNumIn('verificacio.mon_mig_cm', ver.mon_mig_cm, {min: 0, ph: 'buit: el món de sempre'}) : k === 'hits' ? cSel('verificacio.hits', [{valor: 'all'}, {valor: 'detect'}], ver.hits, 'str') : cRO(ver[k] ?? '—');     // UI-AFINA: l'únic que neudet llegeix, editable
+    const val = k === 'mon_mig_cm' ? cNumIn('verificacio.mon_mig_cm', ver.mon_mig_cm, {min: 0, ph: 'buit: el món de sempre'}) : k === 'hits' ? cSel('verificacio.hits', [{valor: 'all'}, {valor: 'detect'}], ver.hits, 'str') : k === 'energies_MeV' && info && info.llegit ? cVerEnergiesHtml(ver) : cRO(ver[k] ?? '—');     // UI-AFINA: l'únic que neudet llegeix, editable
     return `<div class="kv"><div><code>${escD(k)}</code> ${val}</div>
       <div class="hint">${info ? escD(info.descripcio) : 'clau que el formulari no coneix'}${info ? ` <span class="src">(${escD(cSrc(info.fitxer, info.linia))})</span>` : ''}</div></div>`;
   }).join('');
-  return `${items}<div class="hint">Només <code>hits</code> i <code>mon_mig_cm</code> es poden canviar aquí; la resta és de lectura: per canviar-los, a neudet (<code>disseny/campanyes/&lt;id&gt;/campanya.yaml</code>).</div>`;
+  return `${items}<div class="hint">Només <code>hits</code>, <code>mon_mig_cm</code> i <code>energies_MeV</code> es poden canviar aquí; la resta és de lectura: per canviar-los, a neudet (<code>disseny/campanyes/&lt;id&gt;/campanya.yaml</code>).</div>`;
 }
 
 // Cerca de l'etapa: el tipus és una llista tancada (cerca.py), i cada tipus té els seus camps.
@@ -2555,6 +2562,8 @@ function cAccio(act, ds){
   if(act === 'pt-') cGetS(CP.f, ds.p).splice(+ds.i, 1);
   if(act === 'tp+') cArr(ds.p).push(ds.d === undefined ? tub0 : ds.d);
   if(act === 'tp-') cArr(ds.p).splice(+ds.i, 1);
+  if(act === 'ven-paper' && CP.schema.objectius.paper) cSet(CP.f, 'verificacio.energies_MeV', CP.schema.objectius.paper.graella_MeV.slice());   // VER-24E: la graella de 24 E de neudet
+  if(act === 'ven-buida') cSet(CP.f, 'verificacio.energies_MeV', undefined);
   if(act && act.startsWith('en')){                                 // energies del domini
     let en = (CP.f.domini.energies_MeV || []).map(Number);
     if(act === 'en-') en.splice(+ds.i, 1);
