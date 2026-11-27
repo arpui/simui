@@ -870,6 +870,50 @@ def _diagnostic(d: Path, m: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]
             "ckpts": ck if isinstance(ck, dict) else {}}
 
 
+# ── COMPOSICIO (neudet 27-11, contracte §30): etapes de composició ───────────────────────────────
+COMPOSICIO_SUBDIR = "composicio"
+
+
+def _composicions(d: Path, y: Dict[str, Any], etapes: List[Dict[str, Any]], avisos: List[str]) -> List[Dict[str, Any]]:
+    """Les etapes declarades amb `composicio` i el que neudet n'ha escrit a `etapes/<nom>/composicio/` (`composicio.json`: la
+    predicció per força bruta, **informativa**, amb el seu `avis`; `seleccio.json`: els `k` que es simulen). Es passa tal com és
+    (`informatiu` i `avis` són de neudet) i no se'n calcula res. El resultat citable és el pas final amb Cd real: l'etapa
+    sencera, que és a `etapes` amb `composicio_final`."""
+    out: List[Dict[str, Any]] = []
+    per_nom = {e["nom"]: e for e in etapes}
+    for nom, decl in (y.get("etapes") or {}).items():
+        cfg = decl.get("composicio") if isinstance(decl, dict) else None
+        if cfg is None:
+            continue
+        sub = d / "etapes" / str(nom) / COMPOSICIO_SUBDIR
+        pred = None
+        if (sub / "composicio.json").is_file():
+            try:
+                doc = _json(sub / "composicio.json")
+                sel = _json(sub / "seleccio.json") if (sub / "seleccio.json").is_file() else {}
+                selec = {(x.get("candidat"), tuple(x.get("n_filtres") or ())) for x in (sel.get("seleccio") or [])}
+                pred = {"informatiu": doc.get("informatiu"), "avis": doc.get("avis"), "avisos": doc.get("avisos") or [],
+                        "estat": doc.get("estat"), "versio": doc.get("versio"), "base": doc.get("base"),
+                        "filtre_cm": doc.get("filtre_cm"), "metriques": doc.get("mètriques"),
+                        "combinacions_total": doc.get("combinacions_total"), "n_front": doc.get("n_front"),
+                        "k": doc.get("k"), "n_seleccionats": doc.get("n_seleccionats"),
+                        "posicions_seleccionades": doc.get("seleccio_posicions_front"),
+                        "candidats_base": [{k: c.get(k) for k in ("hash", "nom", "n_combinacions", "anells", "sense_cd")}
+                                           for c in (doc.get("candidats") or [])],
+                        # la frontera, sense la ε per energia (pesa i no es mostra): la resta, tal com la dona neudet
+                        "front": [{k: v for k, v in r.items() if k != "eps_E"} for r in (doc.get("front") or [])],
+                        "seleccionat": [(r.get("candidat"), tuple(r.get("n_filtres") or ())) in selec for r in (doc.get("front") or [])],
+                        "dir": _rel(d, sub)}
+            except CampanyaError as exc:
+                avisos.append(f"etapa {nom}: la predicció de composició no es llegeix: {exc}")
+        fin = per_nom.get(str(nom))
+        if fin is not None:
+            fin["composicio_final"] = True
+        out.append({"nom": str(nom), "config": cfg, "prediccio": pred,
+                    "final": {"etapa": fin["nom"], "n_candidats": fin.get("n_candidats"), "citable": fin.get("citable")} if fin else None})
+    return out
+
+
 def vista(dir_: PathLike) -> Dict[str, Any]:
     """La campanya com a dades: etapes i candidats (csv ⋈ json pel hash), Pareto, certificació, judici, report."""
     d = Path(dir_)
@@ -892,6 +936,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         no_decl.append(cv)
     _encaixa_g4(etapes + no_decl, avisos)      # els bessons `_g4` s'encaixen encara que siguin al cens
     _verificacio_g4(d, etapes + no_decl, avisos)    # VERIF-UI: qui verifica cada etapa i per què (seleccio.csv de neudet)
+    composicions = _composicions(d, y, etapes, avisos)
     eixos, motiu_p = _eixos(y, columnes)
     metriques = [x for x in ((y.get("objectius") or {}).get("metriques") or []) if isinstance(x, str)]
     return {
@@ -910,6 +955,7 @@ def vista(dir_: PathLike) -> Dict[str, Any]:
         "metriques": metriques,
         "formules_metriques": formules_metriques(),                  # FORM-UI: la fórmula de cada mètrica, de neudet
         "etapes": etapes,
+        "composicions": composicions,          # COMPOSICIO (§30): predicció informativa + qui és el pas final (citable)
         #: v1.27 (§13c): el cens d'etapes no declarades (de neudet o del provisional), amb les seves dades.
         #: La pàgina els retola «etapa no declarada al yaml»; aquí no se'n calcula ni se'n reordena res.
         "etapes_no_declarades": no_decl,

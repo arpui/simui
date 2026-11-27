@@ -62,11 +62,11 @@ FORMES_FORAT_LINIA = 218                     # candidat.py: FORMES_FORAT
 FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
 PARELLA_FALTA_LINIA = 482                    # fitxa.py: parella sense sep_parella_cm (falten)
-PARETO_ARRELS_LINIA = 923                    # campanya.py: ob.pareto[-1], ob.pareto[0]
+PARETO_ARRELS_LINIA = 955                    # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
-MAI_AUTO_LINIA = 94                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
-PUNTS_PAPER_LINIA = 313                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
+MAI_AUTO_LINIA = 113                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
+PUNTS_PAPER_LINIA = 332                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
 VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
@@ -83,41 +83,41 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 52, "cv": 53, "rang": 54, "planor_f": 59, "eps_min": 61, "cd_cm2": 71, "eps_gamma": 72,   # METRIQUES
-    "eps_av_10": 66, "F_5": 68, "F_8": 69, "F_10": 70,                                # PAPER (MB01-PARELLES P4)
-    "q_rang": 100, "q_monoton": 101, "res_E": 102,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 129, "sE_N": 130, "n_ef": 131,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 170, "err_grups": 171,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 71, "cv": 72, "rang": 73, "planor_f": 78, "eps_min": 80, "cd_cm2": 90, "eps_gamma": 91,   # METRIQUES
+    "eps_av_10": 85, "F_5": 87, "F_8": 88, "F_10": 89,                                # PAPER (MB01-PARELLES P4)
+    "q_rang": 119, "q_monoton": 120, "res_E": 121,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 148, "sE_N": 149, "n_ef": 150,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 189, "err_grups": 190,                                              # METRIQUES_GRUP3 (MET3)
 }
 #: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:257-259)
-AUTO_LINIA = 296
+AUTO_LINIA = 315
 #: sentit (objectius.py:425: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 491
+SENTITS_LINIA = 496
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
 #: les mètriques per defecte de l'objectiu (objectius.py:245): les que no són geomètriques ni de SOROLL
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 271, "letargia": 273}
-PESOS_DEFECTE_LINIA = 269
+PESOS_LINIA: Dict[str, int] = {"uniforme": 290, "letargia": 292}
+PESOS_DEFECTE_LINIA = 288
 #: energies: «totes» (objectius.py:226); subconjunt dins de la graella (objectius.py:231)
-ENERGIES_LINIA = 263
-GRAELLA_LINIA = 268
-K_SIGMA_LINIA = 299
-ERR_GRUPS_CAL_LINIA = 213        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+ENERGIES_LINIA = 282
+GRAELLA_LINIA = 287
+K_SIGMA_LINIA = 318
+ERR_GRUPS_CAL_LINIA = 232        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
 #: ε-restricció per defecte (objectius.py:255)
-RESTRICCIO_LINIA = 294
+RESTRICCIO_LINIA = 313
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
-DEFECTE_NOMS_LINIA = 282
+DEFECTE_NOMS_LINIA = 301
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) és la font de la llista de
 #: mètriques per finalitat, dels àlies i dels operadors: NO se'n copia res aquí (FORM-COPIA-UI, 2026-11-19 — la
 #: còpia `FINALITAT_METRIQUES` va quedar sense `planor_f` i tombava el formulari de `mb10b_ref`). La validació
 #: (`_errors_objectius_nou`) i `schema()` la llegeixen en directe; una mètrica nova a neudet s'accepta sense tocar simui.
 #: `schema()` només comprova el que no pot canviar sols: que cada mètrica que la taula declara existeixi a la llista
 #: de neudet, i que les línies citades siguin les reals.
-FINALITATS_LINIA = 586                       # FINALITATS: Dict[str, dict] = {
-TAULA_LINIA = 1354                           # def taula_objectius()
+FINALITATS_LINIA = 591                       # FINALITATS: Dict[str, dict] = {
+TAULA_LINIA = 1359                           # def taula_objectius()
 #: `eps_gamma` surt permesa perquè neudet la porta a `informatives` (família D «soroll»); NO pot decidir: la UI ho
 #: filtra amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 PESOS_NOUS = ("letargia", "uniforme")         # i {espectre: <fitxer>}
@@ -259,6 +259,8 @@ _EDITABLE: Dict[str, Any] = {
     },
     "etapes": {"*": {
         "que": _L, "pregunta": _L, "de": _L, "n_tubs": _L, "cerca": _L, "generador": _L,
+        "composicio": {"de": _L, "anells_cd": _L, "filtre_cm": _L, "objectius": _L, "candidats": _L, "k": _L,
+                       "max_combinacions": _L, "de_motor": _L},      # COMPOSICIO (neudet 27-11, contracte §30): composicio.py CLAUS_*
         "tongades": [{
             "nom": _L, "inventari": _L, "seleccio": _L, "eix": _L, "max_candidats": _L, "tipus": _L, "cd": _CD,
             "posicions": {
@@ -706,6 +708,37 @@ ESTAT_PIOM = (
                               "Mentre no hi sigui, un disseny amb cossos de Pb és «no dissenyable amb la xarxa», no «incorrecte».",
      "font": COSSOS_CONTRACTE},
 )
+
+
+COMPOSICIO_PY = "composicio.py"
+COMPOSICIO_DE_LINIA = 433                    # campanya.py: composicio.de ha de ser una etapa de xarxa (no composició)
+
+
+def _mod_composicio():
+    """`neudet.disseny.composicio` de NEUDET_ROOT/src (les claus, els valors per defecte i `falten_composicio` són seus)."""
+    DES._neudet()
+    from neudet.disseny import composicio
+    return composicio
+
+
+def _errors_composicio(f: Dict[str, Any]) -> List[str]:
+    """Etapes de composició (neudet `composicio.falten_composicio`, que és `fitxa.falten`): les regles les diu neudet i aquí només
+    s'hi crida; a més, `de` ha de ser una etapa de xarxa (`campanya.py:433`). Una etapa amb `composicio` no porta tongades."""
+    et = f.get("etapes") if isinstance(f.get("etapes"), dict) else {}
+    e: List[str] = []
+    mod = None
+    for nom, etapa in et.items():
+        if not isinstance(etapa, dict) or etapa.get("composicio") is None:
+            continue
+        mod = mod or _mod_composicio()
+        e += mod.falten_composicio(nom, etapa)
+        de = (etapa.get("composicio") or {}).get("de") if isinstance(etapa.get("composicio"), dict) else None
+        if de is not None:
+            b = et.get(de)
+            if not isinstance(b, dict) or "composicio" in b or ("generador" not in b and "tongades" not in b):
+                e.append(f"etapes.{nom}.composicio.de = {de!r}: ha de ser una etapa de xarxa (amb `tongades`), no de composició "
+                         f"({CAMPANYA_PY}:{COMPOSICIO_DE_LINIA})")
+    return e
 
 
 TUB_SOL_LINIA = 332                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
@@ -1494,6 +1527,17 @@ def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _schema_composicio() -> Dict[str, Any]:
+    """Les claus de l'etapa de composició, els seus valors per defecte i l'avís, tal com els té neudet (`composicio.py`); cap còpia."""
+    c = _mod_composicio()
+    return {"obligades": list(c.CLAUS_OBLIGADES), "opcionals": list(c.CLAUS_OPCIONALS),
+            "k_defecte": c.K_DEFECTE, "max_combinacions_defecte": c.MAX_COMBINACIONS_DEFECTE,
+            "candidats": ["tots", "frontera"], "anells_cd": ["tots"],
+            "metriques_eps": [k for k, v in c.PAPER.items() if v[0] == "av"],
+            "metriques_F": [k for k, v in c.PAPER.items() if v[0] == "F"],
+            "avis": c.AVIS, "fitxer": COMPOSICIO_PY, "contracte": "simphy_ui.md §30"}
+
+
 def schema() -> Dict[str, Any]:
     """Les fonts de tongada i els seus camps, llistes tancades de neudet, tubs del catàleg i estat de la
     validació. Tot ve de neudet, amb la línia on es llegeix."""
@@ -1533,9 +1577,11 @@ def schema() -> Dict[str, Any]:
     _linia(CANDIDAT_PY, CD_FRACCIO_LINIA, "cd_fraction fora de")
     _linia(CANDIDAT_PY, CD_ARC_LINIA, "cd_arc_deg fora de")
     _linia(GENERADORS_PY, SLOTS_PAS_LINIA, "pas")
+    _linia(CAMPANYA_PY, COMPOSICIO_DE_LINIA, '"composicio" in b')
     return {
         "neudet": str(DES.neudet_root()),
         "tongades": tongades,
+        "composicio": _schema_composicio(),
         "plantilles": _schema_plantilles(),
         "tipus_tub": tubs,
         "energies_domini": energies_domini(),
@@ -2329,6 +2375,7 @@ def _errors(f: Any) -> List[str]:
     e += _errors_objectius(f)
     e += _errors_avaluacio(f)
     e += _errors_cerca(f)
+    e += _errors_composicio(f)
     return e
 
 
