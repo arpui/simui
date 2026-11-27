@@ -2712,12 +2712,15 @@ async function cDesaNovaOk(){
 function cCarrega(form, nota, congelat, certAv){
   // INV: una campanya del format antic s'obre convertida a recursos (simphy, `a_inventari`); si no es pot, en només lectura
   const cv = form._conversio; delete form._conversio;
+  const ne = Array.isArray(form._no_editables) ? form._no_editables : []; delete form._no_editables;   // `_conserva` s'ha de quedar: el desat el llegeix
   const ro = !!(cv && cv.nomes_lectura);
   CP.f = form; CP.etapa = Object.keys(form.etapes || {})[0] || null; CP.res = null; CP.congelat = !!congelat || ro; CP.llavor = 1; CP.movFont = false; CP.mov3d = false; CP.fontMoguda = true; CP.desat = null; CP.certAv = Array.isArray(certAv) ? certAv : null; CP.motorsSel = null; cEsperaStop(); { const e = Q('#c-espera'); if(e) e.innerHTML = ''; }
   cPintaForm(); cYaml();
   const conv = !cv ? '' : ro ? `<div class="panel bad"><b>Només lectura:</b> aquesta campanya és del format antic (un tipus per anell o punt) i no es pot convertir a recursos: ${escD(cv.nomes_lectura)}.</div>`
     : `<div class="panel warn"><b>Convertida des del format antic</b> (un tipus per anell o punt → tubs disponibles i assignació; els mateixos candidats): <ul>${cv.convertida.map(x => `<li>${escD(x)}</li>`).join('')}</ul></div>`;
-  Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>${conv}`;
+  // Regla de l'Albert (27-11): el formulari MAI no perd una clau en desar. El que la UI no sap editar es conserva tal com és, i es diu.
+  const noEd = !ne.length ? '' : `<details class="panel warn"><summary><b>${ne.length} ${ne.length === 1 ? 'clau no editable' : 'claus no editables'} des de la UI: es conserva${ne.length === 1 ? '' : 'n'}</b> (en desar, el yaml les porta tal com són; per canviar-les, a neudet)</summary><ul>${ne.map(x => `<li><code>${escD(x)}</code>: clau no editable des de la UI: es conserva</li>`).join('')}</ul></details>`;
+  Q('#c-desat').innerHTML = `<div class="panel">${nota}</div>${conv}${noEd}`;
 }
 // «Tanteja»: la campanya (o un candidat seu) com a proposta nova amb id derivat. L'original no es toca.
 // Torna al nivell 1: el formulari d'aquesta proposta.
