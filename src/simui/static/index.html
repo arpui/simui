@@ -826,6 +826,7 @@ function cParse(el){
     case 'str': return el.value;
     case 'ostr': return v === '' ? undefined : el.value;
     case 'num': return v === '' ? undefined : num(v);
+    case 'tots_llista': return v === '' ? undefined : v === 'tots' ? 'tots' : v.split(/[\s,]+/).filter(Boolean).map(num);   // COMPOSICIO: anells_cd
     default: return el.value;
   }
 }
@@ -1189,15 +1190,48 @@ function cTongadaHtml(i, t){
     ${cAssigHtml(tp, t)}
     ${seleccio}`}`;
 }
+// ── COMPOSICIO (contracte §30; neudet disseny/composicio.py): etapa opcional sobre una etapa de xarxa ja corrida, sense Cd ──
+// Les claus, els valors permesos i els valors per defecte vénen de `schema().composicio` (neudet); res d'això no s'inventa aquí.
+const cEsComposicio = et => !!et && et.composicio !== undefined;
+function cComposicioHtml(E, et){
+  const S = CP.schema.composicio, c = et.composicio || {}, p = k => `etapes.${E}.composicio.${k}`;
+  const opts = (llista, buida = '— tria —') => [{valor: '', text: buida}].concat(llista.map(v => ({valor: v})));
+  const xarxes = Object.keys(CP.f.etapes).filter(n => n !== E && !cEsComposicio(CP.f.etapes[n]) && (CP.f.etapes[n].tongades || []).length);
+  const ob = Array.isArray(c.objectius) ? c.objectius : [];
+  const sel = (path, llista, v) => cSel(path, opts(llista), v ?? '', 'ostr');
+  return `<div class="panel warn"><b>Etapa de composició</b> — ${escD(S.avis)}
+      <div class="hint">neudet: <span class="src">${escD(S.fitxer)}</span> · contracte ${escD(S.contracte)}. Aquesta etapa no té tongades ni generador: combinar anells aquí és ⛔ (neudet); només tria sobre què i com puntuar.</div></div>
+    <div class="row">${cLab('de: etapa de xarxa ja corrida, sense Cd (obligatori)', cSel(p('de'), opts(xarxes), c.de ?? '', 'ostr'))}
+      ${cLab('candidats (obligatori)', cSel(p('candidats'), opts(S.candidats), c.candidats ?? '', 'ostr'))}</div>
+    <div class="row">${cLab('anells_cd: «tots» o llista d\'índexs d\'anell (obligatori)', cIn(p('anells_cd'), c.anells_cd, 'tots_llista', 'tots | 0, 2, 3'))}
+      ${cLab('filtre_cm: gruix d\'una banda de Cd (cm; ha de dividir la llargada activa) (obligatori)', cNumIn(p('filtre_cm'), c.filtre_cm, {min: 0, ph: 'obligatori'}))}</div>
+    <div class="row">${cLab('objectiu ε (mètrica «av» del paper) (obligatori)', sel(p('objectius.0'), S.metriques_eps, ob[0]))}
+      ${cLab('objectiu F (mètrica del paper) (obligatori)', sel(p('objectius.1'), S.metriques_F, ob[1]))}</div>
+    <div class="row3">${cLab('k: quants es simulen amb Cd real', cNumIn(p('k'), c.k, {min: 1, ph: 'per defecte ' + S.k_defecte}))}
+      ${cLab('max_combinacions', cNumIn(p('max_combinacions'), c.max_combinacions, {min: 1, ph: 'per defecte ' + S.max_combinacions_defecte}))}
+      ${cLab('de_motor (si l\'etapa té diversos motors)', cIn(p('de_motor'), c.de_motor, 'ostr', 'opcional'))}</div>
+    <div class="hint">Els valors buits són els de neudet (entre parèntesis, el seu valor per defecte); els obligatoris que falten els diu «Comprova». El que surt: la predicció (<b>informativa, NO citable</b>) i, al final, els <code>k</code> millors simulats amb Cd real en bandes (això sí és citable): ho veuràs als resultats.</div>
+    <div class="bar"><button class="ghost" data-act="comp-" title="treu aquesta etapa del yaml">treu l'etapa de composició</button></div>`;
+}
+// «Cd: cerca | composició» — dues maneres d'arribar a un Cd per anells, i la UI les diu al costat de l'editor de Cd.
+function cCdCercaCompHtml(E){
+  const S = CP.schema.composicio;
+  return `<div class="panel ajuda"><b>Cd: cerca o composició.</b> Aquí el Cd és el que declares a cada tongada (un valor o un ventall), i la <b>cerca</b> de l'etapa (més avall) tria entre els candidats que això genera.
+    L'altra via és la <b>composició</b>: una etapa a part, sobre aquesta (ja corrida i sense Cd), que combina bandes de Cd per anell amb la predicció de l'eq. 3 del paper (<b>informativa</b>) i després simula els millors amb Cd real.
+    <div class="bar"><input id="c-comp-nom" placeholder="nom de l'etapa (per defecte: composicio)" size="30"><button class="ghost" data-act="comp+" data-de="${escD(E)}" title="afegeix una etapa de composició sobre aquesta etapa">+ etapa de composició sobre «${escD(E)}»</button>
+    <span class="hint">neudet: ${escD(S.fitxer)} (${escD(S.contracte)})</span></div></div>`;
+}
 function cEtapaHtml(){
   const ts = cTongs(), E = CP.etapa;
   ts.forEach(cOmpleta);
+  if(cEsComposicio(CP.f.etapes[E])) return cComposicioHtml(E, CP.f.etapes[E]);
   if(!ts.length) return `<div class="panel">L'etapa <code>${escD(E)}</code> no té <code>tongades</code>: no és una etapa de xarxa.</div>`;
   const fonts = CP.schema.tongades.fonts;
   return `<div class="hint">Una etapa és una o més <b>tongades</b>; cada una combina <b>on són els tubs</b> (punts, malla, anells o un .dat) amb <b>què són</b> (tipus, Cd, eix: un valor o un ventall) i una selecció.
       Les tongades de l'etapa se sumen (un candidat repetit només es compta un cop). Quants candidats surten, ho diu neudet (a sota).</div>
     ${ts.map((t, i) => cTongadaHtml(i, t)).join('')}
-    <div class="bar">${cSel('', fonts.map(f => ({valor: f.valor})), 'punts', 'str', 'id="c-tg-font" data-noedit="1"')}<button class="ghost" data-act="tg+">+ tongada</button></div>`;
+    <div class="bar">${cSel('', fonts.map(f => ({valor: f.valor})), 'punts', 'str', 'id="c-tg-font" data-noedit="1"')}<button class="ghost" data-act="tg+">+ tongada</button></div>
+    ${cCdCercaCompHtml(E)}`;
 }
 
 // Vista aproximada dels tubs de l'etapa activa, en cm sobre el bloc. Només informa: els números vàlids són els del
@@ -2141,14 +2175,14 @@ function cFormHtml(){
   <div class="hint">marge, separació i distància són distàncies de candidat.py (violacions, línies 255-287).</div>
 
   <h2>Estructura · etapa</h2>
-  <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option ${e === E ? 'selected' : ''}>${escD(e)}</option>`).join('')}</select>`)}</div>
+  <div class="row">${cLab('etapa', `<select data-etapa="1">${Object.keys(f.etapes).map(e => `<option value="${escD(e)}" ${e === E ? 'selected' : ''}>${escD(e)}${cEsComposicio(f.etapes[e]) ? ' (composició)' : ''}</option>`).join('')}</select>`)}</div>
   ${cLab('Què vull saber (la pregunta d\'aquesta etapa)', cIn(`etapes.${E}.pregunta`, et.pregunta, 'ostr'))}
   <div class="hint">El teu text, tal com el dius; el planificador l'interpreta i et demana confirmar-lo abans que res corri (contracte UI §13). Si és buit, el resum dirà «no n'hi ha».</div>
   ${cLab('nota teva (opcional; NO és la pregunta)', cIn(`etapes.${E}.que`, et.que, 'ostr', 'buit: no cal'))}
   <div class="hint">neudet la copia al resum.md com a «Què» (campanya.py:245); no canvia cap candidat ni cap càlcul.</div>
   ${cEtapaHtml()}
-  <h3 class="pas">4 · Recompte <span class="hint">(de neudet)</span></h3>
-  <div id="c-compta" class="compta"></div>
+  ${cEsComposicio(et) ? '' : `<h3 class="pas">4 · Recompte <span class="hint">(de neudet)</span></h3>
+  <div id="c-compta" class="compta"></div>`}
 
   <h2>Objectius</h2>
   ${cObjHtml(f)}
@@ -2159,8 +2193,8 @@ function cFormHtml(){
   <h2>Verificació (Geant4)</h2>
   ${cVerifHtml(f)}
 
-  <h2>Cerca · etapa ${escD(E)}</h2>
-  ${cCercaHtml(E, et)}`;
+  ${cEsComposicio(et) ? '' : `<h2>Cerca · etapa ${escD(E)}</h2>
+  ${cCercaHtml(E, et)}`}`;
 }
 
 function cPintaForm(){
@@ -2221,7 +2255,7 @@ function cCompta(){
   clearTimeout(CP.tc);
   CP.tc = setTimeout(async () => {
     const seq = ++CP.cseq, el = Q('#c-compta');
-    if(!el) return;
+    if(!el) return;                                             // l'etapa de composició no té recompte de tongades
     try{
       const r = await api('/api/campanya/compta', {form: CP.f, etapa: CP.etapa});
       if(seq !== CP.cseq) return;
@@ -2499,6 +2533,17 @@ function cNormLligams(){
   cTongs().forEach(arreglaObj);                                      // a anells i punts, el ventall de cada element no necessita lligam
 }
 function cAccio(act, ds){
+  if(act === 'comp+'){                                                // COMPOSICIO: etapa nova, només amb el que l'usuari ja té triat (`de`)
+    const nom = (Q('#c-comp-nom') && Q('#c-comp-nom').value.trim()) || 'composicio';
+    if(CP.f.etapes[nom]) return cErr(`ja hi ha una etapa «${nom}»: tria un altre nom per a la de composició.`);
+    const de = ds.de !== undefined ? ds.de : CP.etapa, cur = CP.f.etapes[de];
+    CP.f.etapes[nom] = {composicio: (cur && !cEsComposicio(cur) && (cur.tongades || []).length) ? {de} : {}};
+    CP.etapa = nom; cPintaForm(); cYaml(); return;
+  }
+  if(act === 'comp-'){
+    delete CP.f.etapes[CP.etapa];
+    CP.etapa = Object.keys(CP.f.etapes)[0]; cPintaForm(); cYaml(); return;
+  }
   const E = CP.f.etapes[CP.etapa], tub0 = cTub0();
   if(act === 'tg+') E.tongades.push(cNouInv(cGenNou(Q('#c-tg-font').value)));
   if(act === 'tg-' && E.tongades.length > 1) E.tongades.splice(+ds.i, 1);
@@ -2911,11 +2956,35 @@ function kPinta(){
   else {
     out.push('<h2>Etapes</h2>' + (kEtapesAmbIntents(v.etapes) || '<div class="hint">Cap etapa amb candidats.csv.</div>'));
     out.push(kSeccioNoDecl(v, e => kEtapa(e, true)));
+    out.push(kComposicions(v));
     out.push('<h2>Judici</h2>' + (v.judici ? `<div class="panel">${kMd(v.judici)}</div>` : '<div class="hint">Sense judici a PLA.md.</div>'));
     out.push('<h2>Report</h2>' + kReport(v));
   }
   out.push(kFitxers(v));   // FITXERS-UI: els fitxers que es poden veure, només els que hi són
   document.getElementById('k-out').innerHTML = out.join('');
+}
+// COMPOSICIO (contracte §30): la predicció per força bruta (eq. 3 del paper) és INFORMATIVA i no citable; el que és citable és el pas
+// final, l'etapa sencera amb Cd real. Els textos (`avis`) i el flag `informatiu` són de neudet, passats tal com són. Res no es calcula aquí.
+function kComposicions(v){
+  const cs = v.composicions || [];
+  if(!cs.length) return '';
+  const cel = x => x === null || x === undefined ? '—' : Array.isArray(x) ? escD(x.join('-')) : typeof x === 'number' ? escD(+x.toPrecision(5)) : escD(x);
+  const una = c => {
+    const pr = c.prediccio, fin = c.final;
+    const cap = `<h3>${escD(c.nom)} <span class="hint">composició sobre <code>${escD(c.config.de ?? '?')}</code></span></h3>`;
+    const pas2 = fin ? `<div class="panel ${fin.citable ? 'ok' : 'warn'}"><b>Pas final · Cd real</b> (etapa <code>${escD(fin.etapa)}</code>, ${escD(fin.n_candidats ?? '?')} candidats): ${fin.citable ? 'neudet la dona per <b>citable</b>' : '<b>no citable</b> segons neudet'} — els resultats són a «Etapes», amb el Cd simulat.</div>`
+      : `<div class="panel">El pas final (els <code>k</code> millors amb Cd real en bandes) encara no s'ha corregut: fins que no hi sigui, <b>aquí no hi ha cap xifra citable</b>.</div>`;
+    if(!pr) return cap + `<div class="hint">Encara no hi ha la predicció (<code>etapes/${escD(c.nom)}/composicio/composicio.json</code>).</div>` + pas2;
+    const noms = ['nom', 'n_filtres', 'f_lliure', 'cd_cobert'], rows = pr.front || [];
+    const met = rows.length ? Object.keys(rows[0]).filter(k => !['candidat', 'nom', 'n_filtres', 'f_lliure', 'cd_cobert', 'i_front'].includes(k)) : [];
+    const cols = noms.concat(met);
+    return cap + `<div class="panel ${pr.informatiu === false ? '' : 'bad'}"><b>${pr.informatiu === false ? 'Predicció' : 'INFORMATIU — NO CITABLE'}</b>${pr.avis ? ' · ' + escD(pr.avis) : ''}
+      ${(pr.avisos || []).map(a => `<div class="hint">${escD(a)}</div>`).join('')}</div>
+      <div class="hint">${cel(pr.n_front)} punts a la frontera de ${cel(pr.combinacions_total)} combinacions · filtre ${cel(pr.filtre_cm)} cm · es simulen ${cel(pr.n_seleccionats)} (k = ${cel(pr.k)}), marcats ✔ · base: ${escD((pr.base || {}).etapa ?? '?')} (${escD((pr.base || {}).fitxer ?? '')}) · <span class="src">${escD(pr.dir)}</span></div>
+      <div class="tblw"><table class="tbl"><thead><tr><th>sim.</th>${cols.map(k => `<th>${escD(k)}</th>`).join('')}</tr></thead><tbody>${
+        rows.map((r, i) => `<tr><td>${pr.seleccionat[i] ? '✔' : ''}</td>${cols.map(k => `<td>${cel(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` + pas2;
+  };
+  return '<h2>Composició</h2>' + cs.map(una).join('');
 }
 // Formulari congelat (contracte UI §11b): la definició d'una campanya ja no editable, amb el mateix formulari i el que neudet
 // n'ha certificat al costat. Cap botó escriu res.
