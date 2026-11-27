@@ -708,9 +708,30 @@ ESTAT_PIOM = (
 )
 
 
-def _errors_bloc(bloc: Dict[str, Any], ruta: str = "domini.bloc") -> List[str]:
+TUB_SOL_LINIA = 332                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
+
+
+def _errors_bloc_tub_sol(bloc: Dict[str, Any], ruta: str) -> List[str]:
+    """E12-BANC (neudet `campanya.py:332-342`): amb `avaluacio.geometria: tub_sol` no hi ha bloc de PE: `mides_cm` [0, 0, 0],
+    `forat_cm` 0 (o absent), cap `forat`, i `forma` absent o cub. Una campanya de «tub sol» és vàlida i la UI no la rebutja."""
+    ref = f"{CAMPANYA_PY}:{TUB_SOL_LINIA}"
+    e: List[str] = []
+    if bloc.get("forma") not in (None, "cub"):
+        e.append(f"{ruta}.forma: amb avaluacio.geometria: tub_sol no hi ha bloc de PE, la forma no s'aplica ({ref})")
+    m = bloc.get("mides_cm")
+    if not (isinstance(m, list) and len(m) == 3 and all(_num(v) and v == 0 for v in m)):
+        e.append(f"{ruta}.mides_cm: amb tub_sol cal [0, 0, 0] (cap bloc de PE; {ref})")
+    if bloc.get("forat_cm", 0) != 0 or bloc.get("forat") is not None:
+        e.append(f"{ruta}.forat_cm/forat: amb tub_sol cal forat_cm 0 i cap `forat` ({ref})")
+    return e
+
+
+def _errors_bloc(bloc: Dict[str, Any], ruta: str = "domini.bloc", tub_sol: bool = False) -> List[str]:
     """§22: `forma: cub|cilindre` (absent = cub), `radi_cm`/`alzada_cm` només amb cilindre i **sense valor per defecte**,
-    `mides_cm` només amb cub. La mutual exclusió és la regla de §4 de `cilindre_i_plom.md`."""
+    `mides_cm` només amb cub. La mutual exclusió és la regla de §4 de `cilindre_i_plom.md`. `tub_sol`: vegeu `_errors_bloc_tub_sol`."""
+    if tub_sol:
+        return _errors_bloc_tub_sol(bloc, ruta) + ([f"{ruta}.densitat_gcm3: un número positiu (g/cm³) o null"]
+                                                  if bloc.get(COS_DENSITAT) is not None and not _pos(bloc.get(COS_DENSITAT)) else [])
     e: List[str] = []
     forma = bloc.get("forma")
     if forma is not None and forma not in FORMA_BLOC:
@@ -1596,12 +1617,12 @@ def _errors_entre(dom: Dict[str, Any]) -> List[str]:
     return e
 
 
-def _errors_domini(dom: Dict[str, Any]) -> List[str]:
+def _errors_domini(dom: Dict[str, Any], tub_sol: bool = False) -> List[str]:
     e: List[str] = []
     bloc = dom.get("bloc") if isinstance(dom.get("bloc"), dict) else {}
     if not isinstance(dom.get("bloc"), dict):
         e.append("domini.bloc: falta el bloc (material, la forma amb les seves mides, forat_cm, densitat_gcm3)")
-    e += _errors_bloc(bloc)                     # §22: forma del bloc (absent = cub) i les seves mides
+    e += _errors_bloc(bloc, tub_sol=tub_sol)    # §22: forma del bloc (absent = cub) i les seves mides
     e += _errors_cossos(dom.get("cossos"))      # §25: la llista explícita de cossos (absent = cap cos)
     mon = dom.get("mon")
     if mon is not None:
@@ -2289,7 +2310,8 @@ def _errors(f: Any) -> List[str]:
     if not isinstance(f.get("domini"), dict):
         e.append("falta el bloc domini")
     else:
-        e += _errors_domini(f["domini"])
+        av = f.get("avaluacio")
+        e += _errors_domini(f["domini"], tub_sol=isinstance(av, dict) and av.get("geometria") == "tub_sol")
     et = f.get("etapes")
     if not isinstance(et, dict) or not et:
         e.append("etapes: cal almenys una etapa")
@@ -2392,8 +2414,29 @@ def to_yaml(form: Dict[str, Any]) -> str:
     return to_yaml_i_avisos(form)[0]
 
 
-def to_yaml_i_avisos(form: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
-    """(el yaml, els pendents retirats). El mateix que `to_yaml`, per a qui ha d'ensenyar l'avís."""
+def _form_sense_marques(form: Any) -> Any:
+    return {k: v for k, v in form.items() if k not in CLAUS_FORMULARI} if isinstance(form, dict) else form
+
+
+def text_original_si_igual(form: Any, original: Optional[Path]) -> Optional[str]:
+    """El text del `campanya.yaml` que hi ha a `original`, si el formulari és el que en surt en obrir-lo (res tocat);
+    si no, `None`. Desar sense tocar res ha de deixar el fitxer idèntic **byte a byte** (cometes de les dates, comentaris, ordre:
+    canviar-ne un byte canvia `confirmacio.hash_yaml`). Les claus del formulari que no són del yaml no compten."""
+    if original is None or not Path(original).is_file():
+        return None
+    try:
+        obert = de_fitxer(original, marca=True)
+    except (DES.DesignError, yaml.YAMLError, OSError, ValueError):
+        return None
+    if _form_sense_marques(obert) != _form_sense_marques(form):
+        return None
+    return Path(original).read_bytes().decode("utf-8")
+
+
+def to_yaml_i_avisos(form: Dict[str, Any], original: Optional[Path] = None) -> Tuple[str, List[Dict[str, Any]]]:
+    """(el yaml, els pendents retirats). El mateix que `to_yaml`, per a qui ha d'ensenyar l'avís. Amb `original` (el
+    `campanya.yaml` que es va obrir) i el formulari sense tocar, el text és el d'aquell fitxer, byte a byte."""
+    sencer = copy.deepcopy(form)
     form = _sense_pas_buit(copy.deepcopy(form))
     conserva = []
     if isinstance(form, dict):
@@ -2407,5 +2450,8 @@ def to_yaml_i_avisos(form: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     if isinstance(form.get("domini"), dict) and "domini.tipus_tub" not in conserva and _tipus_explicits(form):
         form["domini"].pop("tipus_tub", None)      # derivat per neudet dels tipus (o inventaris) de les tongades (SIMPLIFICA)
     form, retirats = retira_pendents_orfes(form)
+    text = text_original_si_igual(sencer, original)
+    if text is not None and not retirats:
+        return text, []
     return (CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
                                   allow_unicode=True, default_flow_style=None, width=110), retirats)
