@@ -63,6 +63,10 @@ FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
 PARELLA_FALTA_LINIA = 482                    # fitxa.py: parella sense sep_parella_cm (falten)
 PARETO_ARRELS_LINIA = 923                    # campanya.py: ob.pareto[-1], ob.pareto[0]
+GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
+PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
+MAI_AUTO_LINIA = 94                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
+PUNTS_PAPER_LINIA = 313                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
 VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
@@ -1241,6 +1245,10 @@ def _schema_objectius(obj) -> Dict[str, Any]:
     _linia(OBJECTIUS_PY, PESOS_LINIA["letargia"], 'w == "letargia"')
     _linia(OBJECTIUS_PY, PESOS_LINIA["uniforme"], 'w == "uniforme"')
     _linia(OBJECTIUS_PY, K_SIGMA_LINIA, 'pareto_k_sigma')
+    _linia(OBJECTIUS_PY, GRAELLA_PAPER_LINIA, "GRAELLA_PAPER_MEV")
+    _linia(OBJECTIUS_PY, PAPER_LINIA, "PAPER")
+    _linia(OBJECTIUS_PY, MAI_AUTO_LINIA, "MAI_AUTO")
+    _linia(OBJECTIUS_PY, PUNTS_PAPER_LINIA, "def _punts_paper")
     _linia(OBJECTIUS_PY, ENERGIES_LINIA, 'sel == "totes"')
     _linia(OBJECTIUS_PY, RESTRICCIO_LINIA, 'cfg.get("restriccio")')
     _linia(OBJECTIUS_PY, DEFECTE_NOMS_LINIA, 'cfg.get("metriques"')
@@ -1307,6 +1315,11 @@ def _schema_objectius(obj) -> Dict[str, Any]:
         ],
         # OBJ (contracte §14): el bloc del cicle nou, tal com el dona neudet (frases, preguntes, valors per defecte)
         "cicle_nou": dict(taula, fitxer=OBJECTIUS_PY, linia=TAULA_LINIA),
+        # MB01-PARELLES P4: les mètriques del paper sobre la graella de 24 energies, tal com les dona neudet (no una còpia)
+        "paper": {"metriques": {n: list(v) for n, v in obj.PAPER.items()},
+                  "graella_MeV": [float(x) for x in obj.GRAELLA_PAPER_MEV],
+                  "mai_auto": sorted(obj.MAI_AUTO), "fitxer": OBJECTIUS_PY, "linia": GRAELLA_PAPER_LINIA,
+                  "punts": PUNTS_PAPER_LINIA, "mai_auto_linia": MAI_AUTO_LINIA}
     }
 
 
@@ -2065,6 +2078,47 @@ def _nom_obj(x: Any, alies: Dict[str, str]) -> Any:
     return alies.get(x, x) if isinstance(x, str) else x
 
 
+def _errors_paper(noms: List[Any], graella: List[Any]) -> List[str]:
+    """MB01-PARELLES P4 (neudet, `objectius._punts_paper`): les mètriques del paper (`eps_av_10`, `F_5`, `F_8`, `F_10`) es calculen
+    sobre els 24 punts de `GRAELLA_PAPER_MEV` ≤ E_max; si al domini en falta un (o hi és repetit), neudet fa ⛔. Es diu abans,
+    en paraules. Els punts i les E_max són de neudet (`_mods_neudet`), no una còpia."""
+    ob = _mods_neudet()[0]
+    paper = [n for n in dict.fromkeys(noms) if isinstance(n, str) and n in ob.PAPER]
+    e: List[str] = []
+    for n in paper:
+        emax = ob.PAPER[n][1]
+        for g in ob.GRAELLA_PAPER_MEV:
+            if g > emax + 1e-12:
+                continue
+            k = sum(1 for x in graella if _num(x) and abs(x - g) <= 1e-9 * max(g, 1e-12))
+            if k == 0:
+                e.append(f"objectius: «{n}» és sobre els punts de la graella del paper ≤ {emax:g} MeV i a domini.energies_MeV falta "
+                         f"{g:g} MeV (objectius.py:{PUNTS_PAPER_LINIA}); poseu-hi la graella del paper (24 energies)")
+                break
+            if k > 1:
+                e.append(f"objectius: «{n}»: {g:g} MeV és repetida a domini.energies_MeV ({k} vegades; objectius.py:{PUNTS_PAPER_LINIA})")
+                break
+    return e
+
+
+def _noms_demanats(ob: Dict[str, Any], alies: Dict[str, str]) -> List[Any]:
+    """Els noms de mètrica que `normalitza` de neudet posaria a l'objectiu: els que decideixen, les informatives **demanades** (les
+    automàtiques no inclouen `MAI_AUTO`), la preferència i les restriccions."""
+    noms: List[Any] = []
+    for x in ob.get("objectius") or []:
+        noms.append(_nom_obj(x[0] if isinstance(x, list) and x else x, alies))
+    inf = ob.get("informatives", "auto")
+    if isinstance(inf, list):
+        noms += [_nom_obj(x, alies) for x in inf]
+    pref = ob.get("preferencia")
+    if isinstance(pref, dict):
+        noms += [_nom_obj(pref.get(k), alies) for k in ("maxim", "sobre")]
+    for r in ob.get("restriccions") or []:
+        if isinstance(r, list) and r:
+            noms.append(_nom_obj(r[0], alies))
+    return noms
+
+
 def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
     """OBJ (contracte §14): la FORMA del bloc del cicle nou (finalitat → objectius → informatives → preferència →
     restriccions → pesos), amb les llistes llegides de la taula de neudet (`_taula_objectius()`, sense còpia:
@@ -2155,6 +2209,8 @@ def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
     for kk in ("comptes_ref", "N_font", "sE_obj", "delta_q"):
         if ob.get(kk) is not None and not (_num(ob[kk]) and ob[kk] > 0):
             e.append(f"objectius.{kk}: un número > 0")
+    en_ob = en if isinstance(en, list) else graella                  # neudet: `energies[idx]` = les energies triades de l'objectiu
+    e += _errors_paper(_noms_demanats(ob, alies), en_ob)
     return e
 
 

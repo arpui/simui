@@ -1068,7 +1068,9 @@ def _entrada_un_motor(d: Path, etapa: str, m: Dict[str, Any], hash_: str, *,
             "energies_MeV": list(doc["energies_MeV"]), "provenance": prov,
             "warnings": RES.warnings(doc), "metrics": met,
             "tubs": [{"i": t["i"], "x": t["x"], "y": t["y"], "z": t["z"], "tipus": t["tipus"],
-                      "comptes": list(t["comptes"]), "eps": list(t["eps"]), "sig": list(t["sig"])}
+                      "comptes": list(t["comptes"]), "eps": list(t["eps"]), "sig": list(t["sig"]),
+                      # MB01-PARELLES: neudet escriu `sentit` (si no és +1), `forat` (nom compartit) i `eix` només quan hi són; es passen tal com són
+                      **{k: t[k] for k in ("sentit", "forat", "eix") if k in t}}
                      for t in c["tubs"]],
             "deteccio": doc.get("deteccio"), "sig_tipus": doc.get("sig_tipus"),
             "eps_totals": totals, "g4_comparacio": g4files}

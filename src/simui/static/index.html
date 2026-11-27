@@ -865,7 +865,7 @@ function cDiagHtml(d){
   return `${casella}<div class="diag-av" data-diag-av>⚠ ${escD(D.text || 'diagnòstic, no citable')}: tot el que surti d'aquesta campanya és diagnòstic.</div>${sel}`;
 }
 function cEnergiesDomini(d){
-  const G = CP.schema.energies_domini || {}, en = (d.energies_MeV || []).map(Number);
+  const G = CP.schema.energies_domini || {}, en = (d.energies_MeV || []).map(Number), PP = CP.schema.objectius && CP.schema.objectius.paper;
   const diag = d.diagnostic === true;
   const franja = e => G.min != null && (e < G.min || e > G.max) ? (diag && G.max_diagnostic != null && e > G.max && e <= G.max_diagnostic ? 'diag' : 'fora')
     : G.validat_PE_min != null && e < G.validat_PE_min ? 'novalidat' : '';
@@ -876,7 +876,7 @@ function cEnergiesDomini(d){
     <div class="row3">
       ${cLab('afegeix', `<div class="row"><input id="c-en-nova" type="number" step="any" min="0" placeholder="p.ex. 25">${uSel('c-en-u')}</div>`)}
       ${cLab('o genera N repartides en ln E (MeV)', `<div class="row"><input id="c-en-n" type="number" min="2" step="1" placeholder="N"><input id="c-en-a" type="number" step="any" placeholder="de" value="${G.validat_PE_min ?? G.min ?? ''}"><input id="c-en-b" type="number" step="any" placeholder="a" value="${G.max ?? ''}"></div>`)}
-      ${cLab(' ', `<div class="bar"><button class="ghost" data-act="en+">Afegeix</button><button class="ghost" data-act="en-gen">Genera</button>${G.per_defecte ? '<button class="ghost" data-act="en-def">Les ' + G.per_defecte.length + ' per defecte</button>' : ''}</div>`)}
+      ${cLab(' ', `<div class="bar"><button class="ghost" data-act="en+">Afegeix</button><button class="ghost" data-act="en-gen">Genera</button>${G.per_defecte ? '<button class="ghost" data-act="en-def">Les ' + G.per_defecte.length + ' per defecte</button>' : ''}${PP ? '<button class="ghost" data-act="en-paper" title="graella de neudet (objectius.py:33) per a les mètriques del paper: eps_av_10, F_5, F_8, F_10">Graella del paper (' + PP.graella_MeV.length + ')</button>' : ''}</div>`)}
     </div>
     <div class="hint">S'ordenen soles i sense repetides; al yaml van en MeV.
     ${G.min != null ? `Permeses de <b>${fmtE(G.min)}</b> a <b>${fmtE(G.max)}</b> (fora, neudet diu «prohibit»${nFora ? `: <b>${nFora} fora</b>` : ''}).` : ''}
@@ -975,6 +975,15 @@ function cMallaHtml(p, pos, inv){
   return `<div class="row3">${cLab('forma', cSel(p + '.forma', formes, forma, 'str', `data-forma="${escD(p)}"`))}${inv ? cLab('k (tubs per candidat)', cRO(cInvTotal(inv)) + ' <span class="hint">= el total de l\'inventari</span>') : cLab('k (tubs per candidat)', cNumIn(p + '.k', pos.k, {min: 1, ph: '1'}))}${cLab('z (cm)', cNumIn(p + '.z', pos.z, {ph: '0'}))}</div>
     ${cos}<div class="hint">k = 1: un tub a cada punt (un candidat per punt). k > 1: es trien k punts de la malla per candidat (tots els possibles, o uns quants a l'atzar amb «mostres»).</div>`;
 }
+// MB01-PARELLES (neudet generadors.py:615, fitxa.py:482): `parella: true` = cada lloc de l'anell és un forat amb DOS tubs coaxials invertits,
+// simètrics respecte del centre; `sep_parella_cm` (valor, llista o rang; SENSE valor per defecte) és la separació entre els extrems actius enfrontats.
+function cParellaHtml(ap, a){
+  const sp = a.sep_parella_cm;
+  return `<label class="chk"><input type="checkbox" data-parella="${escD(ap)}" ${a.parella ? 'checked' : ''}> parella: cada lloc és un forat amb dos tubs coaxials invertits (connectors cap a fora)</label>
+    ${a.parella ? `<div class="row">${cCoordHtml(`${ap}.sep_parella_cm`, sp, 'sep_parella_cm (cm): separació entre els extrems actius enfrontats; sense valor per defecte')}</div>
+      <div class="hint">Amb parella la z de cada tub surt de la separació (simètrica respecte del centre): no es posa. n, l'inventari i els fixats compten forats (cada forat, 2 tubs del mateix tipus).</div>`
+    : sp !== undefined ? `<div class="panel warn">sep_parella_cm: ${escD(JSON.stringify(sp))} sense «parella»: neudet ho refusa (marca la parella o treu la separació).</div>` : ''}`;
+}
 function cAnellsHtml(p, pos, inv){
   const blocs = (pos.anells || []).map((a, i) => {
     const ap = `${p}.anells.${i}`;
@@ -992,6 +1001,7 @@ function cAnellsHtml(p, pos, inv){
           <option value="graus" ${phiMig ? '' : 'selected'}>graus (número)</option>
           <option value="mig_pas" ${phiMig ? 'selected' : ''}>mig pas (180/n)</option></select>`)}
         ${phiMig ? '' : cLab('φ (°)', cNumIn(`${ap}.phi`, a.phi === undefined ? undefined : a.phi, {ph: '0'}))}</div>
+      ${cParellaHtml(ap, a)}
       ${inv ? cEixHtml(ap, a) : `<div class="hint">Els tubs d'aquest anell (tot el que posis aquí és només per a l'anell ${i + 1}):</div>${cAtrsHtml(ap, a, true, false)}`}</div>`;
   }).join('');
   return `${blocs}<div class="bar"><button class="ghost" data-act="anell+" data-p="${escD(p + '.anells')}">+ anell</button></div>
@@ -1495,7 +1505,9 @@ function v3dSvg(esc, st){
   const idx = (x, y, z) => ((x > 0) << 2) | ((y > 0) << 1) | (z > 0), arestes = [];
   for(let i = 0; i < 8; i++) for(const b of [1, 2, 4]) if(!(i & b)) arestes.push([i, i | b]);
   const caixa = cilBloc ? '' : arestes.map(([i, j]) => lin(cantonades[i], cantonades[j], 'stroke="#4d4d4d" stroke-width="1"')).join('');
-  const forat = esc.forat > 0 ? [-1, 1].map(s => `<polyline fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3 3" points="${v3dCil([0, 0, 0], 'z', s * bz / 2, s * bz / 2, esc.forat, 40)[0].map(p => P(p).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`).join('') : '';
+  const foratPts = (esc.foratQ > 0 ? s => { const h = esc.foratQ / 2; return [[-h, -h], [h, -h], [h, h], [-h, h], [-h, -h]].map(([x, y]) => [x, y, s * bz / 2]); }
+    : esc.forat > 0 ? s => v3dCil([0, 0, 0], 'z', s * bz / 2, s * bz / 2, esc.forat, 40)[0] : null);                    // MB01: forat quadrat (forat.forma) o cilíndric (forat_cm | forat.cilindre)
+  const forat = foratPts ? [-1, 1].map(s => `<polyline fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3 3" points="${foratPts(s).map(p => P(p).slice(0, 2).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`).join('') : '';
   const font = esc.font ? (q => `<g data-v3d="font"><circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="11" fill="transparent"/><circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4" fill="#c00000"/><text x="${(q[0] + 6).toFixed(1)}" y="${(q[1] - 5).toFixed(1)}" font-size="10" fill="#c00000">F</text></g>`)(sv(...esc.font)) : '';
   const eixos = [['x', [1, 0, 0], '#b5541c'], ['y', [0, 1, 0], '#2e7d32'], ['z', [0, 0, 1], '#1f5f99']].map(([n, d, col]) => {
     const q = v3dProj(d, st), x = -128 + q[0] * 24, y = 128 - q[1] * 24;
@@ -1588,10 +1600,29 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
 });
 // L'escena del formulari: els mateixos tubs que dibuixen les vistes planes (V), amb les mides del catàleg de neudet.
+// El forat del bloc (MB01 P3, neudet candidat.py:377): `forat: {forma: quadrat, costat_cm} | {forma: cilindre, radi_cm}` o el `forat_cm` (radi) d'abans.
+// m = el costat (quadrat) o el radi (cilindre), en cm; forma null = sense forat o encara sense mida (res a dibuixar).
+function cForat(b){
+  const f = b.forat;
+  if(f && typeof f === 'object'){
+    const m = Number(f.forma === 'quadrat' ? f.costat_cm : f.radi_cm);
+    return m > 0 && (f.forma === 'quadrat' || f.forma === 'cilindre') ? {forma: f.forma, m} : {forma: null, m: 0};
+  }
+  return Number(b.forat_cm) > 0 ? {forma: 'cilindre', m: Number(b.forat_cm)} : {forma: null, m: 0};
+}
+function cForatHtml(b){
+  const f = b.forat, obj = f && typeof f === 'object', mode = obj ? (f.forma ?? '') : 'cm';
+  const op = (m, t) => `<option value="${m}" ${mode === m ? 'selected' : ''}>${t}</option>`;
+  const cos = mode === 'quadrat' ? cLab('costat del forat quadrat (cm; sense valor per defecte; neudet l\'omple d\'aire)', cNumIn('domini.bloc.forat.costat_cm', f.costat_cm, {min: 0, ph: 'costat_cm'}))
+    : mode === 'cilindre' ? cLab('radi del forat cilíndric (cm; sense valor per defecte)', cNumIn('domini.bloc.forat.radi_cm', f.radi_cm, {min: 0, ph: 'radi_cm'}))
+    : obj ? '<span class="hint">forat sense forma: neudet no n\'accepta cap per defecte (candidat.py:377)</span>'
+    : cLab('radi del forat central (cm; 0 = sense; no canvia amb la forma, §22)', cNumIn('domini.bloc.forat_cm', b.forat_cm, {min: 0}));
+  return `<div class="row">${cLab('forat central (una sola manera de declarar-lo: forat_cm o forat {forma, mida}; fitxa.py:32)', `<select data-foratsel="1">${obj && !['quadrat', 'cilindre'].includes(mode) ? op('', '—') : ''}${op('cm', 'cilíndric: radi (forat_cm) o sense')}${op('quadrat', 'quadrat (costat_cm)')}${op('cilindre', 'cilindre (radi_cm)')}</select>`)}${cos}</div>`;
+}
 function cEscena(V){
   const d = CP.f.domini, E = cBlocExt(d), pos = d.font.pos_cm || [0, 0, 0];
   return {bloc: E.m.map(Number), forma: E.forma, radi: E.radi, alzada: E.alzada, cossos: cCossosEscena(d),
-    forat: Number(d.bloc.forat_cm) || 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
+    forat: cForat(d.bloc).forma === 'cilindre' ? cForat(d.bloc).m : 0, foratQ: cForat(d.bloc).forma === 'quadrat' ? cForat(d.bloc).m : 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
     tubs: V.punts.map(p => { const q = cDimTub(p.tipus), mm = cMidesTub(p.tipus);
       return {index: p.num, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColP(V, p), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
 }
@@ -1665,7 +1696,8 @@ function cBlocLateral(id, pla, V0, D0){
     }
     return `<g${dr}><circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/></g>`;
   }).join('');
-  const forat = d.bloc.forat_cm > 0 ? `<rect x="${-d.bloc.forat_cm}" y="${-hz}" width="${2 * d.bloc.forat_cm}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
+  const F = cForat(d.bloc), fh = F.forma === 'quadrat' ? F.m / 2 : F.m;                                  // semiample del forat al tall lateral
+  const forat = F.forma ? `<rect x="${-fh}" y="${-hz}" width="${2 * fh}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[pla === 'xz' ? 0 : 1]}" cy="${-(pos[2] ?? 0)}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
   const cosos = cCossosEscena(d).map((c, i) => { const s = cCosPlan(c, h, sw, D.k); return s ? `<g data-cos="${i}" style="cursor:grab">${s}</g>` : ''; }).join('');
   const cotes = cCota(-hh, hz + D.mc * 0.45, hh, hz + D.mc * 0.45, `${cG(2 * hh)} cm`, D, false) + cCota(hh + D.mc * 0.45, -hz, hh + D.mc * 0.45, hz, `${cG(2 * hz)} cm`, D, true);
@@ -1678,7 +1710,9 @@ function cBlocLateral(id, pla, V0, D0){
 function cBlocXY(id = 'c-bloc', V0, D0){
   const d = CP.f.domini, V = V0 || cTubsVista(), D = D0 || cVistaDims(V), m = D.m, hx = m[0] / 2, hy = m[1] / 2, L = D.xy, sw = 1.2 / D.k;
   const pos = d.font.pos_cm || [0, 0, 0];
-  const forat = d.bloc.forat_cm > 0 ? `<circle r="${d.bloc.forat_cm}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';
+  const F = cForat(d.bloc), da = `stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"`;
+  const forat = F.forma === 'quadrat' ? `<rect x="${-F.m / 2}" y="${-F.m / 2}" width="${F.m}" height="${F.m}" fill="none" ${da}/>`
+    : F.forma ? `<circle r="${F.m}" fill="none" ${da}/>` : '';
   const font = d.font.tipus === 'iso' ? `<circle cx="${pos[0]}" cy="${-pos[1]}" r="${Math.max(0.9, 3 / D.k)}" fill="#c00000"/>` : '';
   const cercles = V.cercles.map(r => `<circle r="${r}" fill="none" stroke="#7a8da8" stroke-width="${sw * 0.7}" stroke-dasharray="${5 / D.k} ${5 / D.k}"/>`).join('');
   const tubs = V.punts.map(p => {
@@ -1724,7 +1758,8 @@ const cObjDecideix = ob => (Array.isArray(ob.objectius) ? ob.objectius : (cObjT(
 function cObjInfAuto(ob){
   const T = cObjT(), F = T.finalitats[ob.finalitat] || {}, dec = cObjDecideix(ob).map(x => x[0]);
   const grups = Array.isArray(ob.grups_MeV) && ob.grups_MeV.length;
-  return (F.metriques || []).filter(n => !dec.includes(n) && !cSoroll().has(n) && (n !== 'err_grups' || grups));
+  const mai = new Set((T.paper || (CP.schema.objectius || {}).paper || {}).mai_auto || []);                  // MB01: eps_av_10, F_5, F_8, F_10 no entren mai a `informatives: auto` (objectius.py:94)
+  return (F.metriques || []).filter(n => !dec.includes(n) && !mai.has(n) && !cSoroll().has(n) && (n !== 'err_grups' || grups));
 }
 // La preferència per defecte que es deriva dels objectius (com neudet): màxim = el primer «max», sobre = el primer «min», c del `sobre`.
 function cObjPrefDef(ob){
@@ -2081,7 +2116,7 @@ function cFormHtml(){
     ? `<div class="row3">${cLab('radi (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.radi_cm', d.bloc.radi_cm, {min: 0, ph: 'radi_cm'}))}
        ${cLab('alzada (cm; obligatori, sense valor per defecte)', cNumIn('domini.bloc.alzada_cm', d.bloc.alzada_cm, {min: 0, ph: 'alzada_cm'}))}<span></span></div>`
     : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, (Array.isArray(d.bloc.mides_cm) ? d.bloc.mides_cm : [null, null, null])[i], {min: 0}))).join('')}</div>`}
-  ${cLab('forat central (cm; 0 = sense; no canvia amb la forma, §22)', cNumIn('domini.bloc.forat_cm', d.bloc.forat_cm, {min: 0}))}
+  ${cForatHtml(d.bloc)}
   ${d.bloc.forma === 'cilindre' ? `<div class="panel${S.bloc.neudet && S.bloc.neudet.validat ? '' : ' warn'}" data-bloc-neudet><b>${escD(S.bloc.avis_neudet)}</b> — ${escD(S.bloc.nota)}</div>` : ''}
   ${cCossosHtml(d)}
 
@@ -2306,6 +2341,27 @@ function cEdita(el, change){
     return;
   }
   if(el.dataset.cerca !== undefined){ if(change){ CP.f.etapes[CP.etapa].cerca = {tipus: el.value}; cPintaForm(); cYaml(); } return; }
+  if(el.dataset.foratsel !== undefined){                            // MB01 P3: forat_cm | forat {forma: quadrat|cilindre, …}: exclusius, sense valor per defecte
+    if(change){
+      const b = CP.f.domini.bloc, v = el.value, ant = b.forat && typeof b.forat === 'object' ? b.forat : null;
+      if(v === 'cm') delete b.forat;
+      else if(v === 'quadrat' || v === 'cilindre'){
+        delete b.forat_cm;
+        b.forat = ant && ant.forma === v ? ant : {forma: v};
+        if(ant && ant.forma !== v){ for(const k of Object.keys(ant)) if(k !== 'forma' && k !== 'costat_cm' && k !== 'radi_cm') b.forat[k] = ant[k]; }
+      }
+      cPintaForm(); cYaml(); cRedibuixa();
+    }
+    return;
+  }
+  if(el.dataset.parella !== undefined){                             // MB01-PARELLES: marcar = `parella: true` (la separació l'escriu l'usuari); desmarcar = treure parella i separació
+    if(change){
+      const a = cGetS(CP.f, el.dataset.parella);
+      if(el.checked) a.parella = true; else { delete a.parella; delete a.sep_parella_cm; }
+      cPintaForm(); cYaml(); cRedibuixa();
+    }
+    return;
+  }
   if(el.dataset.phisel !== undefined){ if(change){ cSet(CP.f, el.dataset.phisel, el.value === 'mig_pas' ? 'mig_pas' : 0); cPintaForm(); cYaml(); } return; }
   if(el.dataset.energsel !== undefined){
     if(change){ cSet(CP.f, 'objectius.energies_MeV', el.value === 'totes' ? 'totes' : CP.f.domini.energies_MeV.slice()); cPintaForm(); cYaml(); }
@@ -2459,6 +2515,7 @@ function cAccio(act, ds){
     if(act === 'en-') en.splice(+ds.i, 1);
     if(act === 'en+'){ const v = Number(Q('#c-en-nova').value) * UNITATS_E[Q('#c-en-u').value || 'MeV']; if(v > 0) en.push(Number(v.toPrecision(6))); }
     if(act === 'en-def' && CP.schema.energies_domini) en = CP.schema.energies_domini.per_defecte.slice();
+    if(act === 'en-paper' && CP.schema.objectius.paper) en = CP.schema.objectius.paper.graella_MeV.slice();      // MB01: la graella de 24 energies de neudet (objectius.py:33), tal com és
     if(act === 'en-gen'){
       const n = Math.round(Number(Q('#c-en-n').value)), a = Number(Q('#c-en-a').value), b = Number(Q('#c-en-b').value);
       if(n >= 2 && a > 0 && b > a) en = Array.from({length: n}, (_, k) => Number((a * Math.pow(b / a, k / (n - 1))).toPrecision(3)));
@@ -3150,6 +3207,17 @@ function kG4Resum(v){
 }
 // G4RESUM-DEF-END
 // PARAMS-DEF-BEGIN
+// Les separacions de parella (cm) d'un candidat, tal com les diu neudet als `params` (`a<k>.sep_parella_cm`), sense repetits.
+function kSepParella(params){
+  const out = [];
+  if(params && typeof params === 'object') Object.keys(params).forEach(k => {
+    const a = params[k];
+    if(a && typeof a === 'object' && a.parella && a.sep_parella_cm !== undefined && a.sep_parella_cm !== null){
+      const x = String(a.sep_parella_cm); if(!out.includes(x)) out.push(x);
+    }
+  });
+  return out;
+}
 function kParamsCandidats(v){
   const pc = (v && Array.isArray(v.per_candidat)) ? v.per_candidat : [];
   const files = pc.filter(c => c && c.params && typeof c.params === 'object');
@@ -3160,12 +3228,16 @@ function kParamsCandidats(v){
   // el dict es pinta com `clau=valor` llegible, mai JSON cru.
   const f = x => (x === null || x === undefined || x === '') ? '—'
     : (typeof x === 'object') ? escD(Object.keys(x).map(k => k + '=' + String(x[k])).join(' ')) : escD(String(x));
+  // MB01-PARELLES: `sep_parella_cm` és a cada anell `a<k>` dels params de neudet (només el llegim; la UI no el calcula).
+  const sepDe = c => kSepParella(c.params);
+  const teSep = files.some(c => sepDe(c).length);
   const cos = files.map(c => `<tr><td><b>${escD(String(c.nom))}</b></td><td>${f(c.ronda)}</td><td>${f(c.pareto_rang)}</td>` +
+    (teSep ? `<td data-sep-parella>${sepDe(c).length ? escD(sepDe(c).join(', ')) : '—'}</td>` : '') +
     claus.map(k => `<td>${f(c.params[k])}</td>`).join('') + '</tr>').join('');
   return `<details class="fold"><summary>Paràmetres del motor per candidat ` +
     `<span class="hint">(manifest <code>per_candidat[]</code>, neudet N3 — ${files.length} candidats)</span></summary>` +
     `<div class="tblw"><table class="tbl"><thead><tr><th>candidat</th><th>ronda</th><th>rang Pareto</th>` +
-    `${claus.map(k => `<th>${escD(k)}</th>`).join('')}</tr></thead><tbody>${cos}</tbody></table></div></details>`;
+    `${teSep ? '<th>sep_parella (cm)</th>' : ''}${claus.map(k => `<th>${escD(k)}</th>`).join('')}</tr></thead><tbody>${cos}</tbody></table></div></details>`;
 }
 // PARAMS-DEF-END
 // Les variants són etapes com les altres (les dades les munta `campanya_vista._motors`), però no són al manifest:
@@ -4328,15 +4400,37 @@ function rCard(e){
     <span class="meta">${escD(e.motor || '')}${e.nom ? ' · ' + escD(e.nom) : ''}</span></header>
     ${e.diagnostic ? `<div class="diag-av" style="margin:8px 14px 0">⚠ diagnòstic, no citable</div>` : ''}${motiu}${motius}${warns}${e.metrics ? metricsHtml(e.metrics) : ''}</article>`;
 }
+// Lateral (x, z) del candidat amb els tubs tal com els escriu neudet: `z` i `sentit` (−1 = invertit: el tub es dibuixa emmirallat en z);
+// la separació és la `sep_parella_cm` que neudet declara als params del candidat (no es calcula de les z). Només si hi ha tubs invertits.
+function rLateralZ(e){
+  const tubs = e.tubs || [];
+  if(!tubs.some(t => t.sentit === -1)) return '';
+  const q = t => { const d = cDimTub(t.tipus), m = t.sentit === -1 ? -1 : 1;
+    const lo = m === 1 ? d.zlo : -d.zhi, hi = m === 1 ? d.zhi : -d.zlo;
+    return {R: d.R, lo: t.z + lo, hi: t.z + hi, a0: t.z + m * d.za - d.La / 2, La: d.La}; };
+  const dims = tubs.map(q);
+  const xs = tubs.map(t => t.x), zs = dims.flatMap(d => [d.lo, d.hi]);
+  const R = Math.max(...dims.map(d => d.R)), x0 = Math.min(...xs) - R - 1, x1 = Math.max(...xs) + R + 1;
+  const z0 = Math.min(...zs) - 1, z1 = Math.max(...zs) + 1, k = Math.min(300 / (x1 - x0 || 1), 420 / (z1 - z0));
+  const rects = tubs.map((t, i) => { const d = dims[i], col = t.sentit === -1 ? '#b45309' : '#1d4ed8';
+    return `<g data-tub-lateral="${i}" data-sentit="${t.sentit === -1 ? -1 : 1}"><rect x="${t.x - d.R}" y="${-d.hi}" width="${2 * d.R}" height="${d.hi - d.lo}" fill="${col}" fill-opacity="0.3" stroke="${col}" stroke-width="${0.8 / k}"/>` +
+      (d.La ? `<rect x="${t.x - d.R}" y="${-(d.a0 + d.La)}" width="${2 * d.R}" height="${d.La}" fill="${col}" fill-opacity="0.65"/>` : '') +
+      `<text x="${t.x}" y="${-d.hi - 0.4}" font-size="${11 / k}" text-anchor="middle">${t.sentit === -1 ? '▼' : '▲'} ${i + 1}</text></g>`; }).join('');
+  const sep = [].concat(...((KC.v && KC.v.etapes) || []).map(et => [].concat(...((et.motors || []).map(m => m.per_candidat || [])))))
+    .filter(c => c && c.nom === e.nom).flatMap(c => kSepParella(c.params));
+  return `<div data-lateral-z><svg viewBox="${x0} ${-z1} ${x1 - x0} ${z1 - z0}" style="width:${Math.round((x1 - x0) * k)}px;max-width:100%;height:auto" aria-label="vista lateral (x, z) del candidat">${rects}</svg>
+    <div class="hint">Lateral (x, z): ▲ sentit +1, ▼ sentit −1 (invertit, emmirallat en z). ${sep.length ? 'Separació de parella declarada per neudet: <b>' + escD(sep.join(', ')) + ' cm</b>.' : 'La separació (<code>sep_parella_cm</code>) és als paràmetres del candidat del manifest; aquí no s\'ha trobat.'}</div></div>`;
+}
 function rTaula(){
   const e = RS.entries.find(x => x.path === Q('#r-stage').value && x.status === 'ok');
   if(!e) return '';
   const en = e.energies_MeV, sel = Q('#r-energia').value;
   const hl = k => String(en[k]) === sel ? 'hl' : '';
-  const head = '<th>#</th><th>tipus</th><th>x, y, z (cm)</th>' + en.map((x, k) => `<th class="${hl(k)}">${x} MeV</th>`).join('');
-  const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${fmtPos(t)}</td>` +
+  const teSf = e.tubs.some(t => t.sentit !== undefined || t.forat !== undefined);
+  const head = '<th>#</th><th>tipus</th><th>x, y, z (cm)</th>' + (teSf ? '<th>sentit</th><th>forat</th>' : '') + en.map((x, k) => `<th class="${hl(k)}">${x} MeV</th>`).join('');
+  const rows = e.tubs.map(t => `<tr><td>${t.i + 1}</td><td>${escD(t.tipus)}</td><td>${fmtPos(t)}</td>` + (teSf ? `<td>${t.sentit === -1 ? '−1' : '+1'}</td><td>${escD(t.forat ?? '—')}</td>` : '') +
     en.map((_, k) => `<td class="${hl(k)}">${fmtNum(t.eps[k])} ± ${fmtNum(t.sig[k])}</td>`).join('') + '</tr>').join('');
-  return `${e.diagnostic ? '<div class="diag-av" data-diag-xifres>⚠ diagnòstic, no citable — les xifres d\'aquesta taula</div>' : ''}<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  return `${rLateralZ(e)}${e.diagnostic ? '<div class="diag-av" data-diag-xifres>⚠ diagnòstic, no citable — les xifres d\'aquesta taula</div>' : ''}<table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 // COMPCOMP-DEF-BEGIN
 // La comparativa per tub i la ε total per energia són entre MOTORS D'UNA ETAPA: la del selector. Les altres

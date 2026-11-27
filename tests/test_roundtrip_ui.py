@@ -213,3 +213,114 @@ def test_les_referencies_a_neudet_son_les_reals():
     assert "FORAT_ALTERNATIVA" in linia(fit, CF.FORAT_ALT_LINIA)
     assert "_parella_anell" in linia(gen, CF.PARELLA_LINIA)
     assert "pareto" in linia(cam, CF.PARETO_ARRELS_LINIA)
+
+
+# ---- mètriques del paper i graella de 24 energies (MB01-PARELLES P4): bessó de `objectius._punts_paper` -----------------
+
+def _ob_nou(informatives):
+    return {"finalitat": "comptador", "objectius": [["eps_mitja", "max"], ["cv", "min"]], "informatives": informatives,
+            "pesos": "uniforme", "energies_MeV": "totes"}
+
+
+def _neudet_objectiu(ob, energies):
+    from neudet.disseny import objectius as O
+    try:
+        O.Objectiu(copy.deepcopy(ob), energies)
+        return None
+    except SystemExit as e:
+        return str(e)
+
+
+def test_schema_porta_la_graella_del_paper_de_neudet():
+    _neudet()
+    from neudet.disseny import objectius as O
+    p = CF.schema()["objectius"]["paper"]
+    assert p["graella_MeV"] == [float(x) for x in O.GRAELLA_PAPER_MEV] and len(p["graella_MeV"]) == 24
+    assert set(p["metriques"]) == set(O.PAPER) == {"eps_av_10", "F_5", "F_8", "F_10"}
+    assert set(p["mai_auto"]) == set(O.MAI_AUTO)
+
+
+@pytest.mark.parametrize("energies,informatives,ok", [
+    ("paper", ["eps_av_10", "F_5", "F_8", "F_10"], True),             # la graella sencera: calculable
+    ("onze", ["eps_av_10"], False),                                   # falten punts: neudet fa ⛔, la UI ho diu abans
+    ("onze", ["F_5"], False),                                         # F(5): als punts ≤ 5 MeV de la graella en falta 2,5
+    ("onze", "auto", True),                                           # les del paper no surten soles (MAI_AUTO)
+])
+def test_paper_la_ui_diu_el_mateix_que_neudet(energies, informatives, ok):
+    _neudet()
+    from neudet.disseny import objectius as O
+    if energies == "paper":
+        en = [float(x) for x in O.GRAELLA_PAPER_MEV]
+    else:
+        en = [0.0001, 0.001, 0.01, 0.1, 0.5, 1, 1.5, 2, 3, 4, 5]
+    ob = _ob_nou(informatives)
+    ui = CF._errors_paper(CF._noms_demanats(ob, CF._taula_objectius()["alies"]), en)
+    assert (not ui) == ok, ui
+    assert (_neudet_objectiu(ob, en) is None) == ok
+
+
+def test_paper_energia_repetida_es_refusa():
+    _neudet()
+    from neudet.disseny import objectius as O
+    en = [float(x) for x in O.GRAELLA_PAPER_MEV] + [1.0]
+    ob = _ob_nou(["eps_av_10"])
+    assert CF._errors_paper(CF._noms_demanats(ob, CF._taula_objectius()["alies"]), en)
+    assert _neudet_objectiu(ob, en) is not None
+
+
+def test_les_referencies_del_paper_son_les_reals():
+    n = next((_neudet() / "src").rglob("objectius.py"), None)
+    if n is None:
+        pytest.skip("estructura de neudet diferent")
+    ll = n.read_text().splitlines()
+    assert "GRAELLA_PAPER_MEV" in ll[CF.GRAELLA_PAPER_LINIA - 1]
+    assert ll[CF.PAPER_LINIA - 1].startswith("PAPER")
+    assert ll[CF.MAI_AUTO_LINIA - 1].startswith("MAI_AUTO")
+    assert "def _punts_paper" in ll[CF.PUNTS_PAPER_LINIA - 1]
+
+
+# ───── la UI de MB01 (pins sobre el codi de la UI i el bloc pur de la taula de params) ─────
+import json as _json
+import shutil as _shutil
+import subprocess as _sp
+
+_INDEX = (Path(__file__).resolve().parents[1] / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
+
+
+def test_lnd_252399_es_al_selector_de_tubs():
+    # el selector el nodreix `schema().tipus_tub` (tubs.json de neudet): no hi ha cap llista a la UI
+    assert "lnd_252399" in [t["nom"] for t in CF.schema()["tipus_tub"]]
+    assert "lnd_252399" not in _INDEX
+
+
+def test_la_ui_porta_les_peces_de_mb01():
+    for pec in ("cParellaHtml", "data-parella", "cForatHtml", "data-foratsel", "en-paper",
+                "rLateralZ", "kSepParella", "sep_parella (cm)", "clau no editable des de la UI: es conserva"):
+        assert pec in _INDEX or pec in (Path(CF.__file__).read_text(encoding="utf-8")), pec
+
+
+def test_el_panell_d_avisos_de_neudet_pinta_avisos_en_paraules():
+    assert "avisos_en_paraules" in _INDEX
+
+
+@pytest.mark.skipif(_shutil.which("node") is None, reason="cal node")
+def test_taula_de_params_mostra_sep_parella_de_neudet():
+    pur = _INDEX.split("// PARAMS-DEF-BEGIN")[1].split("\n", 1)[1].split("// PARAMS-DEF-END")[0]
+    esc = "const escD = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');"
+    mv = {"per_candidat": [
+        {"nom": "c1", "ronda": 0, "pareto_rang": 0,
+         "params": {"a0": {"r": 3, "n": 6, "parella": True, "sep_parella_cm": 2.5}}},
+        {"nom": "c2", "ronda": 0, "pareto_rang": 1, "params": {"a0": {"r": 3, "n": 6}}}]}
+    js = esc + pur + "const v = JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(kParamsCandidats(v));"
+    r = _sp.run(["node", "-e", js], input=_json.dumps(mv), capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "sep_parella (cm)" in r.stdout and 'data-sep-parella>2.5<' in r.stdout
+    assert 'data-sep-parella>—<' in r.stdout          # sense parella no s'inventa cap separació
+    sense = {"per_candidat": [mv["per_candidat"][1]]}
+    r2 = _sp.run(["node", "-e", js], input=_json.dumps(sense), capture_output=True, text=True)
+    assert "sep_parella (cm)" not in r2.stdout
+
+
+def test_la_vista_passa_sentit_i_forat_tal_com_els_escriu_neudet():
+    src = (Path(__file__).resolve().parents[1] / "src" / "simui" / "campanya_vista.py").read_text(encoding="utf-8")
+    assert '("sentit", "forat", "eix")' in src
