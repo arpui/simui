@@ -57,11 +57,11 @@ CANDIDAT_PY = "candidat.py"
 FITXA_PY = "fitxa.py"
 # MB01-PARELLES (neudet 26-11): les línies d'on neudet diu cada regla; el test bessó i `_linia` les segueixen si neudet es mou
 FORAT_ALT_LINIA = 32                         # fitxa.py: FORAT_ALTERNATIVA (forat {forma, costat_cm|radi_cm}, alternatiu a forat_cm)
-FORAT_LINIA = 377                            # candidat.py: def violacions_forat
-FORMES_FORAT_LINIA = 218                     # candidat.py: FORMES_FORAT
+FORAT_LINIA = 390                             # candidat.py: def violacions_forat
+FORMES_FORAT_LINIA = 220                    # candidat.py: FORMES_FORAT
 FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
-PARELLA_FALTA_LINIA = 482                    # fitxa.py: parella sense sep_parella_cm (falten)
+PARELLA_FALTA_LINIA = 513                    # fitxa.py: parella sense sep_parella_cm (falten)
 PARETO_ARRELS_LINIA = 955                    # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
@@ -2505,6 +2505,357 @@ def retira_pendents_orfes(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Di
     return data, retirats
 
 
+
+
+# ── desar amb mínim canvi: només es reescriuen les fulles canviades ──────────
+# El dump complet reserialitza todo el fitxer (comentaris, cometes i reenvoltat):
+# per això, si l'original es llegeix i es valida, es reescriuen només les línies
+# de les fulles canviades (les altres línies es queden exactament igual). Què no
+# es reconeix, o la validació final falla, fa recalar al dump complet. No hi ha
+# cap risc: la validació final compara el text resultant amb el formulari.
+
+_RESERVADAS = {"true", "false", "null", "yes", "no", "on", "off", "~"}
+_PLAIN_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*( [A-Za-z0-9][A-Za-z0-9_.\-]*)*$")
+_FORA_OK = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+
+class _ScanBail(Exception):
+    """El text no és escanejable: el desat recau al dump complet."""
+
+
+def _indent_of(raw: str) -> int:
+    if "\t" in raw:
+        raise _ScanBail
+    return len(raw) - len(raw.lstrip(" "))
+
+
+def _flow_end(lines: List[str], i: int, end: int) -> int:
+    depth = 0
+    j = i
+    while j < end:
+        raw = lines[j]
+        if "'" in raw or '"' in raw or "#" in raw:
+            raise _ScanBail
+        for c in raw:
+            if c in "[{":
+                depth += 1
+            elif c in "]}":
+                depth -= 1
+        if depth == 0:
+            return j
+        j += 1
+    raise _ScanBail
+
+
+def _scan_quoted_leaf(lines: List[str], i: int, end: int, first: str) -> int:
+    if first.rstrip().endswith("'"):
+        return i
+    j = i + 1
+    while j < end:
+        raw = lines[j]
+        s = raw.strip()
+        if "\t" in raw:
+            raise _ScanBail
+        if s.endswith("'"):
+            return j
+        j += 1
+    raise _ScanBail
+
+
+def _scan_plain_leaf(lines: List[str], i: int, end: int, key_ind: int) -> int:
+    """Escanea la continuació d'un escalar pla que comença a la línia `i`."""
+    j = i + 1
+    while j < end:
+        raw = lines[j]
+        s = raw.strip()
+        if not s:
+            break
+        if "\t" in raw:
+            raise _ScanBail
+        ind_j = _indent_of(raw)
+        if ind_j <= key_ind:
+            break
+        if s.startswith("#"):
+            raise _ScanBail
+        if re.match(r"^[A-Za-z0-9_\-]+:", s):
+            break
+        if s.startswith("- ") or s == "-":
+            break
+        j += 1
+    return j - 1
+
+
+def _ser_valor(x: Any) -> str:
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, int):
+        return str(x)
+    if isinstance(x, float):
+        return repr(x)
+    if isinstance(x, str):
+        if _DATA_ISO.match(x):
+            return x
+        s = x.replace("'", "''")
+        if x.lower() in _RESERVADAS:
+            return "'" + s + "'"
+        try:
+            float(x)
+            return "'" + s + "'"
+        except ValueError:
+            pass
+        if _PLAIN_OK.fullmatch(x):
+            return x
+        return "'" + s + "'"
+    if isinstance(x, list):
+        return "[" + ", ".join(_ser_valor(v) for v in x) + "]"
+    if isinstance(x, dict):
+        return "{" + ", ".join(f"{_ser_clau(k)}: {_ser_valor(v)}" for k, v in x.items()) + "}"
+    raise _ScanBail
+
+
+def _ser_clau(k: Any) -> str:
+    if isinstance(k, str) and _FORA_OK.fullmatch(k):
+        return k
+    v = str(k)
+    return "'" + v.replace("'", "''") + "'"
+
+
+def _nav_ruta(data: Any, ruta: str) -> Any:
+    cur = data
+    for nom in ruta.split("."):
+        m = re.match(r"^([A-Za-z0-9_\-]+)(?:\[(\d+)\])?$", nom)
+        if not m:
+            raise KeyError(ruta)
+        cur = cur[m.group(1)]
+        if m.group(2) is not None:
+            cur = cur[int(m.group(2))]
+    return cur
+
+
+def _scan_map(lines: List[str], i: int, end: int, indent: int, path: str, fulles: List[dict]) -> Tuple[List[dict], int]:
+    while i < end:
+        raw = lines[i]
+        s = raw.strip()
+        if not s or s.startswith("#"):
+            i += 1
+            continue
+        ind = _indent_of(raw)
+        if ind < indent:
+            return fulles, i
+        if ind > indent:
+            raise _ScanBail
+        if not _IND_OK.match(s):
+            raise _ScanBail
+        m = re.match(r"^([A-Za-z0-9_\-]+):(.*)$", s)
+        if not m:
+            raise _ScanBail
+        key = m.group(1)
+        vals = m.group(2).strip()
+        r = f"{path}.{key}" if path else key
+        if vals == "":
+            j = i + 1
+            while j < end:
+                sj = lines[j].strip()
+                if not sj or sj.startswith("#"):
+                    j += 1
+                    continue
+                break
+            if j >= end:
+                raise _ScanBail
+            ind_j = _indent_of(lines[j])
+            sj = lines[j].strip()
+            if sj.startswith("- ") or sj == "-":
+                fulles, i = _scan_seq(lines, j, end, ind_j, r, fulles)
+            else:
+                if ind_j <= indent:
+                    raise _ScanBail
+                fulles, i = _scan_map(lines, j, end, ind_j, r, fulles)
+            continue
+        if vals.startswith("[") or vals.startswith("{"):
+            end_idx = _flow_end(lines, i, end)
+            fulles.append({"ruta": r, "kind": "flow", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": key, "seq_ind": None, "seq_item": False})
+            i = end_idx + 1
+            continue
+        if vals.startswith("'"):
+            end_idx = _scan_quoted_leaf(lines, i, end, vals)
+            fulles.append({"ruta": r, "kind": "quoted", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": key, "seq_ind": None, "seq_item": False})
+            i = end_idx + 1
+            continue
+        end_idx = _scan_plain_leaf(lines, i, end, ind)
+        fulles.append({"ruta": r, "kind": "plain", "ini": i, "fi": end_idx,
+                       "ind": ind, "key": key, "seq_ind": None, "seq_item": False})
+        i = end_idx + 1
+    return fulles, i
+
+
+_IND_OK = re.compile(r"^[A-Za-z0-9_\-]+:")
+
+
+def _scan_seq(lines: List[str], i: int, end: int, indent: int, path: str, fulles: List[dict]) -> Tuple[List[dict], int]:
+    n = 0
+    while i < end:
+        raw = lines[i]
+        s = raw.strip()
+        if not s or s.startswith("#"):
+            i += 1
+            continue
+        ind = _indent_of(raw)
+        if ind < indent:
+            return fulles, i
+        if ind > indent:
+            raise _ScanBail
+        if not (s.startswith("- ") or s == "-"):
+            return fulles, i
+        r = f"{path}[{n}]"
+        content = s[1:].lstrip() if s.startswith("- ") else ""
+        if not content:
+            raise _ScanBail
+        item_ind = indent + 2
+        # flow item
+        if content.startswith("[") or content.startswith("{"):
+            end_idx = _flow_end(lines, i, end)
+            fulles.append({"ruta": r, "kind": "flow", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": None, "seq_ind": ind, "seq_item": True})
+            i = end_idx + 1
+            n += 1
+            continue
+        m = re.match(r"^([A-Za-z0-9_\-]+):(.*)$", content)
+        if m is None:
+            # scalar item
+            if content.startswith("'"):
+                end_idx = _scan_quoted_leaf(lines, i, end, content)
+                fulles.append({"ruta": r, "kind": "quoted", "ini": i, "fi": end_idx,
+                               "ind": ind, "key": None, "seq_ind": ind, "seq_item": True})
+                i = end_idx + 1
+            else:
+                end_idx = _scan_plain_leaf(lines, i, end, ind)
+                fulles.append({"ruta": r, "kind": "plain", "ini": i, "fi": end_idx,
+                               "ind": ind, "key": None, "seq_ind": ind, "seq_item": True})
+                i = end_idx + 1
+            n += 1
+            continue
+        key = m.group(1)
+        vals = m.group(2).strip()
+        r_key = f"{r}.{key}"
+        if vals == "":
+            j = i + 1
+            while j < end:
+                sj = lines[j].strip()
+                if not sj or sj.startswith("#"):
+                    j += 1
+                    continue
+                break
+            if j >= end:
+                raise _ScanBail
+            ind_j = _indent_of(lines[j])
+            sj = lines[j].strip()
+            if sj.startswith("- ") or sj == "-":
+                fulles, i = _scan_seq(lines, j, end, ind_j, r_key, fulles)
+            else:
+                if ind_j <= item_ind:
+                    raise _ScanBail
+                fulles, i = _scan_map(lines, j, end, ind_j, r_key, fulles)
+            fulles, i = _scan_map(lines, i, end, item_ind, r, fulles)
+            n += 1
+            continue
+        if vals.startswith("[") or vals.startswith("{"):
+            end_idx = _flow_end(lines, i, end)
+            fulles.append({"ruta": r_key, "kind": "flow", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": key, "seq_ind": ind, "seq_item": True})
+            i = end_idx + 1
+        elif vals.startswith("'"):
+            end_idx = _scan_quoted_leaf(lines, i, end, vals)
+            fulles.append({"ruta": r_key, "kind": "quoted", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": key, "seq_ind": ind, "seq_item": True})
+            i = end_idx + 1
+        else:
+            end_idx = _scan_plain_leaf(lines, i, end, ind)
+            fulles.append({"ruta": r_key, "kind": "plain", "ini": i, "fi": end_idx,
+                           "ind": ind, "key": key, "seq_ind": ind, "seq_item": True})
+            i = end_idx + 1
+        # les claus restants de l'item (un mapa de seq) continuen després del vals
+        # la línia següent (ind item_ind) són les claus restants de l'item
+        # escaneja'l
+        fulles, i = _scan_map(lines, i, end, item_ind, r, fulles)
+        n += 1
+    return fulles, i
+
+
+def _scan_document(lines: List[str]) -> List[dict]:
+    """Totes les fulles de la capsa escanejable, amb les línies de la document."""
+    fulles: List[dict] = []
+    fulles, _ = _scan_map(lines, 0, len(lines), 0, "", fulles)
+    return fulles
+
+
+def _ser_fulla(leaf: dict, valor: Any) -> str:
+    ser = _ser_valor(valor)
+    if leaf.get("seq_item"):
+        # el text de la línia: "{espai}- {clau}: {ser}" o "{espai}- {ser}"
+        prefix = " " * leaf["seq_ind"] + "- "
+        if leaf["key"]:
+            return f"{prefix}{leaf['key']}: {ser}"
+        return f"{prefix}{ser}"
+    ind = leaf["ind"]
+    key = leaf["key"]
+    return f"{' ' * ind}{key}: {ser}"
+
+
+def _patcha_text(final: Dict[str, Any], original: Optional[Path]) -> Optional[str]:
+    """El text del fitxer amb només les fulles canviades reescrites; `None` si no es reconeix."""
+    if original is None:
+        return None
+    p = Path(original)
+    if not p.is_file():
+        return None
+    try:
+        text = p.read_bytes().decode("utf-8")
+    except OSError:
+        return None
+    try:
+        obert = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(obert, dict):
+        return None
+    orig = _jsonable(obert)
+    fin = _jsonable(final)
+    if orig == fin:
+        return None
+    try:
+        scan = _scan_document(text.splitlines())
+    except _ScanBail:
+        return None
+    diffs = []
+    for leaf in scan:
+        try:
+            a = _nav_ruta(orig, leaf["ruta"])
+            b = _nav_ruta(fin, leaf["ruta"])
+        except Exception:
+            return None
+        if a != b:
+            diffs.append((leaf, a, b))
+    if not diffs:
+        return None
+    lines = text.splitlines()
+    out = list(lines)
+    for leaf, _a, b in sorted(diffs, key=lambda d: -d[0]["ini"]):
+        nu = _ser_fulla(leaf, b)
+        out[leaf["ini"]:leaf["fi"] + 1] = [nu]
+    patched = "\n".join(out)
+    if text.endswith("\n") and not patched.endswith("\n"):
+        patched += "\n"
+    try:
+        patched_load = yaml.safe_load(patched)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(patched_load, dict) or _jsonable(patched_load) != fin:
+        return None
+    return patched
+
+
 def to_yaml(form: Dict[str, Any]) -> str:
     """El `campanya.yaml` d'esborrany (text). Llança `FormError` amb tots els motius si la forma no
     és llegible per neudet, o si un valor és fora d'una llista tancada. No modifica `form`.
@@ -2551,5 +2902,9 @@ def to_yaml_i_avisos(form: Dict[str, Any], original: Optional[Path] = None) -> T
     text = text_original_si_igual(sencer, original)
     if text is not None and not retirats:
         return text, []
+    if not retirats:
+        patched = _patcha_text(form, original)
+        if patched is not None:
+            return patched, retirats
     return (CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
                                   allow_unicode=True, default_flow_style=None, width=110), retirats)

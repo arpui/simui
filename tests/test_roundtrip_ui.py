@@ -10,6 +10,7 @@ Divergències fixades (docs/ui.md): la UI exigia exactament 2 parells al pareto;
 from __future__ import annotations
 
 import copy
+import difflib
 import sys
 from pathlib import Path
 
@@ -79,18 +80,23 @@ def test_desar_sense_tocar_res_amb_forat_quadrat_deixa_el_yaml_identic(tmp_path)
     assert _desa_bytes(q).encode("utf-8") == q.read_bytes()
 
 
-def test_desar_tocant_una_cosa_ja_no_es_el_text_original():
-    """Només el no-res és idèntic: amb un canvi real el yaml es regenera (i es perden comentaris i cometes: declarat)."""
+def test_desar_tocant_una_cosa_només_canvia_aquella_línia():
+    """Coordinador 27-11 (ruamel): un toc real reescriu només la línia de la fulla tocada — els comentaris
+    i les cometes del fitxer es conserven (l'escriptura completa ja no és el camí)."""
     p = _yaml_neudet("campanyes/mb_01")
 
     def retoc(f):
-        f["objectius"]["energia_mev"] = 7.0 if f["objectius"].get("energia_mev") != 7.0 else 6.0
+        f["etapes"]["S1"]["pregunta"] = "Quina altra pregunta?"
 
-    try:
-        nou = _desa_bytes(p, retoc)
-    except KeyError:
-        pytest.skip("mb_01 ja no té objectius.energia_mev")
-    assert nou.encode("utf-8") != p.read_bytes()
+    nou = _desa_bytes(p, retoc)
+    diff = list(difflib.unified_diff(p.read_text(encoding="utf-8").splitlines(), nou.splitlines(),
+                                     lineterm="", n=0))
+    minus = [l[1:] for l in diff if l.startswith("-") and not l.startswith("---")]
+    plus = [l[1:] for l in diff if l.startswith("+") and not l.startswith("+++")]
+    assert minus[0].lstrip().startswith("pregunta:")
+    assert all("pregunta" in l or "F_5" in l for l in minus)
+    assert plus == ["    pregunta: 'Quina altra pregunta?'"]
+    assert yaml.safe_load(nou)["etapes"]["S1"]["pregunta"] == "Quina altra pregunta?"
 
 
 _TUB_SOL = ["certificacio/lnd_252285_E12_sol", "certificacio/lnd_252285_E12_sol_fin", "certificacio/lnd_2523_E12_sol_fin"]
