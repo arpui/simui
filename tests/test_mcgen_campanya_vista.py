@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -357,3 +358,70 @@ def test_manifest_amb_resposta_que_no_hi_es_diu_quina_etapa(c04, tmp_path):
 def test_el_csv_de_l_etapa_es_servible(c04):
     assert V.fitxer(c04, "etapes/S1_draft/candidats.csv").is_file()
     assert V.tipus_de(Path("candidats.csv")).startswith("text/csv")
+
+
+# ── c02_cd_2grups: serialització i la vista (UI-NAV, coordinador 2026-11-27) ──
+
+C02 = "c02_cd_2grups"   # l'única campanya real amb η NaN a la vista (156 NaN al JSON cru)
+
+
+@pytest.fixture(scope="module")
+def c02():
+    try:
+        return V.dir_de(C02)
+    except V.CampanyaError as e:
+        pytest.skip(str(e))
+
+
+def test_vista_c02_cd_2grups_json_valid(c02):
+    """Abans de serialitzar, NaN/±Inf → null (recursiu); després `json.dumps(..., allow_nan=False)`.
+    El JSON crua de la vista de `c02_cd_2grups` té NaN per fora (candidats amb `-1`/`0` de neudet); ara no se'n escapa cap."""
+    from simui.server import _null_nan
+
+    v = V.vista(c02)
+    s = json.dumps(_null_nan(v), ensure_ascii=False, allow_nan=False)
+    assert "NaN" not in s and "Infinity" not in s
+    assert json.loads(s)["id"] == C02
+
+
+INDEX = (ROOT / "src" / "simui" / "static" / "index.html").read_text(encoding="utf-8")
+PURE_NO_DECL = INDEX.split("// NO-DECL-DEF-BEGIN")[1].split("\n", 1)[1].split("// NO-DECL-DEF-END")[0]
+INTENTS = INDEX.split("// INTENTS-DEF-BEGIN")[1].split("\n", 1)[1].split("// INTENTS-DEF-END")[0]
+DATES = INDEX.split("// DATES-DEF-BEGIN")[1].split("\n", 1)[1].split("// DATES-DEF-END")[0]
+K_MOTORS = "const kMotorsEtiqueta" + INDEX.split("const kMotorsEtiqueta")[1].split("function kComparacio")[0]
+K_ETAPA = ("function kEtapa(e, noDecl){" + INDEX.split("function kEtapa(e, noDecl){")[1].split("// El relat de l'etapa")[0])
+
+# Stubs de les funcions de l'etapa que aquí no pinten res (el veritable `kEtapa` crida més coses que la capçalera).
+_BUIDES_C02 = (
+    "const escD = s => String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));"
+    "const KC = {v: JSON.parse(require('fs').readFileSync(0, 'utf8'))}, buits = () => '';"
+    "const kPla = buits, kResposta = buits, kTaula = buits, kFormMetr = buits, kFormEtapaHtml = buits,"
+    " kReavHtml = buits, kPareto = buits, kGaleria = buits, diagTxt = () => '',"
+    " kComparacio = buits, kVerificacio = buits, kVariants = buits, kDoc = buits;"
+    + PURE_NO_DECL + INTENTS + DATES + K_MOTORS + K_ETAPA
+)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="cal node per pinta la vista")
+def test_vista_c02_cd_2grups_pinta(c02):
+    """La pàgina pinta la vista completa d'aquesta campanya: `kEtapesAmbIntents(v.etapes)` + `kSeccioNoDecl(v)`.
+    El JS corre amb node (totes les funcions pures es tallen del fitxer); l'única DOM és el `getElementById` final,
+    que aquí no es fa (la vista és HTML, no DOM)."""
+    v = V.vista(c02)
+    from simui.server import _null_nan
+
+    js = _BUIDES_C02 + (
+        "console.log(JSON.stringify({etapes: kEtapesAmbIntents(KC.v.etapes),"
+        " noDecl: kSeccioNoDecl(KC.v, e => kEtapa(e, true))}));"
+    )
+    r = subprocess.run(["node", "-e", js],
+                       input=json.dumps(_null_nan(v), ensure_ascii=False, allow_nan=False),
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    sortit = json.loads(r.stdout)
+    etapes, no_decl = sortit["etapes"], sortit["noDecl"]
+    assert "S0" in etapes and "S3" in etapes and "S3_g4" in etapes
+    assert "Etapes no declarades al yaml" in no_decl and "S3_ind" in no_decl
+    for html in (etapes, no_decl):
+        assert "NaN" not in html and "Infinity" not in html and "undefined" not in html
+        assert "null" not in html

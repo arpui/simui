@@ -3005,7 +3005,7 @@ function kPinta(){
   out.push(kAPunt(v.certificacio));   // A-PUNT: verd/vermell a dalt de tot, llegit del bloc `a_punt` de neudet
   out.push(kAccions());
   if(v.provisional) out.push(`<div class="panel warn"><b>Vista provisional.</b> ${escD(v.motiu)}. Les dades són les del directori de neudet, seguint CAMP-2 §6; quan hi sigui el manifest, la vista el llegirà.</div>`);
-  v.avisos.forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
+  (v.avisos || []).forEach(a => out.push(`<div class="panel warn">${escD(a)}</div>`));
   out.push(kEstatConf(v));
   out.push(kDefinicio(v));
   out.push(kResumInterp(v));
@@ -3030,8 +3030,8 @@ function kComposicions(v){
   const cel = x => x === null || x === undefined ? '—' : Array.isArray(x) ? escD(x.join('-')) : typeof x === 'number' ? escD(+x.toPrecision(5)) : escD(x);
   const una = c => {
     const pr = c.prediccio, fin = c.final;
-    const cap = `<h3>${escD(c.nom)} <span class="hint">composició sobre <code>${escD(c.config.de ?? '?')}</code></span></h3>`;
-    const pas2 = fin ? `<div class="panel ${fin.citable ? 'ok' : 'warn'}"><b>Pas final · Cd real</b> (etapa <code>${escD(fin.etapa)}</code>, ${escD(fin.n_candidats ?? '?')} candidats): ${fin.citable ? 'neudet la dona per <b>citable</b>' : '<b>no citable</b> segons neudet'} — els resultats són a «Etapes», amb el Cd simulat.</div>`
+    const cap = `<h3>${escD(c.nom)} <span class="hint">composició sobre <code>${escD((c.config || {}).de ?? '—')}</code></span></h3>`;
+    const pas2 = fin ? `<div class="panel ${fin.citable ? 'ok' : 'warn'}"><b>Pas final · Cd real</b> (etapa <code>${escD(fin.etapa)}</code>, ${escD(fin.n_candidats ?? '—')} candidats): ${fin.citable ? 'neudet la dona per <b>citable</b>' : '<b>no citable</b> segons neudet'} — els resultats són a «Etapes», amb el Cd simulat.</div>`
       : `<div class="panel">El pas final (els <code>k</code> millors amb Cd real en bandes) encara no s'ha corregut: fins que no hi sigui, <b>aquí no hi ha cap xifra citable</b>.</div>`;
     if(!pr) return cap + `<div class="hint">Encara no hi ha la predicció (<code>etapes/${escD(c.nom)}/composicio/composicio.json</code>).</div>` + pas2;
     const noms = ['nom', 'n_filtres', 'f_lliure', 'cd_cobert'], rows = pr.front || [];
@@ -3145,7 +3145,7 @@ const kAPunt = c => {
 function kCert(v){
   const c = v.certificacio;
   if(!c || !c.disponible) return `<div class="panel warn">Certificació no disponible: ${escD((c && c.motiu) || '')}</div>`;
-  const etapes = Object.entries(c.etapes || {}).map(([k, x]) => `${escD(k)}: ${x.valids} vàlids, ${x.invalids} invàlids`).join(' · ');
+  const etapes = Object.entries(c.etapes || {}).map(([k, x]) => `${escD(k)}: ${x && x.valids != null ? x.valids : '—'} vàlids, ${x && x.invalids != null ? x.invalids : '—'} invàlids`).join(' · ');
   // AFINA-N (4): l'avís de cost també a la pàgina de la campanya — el `comprova.json` ja el porta (per etapa).
   return (etapes ? `<div class="hint" style="margin-bottom:6px">${etapes}</div>` : '') + cCostBlocks(c.opcions_cost) + cPintaCert(c);
 }
@@ -3157,9 +3157,9 @@ function kCert(v){
 const RETOL_NO_DECL = 'etapa no declarada al yaml';
 const kNoDecl = v => v.etapes_no_declarades || [];
 // Mana el manifest: el cens no s'endevina pel nom de la carpeta i les seves entrades no van a les columnes de Pareto.
-const kVaAlPareto = (v, noDecl) => !noDecl && !!v.pareto.eixos;
+const kVaAlPareto = (v, noDecl) => !noDecl && !!(v && v.pareto && v.pareto.eixos);
 const kSeccioNoDecl = (v, pinta) => {
-  const c = kNoDecl(v);
+  const c = kNoDecl(v).filter(e => e);
   if(!c.length) return '';
   return '<h2>Etapes no declarades al yaml</h2><div class="panel">Són directoris d’<code>etapes/</code> que neudet compta com a execució ' +
     '(perquè tenen <code>candidats.csv</code> a l’arrel o resultats per motor a <code>motors/<motor>/resultats_tub.json</code> — el criteri és seu, <code>_es_execucio</code>) ' +
@@ -3177,7 +3177,7 @@ const kSeccioNoDecl = (v, pinta) => {
 // el talla amb aquests marcadors i el corre amb node sobre la vista real de neudet. ──
 // INTENTS-DEF-BEGIN
 function kEtapesAmbIntents(etapes) {
-  const es = Array.isArray(etapes) ? etapes : [];
+  const es = (Array.isArray(etapes) ? etapes : []).filter(e => e);
   const mains = es.filter(e => e.anterior !== true), apart = es.filter(e => e.anterior === true);
   const fold = (clau, llista) => `<details class="fold" data-intents="${escD(clau)}"><summary>Intents anteriors (${llista.length})` +
     ` <span class="hint">neudet els marca <code>anterior: true</code>; no els useu com a resultat</span></summary>` +
@@ -3299,7 +3299,8 @@ function kVerificacio(e){
     const enl = [];
     if(v.fitxers && v.fitxers.candidats) enl.push(`<a href="${escD(kFit(v.fitxers.candidats))}" target="_blank">candidats.csv</a>`);
     if(v.fitxers && v.fitxers.resultats_tub) enl.push(`<a href="${escD(kFit(v.fitxers.resultats_tub))}" target="_blank">resultats_tub.json</a>`);
-    const tit = `<p><b>${escD(String(v.etapa))}</b> — ${(v.candidats || []).length || v.n_candidats} candidats${enl.length ? ' · ' + enl.join(' · ') : ''}</p>`;
+    const nc = (v.candidats || []).length || v.n_candidats;
+    const tit = `<p><b>${escD(String(v.etapa))}</b> — ${nc != null ? nc : '—'} candidats${enl.length ? ' · ' + enl.join(' · ') : ''}</p>`;
     return cs ? `${tit}<div class="tblw"><table class="tbl"><thead><tr><th>candidat — per què (motius de neudet a <code>seleccio.csv</code>)</th><th>ε xarxa</th><th>ε Geant4</th></tr></thead><tbody>${cs}</tbody></table></div>`
       : `${tit}<div class="hint">Cap candidat d'aquesta etapa no és a la taula de ${escD(String(e.nom))}.</div>`;
   }).join('');
@@ -3385,7 +3386,7 @@ function kVariantCos(v){
     ${kParamsCandidats(v)}${kG4Resum(v)}
     ${kFormMetr(v)}
     ${eix ? kPareto(v, eix) : ''}
-    ${v.figures.length ? kGaleria(v.figures) : ''}`;
+    ${(v.figures || []).length ? kGaleria(v.figures || []) : ''}`;
 }
 document.getElementById('k-out').addEventListener('click', ev => {   // «vista normal» de la columna: obre el plegat d'aquell motor, a la mateixa pàgina
   const a = ev.target.closest('a[data-kvopen]'); if(!a) return;
@@ -3398,7 +3399,7 @@ function kEtapa(e, noDecl){
     return `<article class="card" style="margin-bottom:14px"><header><h3>${escD(e.nom)}</h3><span class="tag t-nt">${escD(kMotorsEtiqueta(e))}</span><span class="tag t-wa">encara no ha corregut</span></header>${kVerificacio(e)}${kPla(e)}</article>`;   // si neudet ha escrit la verificació, es mostra igualment (mb10b_cd)
   const apart = e.anterior === true;   // UI-X06: mana el camp `anterior` de neudet, mai el nom de la carpeta
   const eix = kVaAlPareto(KC.v, noDecl) ? KC.v.pareto.eixos : null;
-  const meta = [`${e.n_candidats} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
+  const meta = [`${e.n_candidats != null ? e.n_candidats : '—'} candidats`, (e.n_csv != null && e.n_csv !== e.n_candidats) ? `${e.n_csv} al csv` : null,
     e.verifica ? `verifica ${e.verifica}` : null, e.energies_MeV ? `${e.energies_MeV.length} energies` : null,
     Array.isArray(e.intents_anteriors) && e.intents_anteriors.length ? `${e.intents_anteriors.length} intents anteriors apartats` : null,
     kFinestra(e), kDurada(e)]
@@ -3411,7 +3412,7 @@ function kEtapa(e, noDecl){
            : (e.citable ? '<span class="tag t-ok">citable</span>' : '<span class="tag t-no">no citable</span>')) +
     `<span class="meta">${escD(meta)}</span></header>
     ${apart && e.aturada && e.aturada.text ? `<ul class="msgs"><li>${escD(e.aturada.text)}</li></ul>` : ''}
-    ${!e.citable && e.motius.length ? `<ul class="msgs">${e.motius.map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
+    ${!e.citable && (e.motius || []).length ? `<ul class="msgs">${(e.motius || []).map(m => `<li>${escD(m)}</li>`).join('')}</ul>` : ''}
     ${kComparacio(e)}
     ${kVerificacio(e)}
     ${kDoc(e.judici, "Judici de l'etapa (de neudet)")}
@@ -3422,15 +3423,15 @@ function kEtapa(e, noDecl){
     <div class="tblw">${kTaula(e)}</div>
     ${kFormMetr(e)}${kFormEtapaHtml(e)}
     ${kReavHtml(e)}
-    ${eix ? kPareto(e, eix) : (noDecl ? '' : `<div class="panel">${escD(KC.v.pareto.motiu || 'Sense Pareto')}</div>`)}
-    ${e.figures.length ? kGaleria(e.figures) : ''}
+    ${eix ? kPareto(e, eix) : (noDecl ? '' : `<div class="panel">${escD((KC.v.pareto && KC.v.pareto.motiu) || 'Sense Pareto')}</div>`)}
+    ${(e.figures || []).length ? kGaleria(e.figures || []) : ''}
     ${kVariants(e)}
   </article>`;
 }
 // El relat de l'etapa (contracte UI §12): el `pla` del manifest i la `resposta.md`, tal com neudet els escriu. Res no es calcula.
 // ── FORM-UI (contracte §15): cada número amb la seva fórmula. Les fórmules són de neudet (`taula_objectius`, `formules_etapa`); la UI no n'escriu cap. ──
 function kFormMetr(e){
-  const fm = KC.v.formules_metriques || {}, mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m) && fm[m]);
+  const fm = KC.v.formules_metriques || {}, mets = (KC.v.metriques || []).filter(m => (e.columnes || []).includes(m) && fm[m]);
   if(!mets.length) return '';
   return `<details class="fold"><summary>Fórmules de les columnes <span class="hint">(de neudet)</span></summary><ul class="msgs">${mets.map(m => `<li><b>${escD(m)}</b>: <code>${escD(fm[m])}</code></li>`).join('')}</ul>
     <div class="hint">«± x» és la σ de la mètrica, propagada per neudet des de la σ de cada energia (σ = √(ε(1−ε)/N)).</div></details>`;
@@ -3447,12 +3448,12 @@ function kFeCos(e, st){
   const d = st.d; if(!d) return '<div class="hint">neudet calcula les fórmules…</div>';
   if(!d.disponible) return `<div class="hint">${escD(d.motiu)}.</div>`;
   const g = d.generals || {}, c = d.candidat, n = escD(e.nom);
-  const cols = c ? [...new Set(c.per_energia.flatMap(x => Object.keys(x)).filter(k => !['E_MeV', 'C', 'N'].includes(k)))] : [];
+  const cols = c ? [...new Set((c.per_energia || []).flatMap(x => Object.keys(x)).filter(k => !['E_MeV', 'C', 'N'].includes(k)))] : [];
   const extra = [d.font_fora ? `font a fora: f = ${escD(d.font_fora.f)}` : '', d.convergencia ? `convergència: precisió ${escD(d.convergencia.precisio)}` : ''].filter(Boolean);
   return `<ul class="msgs">${Object.entries(g).map(([k, v]) => `<li><code>${escD(v)}</code></li>`).join('')}</ul>${extra.length ? `<div class="hint">${extra.join(' · ')}</div>` : ''}
-    ${c ? `<label>candidat<select data-fe-cand="${n}">${d.candidats.map(x => `<option value="${escD(x.hash)}" ${x.hash === c.hash ? 'selected' : ''}>${escD(x.nom)}</option>`).join('')}</select></label>
+    ${c ? `<label>candidat<select data-fe-cand="${n}">${(d.candidats || []).map(x => `<option value="${escD(x.hash)}" ${x.hash === c.hash ? 'selected' : ''}>${escD(x.nom)}</option>`).join('')}</select></label>
     <div class="tblw"><table class="tbl"><thead><tr><th>E (MeV)</th><th>C</th><th>N</th>${cols.map(k => `<th title="${escD(g[k] || '')}">${escD(k)}</th>`).join('')}</tr></thead><tbody>
-      ${c.per_energia.map(x => `<tr><td>${escD(x.E_MeV)}</td><td>${escD(x.C)}</td><td>${escD(x.N)}</td>${cols.map(k => `<td>${escD(x[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}`;
+      ${(c.per_energia || []).map(x => `<tr><td>${escD(x.E_MeV)}</td><td>${escD(x.C)}</td><td>${escD(x.N)}</td>${cols.map(k => `<td>${escD(x[k] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}`;
 }
 async function kFeCarrega(nom, hash){
   const st = kFeSt(nom), e = kReavEtapa(nom);
@@ -3479,7 +3480,7 @@ function kReavHtml(e){
     <div data-rvp="d" data-rvn="${n}">${st.res && !st.err ? kCrDesa(e, st) : ''}</div></details>`;
 }
 function kReavForm(e, st){
-  const c = st.crit, n = escD(e.nom), mets = (KC.v.metriques || []).filter(m => e.columnes.includes(m));
+  const c = st.crit, n = escD(e.nom), mets = (KC.v.metriques || []).filter(m => (e.columnes || []).includes(m));
   const sel = (k, v, opts) => `<select data-rv="${n}" data-k="${k}">${[...new Set([...opts, v])].map(o => `<option value="${escD(o)}" ${o === v ? 'selected' : ''}>${escD(o)}</option>`).join('')}</select>`;
   const objs = c.objectius.map((o, i) => `<div class="row">${cLab(`objectiu ${i + 1}`, sel(`obj.${i}.m`, o[0], mets))}${cLab('sentit', sel(`obj.${i}.s`, o[1], ['max', 'min']))}</div>`).join('');
   const rs = c.restriccions.map((r, i) => `<div class="row3">${cLab('mètrica', sel(`rs.${i}.m`, r[0], mets))}${cLab('operador', sel(`rs.${i}.op`, r[1], kRvOps))}
@@ -3789,12 +3790,12 @@ function kDoc(p, titol){
 function kTaula(e){
   const cols = [{k: 'nom', t: 'nom'}, {k: 'hash', t: 'hash'}, {k: 'ronda', t: 'ronda'}, {k: 'n', t: 'n'}, {k: 'pareto_rang', t: 'rang Pareto'},
     {k: 'robusta', t: 'robusta'},
-    ...KC.v.metriques.filter(m => e.columnes.includes(m))
-      .map(m => ({k: m, t: m, sig: e.columnes.includes(m + '_sig') ? m + '_sig' : null, formula: (KC.v.formules_metriques || {})[m]})),
+    ...(KC.v.metriques || []).filter(m => (e.columnes || []).includes(m))
+      .map(m => ({k: m, t: m, sig: (e.columnes || []).includes(m + '_sig') ? m + '_sig' : null, formula: (KC.v.formules_metriques || {})[m]})),
     {k: 'g4', t: 'verificat a G4'}];
   const ord = KC.ordre[e.nom] || {k: 'pareto_rang', asc: true};
   const val = (c, k) => k === 'g4' ? (c.g4 || []).length : c[k];
-  const rows = [...e.candidats].sort((a, b) => kCmp(val(a, ord.k), val(b, ord.k), ord.asc));
+  const rows = [...(e.candidats || [])].sort((a, b) => kCmp(val(a, ord.k), val(b, ord.k), ord.asc));
   const head = cols.map(c => `<th data-st="${escD(e.nom)}" data-c="${escD(c.k)}" style="cursor:pointer" title="${escD('ordena' + (c.formula ? ' · ' + c.formula : ''))}">${escD(c.t)}${ord.k === c.k ? (ord.asc ? ' ▲' : ' ▼') : ''}</th>`).join('');
   const body = rows.map(c => `<tr class="kc" data-h="${escD(c.hash)}" data-n="${escD(c.nom)}" title="obre el resultat per tub">` +
     cols.map(col => `<td>${kCel(c, col)}</td>`).join('') + '</tr>').join('');
@@ -3819,9 +3820,9 @@ function kCmp(a, b, asc){
 }
 function kPareto(e, eix){
   const [ex, ey] = eix, W = 560, H = 340, L = 64, R = 30, T = 14, B = 46;
-  const pts = e.candidats.map(c => ({c, x: c[ex.metrica], y: c[ey.metrica]}))
+  const pts = (e.candidats || []).map(c => ({c, x: c[ex.metrica], y: c[ey.metrica]}))
     .filter(p => typeof p.x === 'number' && typeof p.y === 'number');
-  const sense = e.candidats.length - pts.length;
+  const sense = (e.candidats || []).length - pts.length;
   if(!pts.length) return `<div class="panel">Cap candidat amb ${escD(ex.metrica)} i ${escD(ey.metrica)}.</div>`;
   const dom = vals => {
     const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1;
@@ -3857,13 +3858,14 @@ function kPareto(e, eix){
 }
 function kGaleria(figs){
   return `<div class="hint" style="margin-top:8px">Figures de l'etapa</div><div class="kgal">` +
-    figs.map(f => `<a href="${kFit(f)}" target="_blank" rel="noopener" title="${escD(f)}"><img loading="lazy" src="${kFit(f)}" alt="${escD(f)}"><span>${escD(f.split('/').pop())}</span></a>`).join('') +
+    (figs || []).map(f => `<a href="${kFit(f)}" target="_blank" rel="noopener" title="${escD(f)}"><img loading="lazy" src="${kFit(f)}" alt="${escD(f)}"><span>${escD(f.split('/').pop())}</span></a>`).join('') +
     '</div>';
 }
 function kReport(v){
-  if(!v.report.length) return '<div class="hint">Sense report a docs/site/report/ que nomeni la campanya.</div>';
-  const botons = v.report.map(r => `<a class="btn" href="${kFit(r)}" target="_blank" rel="noopener">${r.endsWith('.pdf') ? 'obre el PDF' : r.endsWith('.md') ? 'obre el .md' : escD(r)}</a>`).join('');
-  return `<div>${botons}</div><div class="hint">${escD(v.report.join(' · '))}</div>`;
+  const reports = v.report || [];
+  if(!reports.length) return '<div class="hint">Sense report a docs/site/report/ que nomeni la campanya.</div>';
+  const botons = reports.map(r => `<a class="btn" href="${kFit(r)}" target="_blank" rel="noopener">${r.endsWith('.pdf') ? 'obre el PDF' : r.endsWith('.md') ? 'obre el .md' : escD(r)}</a>`).join('');
+  return `<div>${botons}</div><div class="hint">${escD(reports.join(' · '))}</div>`;
 }
 // ── FITXERS-UI (encàrrec 2026-11-19): què es pot «veure». La llista la fa `llista()`/`vista()` (només els que
 // hi són, amb camí i data); aquí només es pinta i s'enllaça al visor `fxObre`, que és a l'últim script.

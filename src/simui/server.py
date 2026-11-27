@@ -30,6 +30,24 @@ PAGE = PAGE_PATH.read_text()   # només per compatibilitat (scripts/serve.py l'i
 _ERRORS_D_ENTRADA = (ValueError, KeyError, RuntimeError)
 
 
+def _null_nan(obj: Any) -> Any:
+    """NaN/±Inf (recursiu) → null, a totes les respostes JSON.
+
+    `json.dumps` amb `allow_nan=True` (el defecte) en escriu literals NaN/Infinity que cap
+    `JSON.parse` entén: la pàgina els rebutja i tot el que porta dades ve a caure en buit.
+    Un valor que neudet no té és un valor que la UI no mostra com a 0 sinó com a «—».
+    """
+    import math
+
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _null_nan(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_null_nan(v) for v in obj]
+    return obj
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "simphy-ui"
 
@@ -44,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _json(self, obj: Any, code: int = 200) -> None:
-        self._send(code, json.dumps(obj, ensure_ascii=False).encode(),
+        self._send(code, json.dumps(_null_nan(obj), ensure_ascii=False, allow_nan=False).encode(),
                    "application/json; charset=utf-8")
 
     def _body(self) -> Dict[str, Any]:
