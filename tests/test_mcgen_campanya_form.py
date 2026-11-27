@@ -381,7 +381,7 @@ def test_objectius_valids_passen_to_yaml():
     (lambda f: f["objectius"].__setitem__("pesos", [0.5, 0.5]), "objectius.pesos"),
     (lambda f: f["objectius"].__setitem__("energies_MeV", [0.123]), "objectius.energies_MeV"),
     (lambda f: f["objectius"].__setitem__("pareto", [["eps_mitja", "maxim"], ["cv", "min"]]), "objectius.pareto"),
-    (lambda f: f["objectius"].__setitem__("pareto", [["cv", "min"]]), "objectius.pareto"),
+    (lambda f: f["objectius"].__setitem__("pareto", []), "objectius.pareto"),
     (lambda f: (f["objectius"].__setitem__("metriques", ["eps_mitja", "cv"]),
                 f["objectius"].__setitem__("pareto", [["eps_mitja", "max"], ["eps_min", "max"]])), "objectius.pareto"),
     (lambda f: f["objectius"].__setitem__("pareto_k_sigma", -1), "pareto_k_sigma"),

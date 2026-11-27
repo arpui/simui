@@ -224,7 +224,7 @@ def _ha_de_passar_el_formulari(f: Dict[str, Any], de: str) -> None:
 def tanteig_de_campanya(de: str) -> Dict[str, Any]:
     """El formulari de la campanya `de`, amb un id derivat lliure. No escriu res."""
     d = CV.dir_de(de)
-    form = CF.de_fitxer(d / "campanya.yaml")
+    form = CF.de_fitxer(d / "campanya.yaml", marca=True)
     nou = id_derivat(de, _ids_existents(CV.campanyes_root()))
     f = _form_tanteig(form, nou)
     _ha_de_passar_el_formulari(f, de)
@@ -256,7 +256,8 @@ def tanteig_de_candidat(de: str, hash_: str, etapa: Optional[str] = None) -> Dic
                          "seleccio": "exhaustiu"}]
     f["etapes"] = {f"llista_{nom_etapa}": nova}
     f = CF.a_inventari(f)                     # INV: el candidat com a recursos (tipus i Cd de cada tub) i punts amb el seu recurs
-    f.pop(CF.CONVERSIO, None)                 # és un candidat nou, no una conversió d'una campanya antiga
+    for k in CF.CLAUS_FORMULARI:              # és un candidat nou: ni conversió d'una campanya antiga ni claus a conservar
+        f.pop(k, None)
     _ha_de_passar_el_formulari(f, de)
     return {"de": de, "id": nou, "form": f, "etapa": f"llista_{nom_etapa}",
             "candidat": {"nom": cand.nom, "hash": hash_, "etapa": nom_etapa, "tubs_n": len(cand.tubs)}}

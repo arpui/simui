@@ -55,6 +55,18 @@ CAMPANYA_PY = "campanya.py"
 AVALUADOR_PY = "avaluador.py"
 CANDIDAT_PY = "candidat.py"
 FITXA_PY = "fitxa.py"
+# MB01-PARELLES (neudet 26-11): les línies d'on neudet diu cada regla; el test bessó i `_linia` les segueixen si neudet es mou
+FORAT_ALT_LINIA = 32                         # fitxa.py: FORAT_ALTERNATIVA (forat {forma, costat_cm|radi_cm}, alternatiu a forat_cm)
+FORAT_LINIA = 377                            # candidat.py: def violacions_forat
+FORMES_FORAT_LINIA = 218                     # candidat.py: FORMES_FORAT
+FORMA_FORAT = ("quadrat", "cilindre")
+PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
+PARELLA_FALTA_LINIA = 482                    # fitxa.py: parella sense sep_parella_cm (falten)
+PARETO_ARRELS_LINIA = 923                    # campanya.py: ob.pareto[-1], ob.pareto[0]
+GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
+PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
+MAI_AUTO_LINIA = 94                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
+PUNTS_PAPER_LINIA = 313                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
 VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
@@ -206,20 +218,104 @@ def _jsonable(x: Any) -> Any:
     return x
 
 
-def de_fitxer(f: Path) -> Dict[str, Any]:
-    """Un `campanya.yaml` de neudet com a dict per al formulari (dates com a text ISO). Mai no l'escriu."""
+def de_fitxer(f: Path, marca: bool = False) -> Dict[str, Any]:
+    """Un `campanya.yaml` de neudet com a dict per al formulari (dates com a text ISO). Mai no l'escriu.
+    `marca=True` (una campanya que s'obre per modificar-la, no una plantilla): hi afegeix `_no_editables` i `_conserva`
+    (vegeu `marca_no_editables`), perquè el desat no perdi mai cap clau."""
     f = Path(f)
     if not f.exists():
         raise DES.DesignError(f"no trobo {f}: cal un campanya.yaml de neudet")
     data = yaml.safe_load(f.read_text())
     if not isinstance(data, dict):
         raise DES.DesignError(f"{f}: el campanya.yaml no és un diccionari")
-    return a_inventari(_jsonable(_a_tongades(data)))
+    form = a_inventari(_jsonable(_a_tongades(data)))
+    return marca_no_editables(form) if marca else form
 
 
 # ── INV (contracte UI §10c): el formulari és «primer els tubs disponibles, després on van» ──
 #: clau del formulari (no del yaml) amb la nota de conversió d'una campanya antiga: {convertida: [...], nomes_lectura: motiu|None}
 CONVERSIO = "_conversio"
+#: claus del formulari (no del yaml): les rutes del yaml que la UI no sap editar (es conserven) i les claus que cal deixar tal com són en desar
+NO_EDITABLES = "_no_editables"
+CONSERVA = "_conserva"
+#: claus només del formulari: mai no van al yaml
+CLAUS_FORMULARI = (CONVERSIO, NO_EDITABLES, CONSERVA)
+
+_L = None                                    # fulla: el valor sencer és editable (o gestionat) per la UI
+_CD = _L
+#: L'arbre del que la UI sap EDITAR d'un campanya.yaml. `None` = fulla; dict = les claus conegudes; `{"*": …}` = qualsevol clau amb
+#: aquest subarbre; `[sub]` = llista d'elements amb el subarbre. Tot el que no hi és es CONSERVA (regla de l'Albert, 27-11: el formulari
+#: MAI no perd una clau en desar) i la UI ho avisa («clau no editable des de la UI: es conserva»). Les claus que gestiona la UI i no
+#: s'editen (id, creada, estat, draft, fitxa, confirmacio, resum, pendents, deriva_de, substituïda_*) no s'avisen.
+_EDITABLE: Dict[str, Any] = {
+    "id": _L, "creada": _L, "estat": _L, "draft": _L, "fitxa": _L, "confirmacio": _L, "resum": _L, "pendents": _L,
+    "deriva_de": _L, "substituïda_per": _L, "substituïda_data": _L, "substituïda_motiu": _L,
+    "domini": {
+        "bloc": {"material": _L, "densitat_gcm3": _L, "mides_cm": _L, "forat_cm": _L, "forma": _L, "radi_cm": _L, "alzada_cm": _L,
+                 "forat": {"forma": _L, "costat_cm": _L, "radi_cm": _L}},
+        "energies_MeV": _L, "entre": _L, "tipus_tub": _L, "diagnostic": _L, "cossos": _L, "humitat_relativa_pct": _L, "temperatura_C": _L,
+        "font": {"tipus": _L, "pos_cm": _L},
+        "restriccions": {"n_tubs": _L, "marge_bloc_cm": _L, "sep_min_cm": _L, "r_min_font_cm": _L},
+    },
+    "etapes": {"*": {
+        "que": _L, "pregunta": _L, "de": _L, "n_tubs": _L, "cerca": _L, "generador": _L,
+        "tongades": [{
+            "nom": _L, "inventari": _L, "seleccio": _L, "eix": _L, "max_candidats": _L, "tipus": _L, "cd": _CD,
+            "posicions": {
+                "font": _L, "n_total": _L, "ordenats": _L, "malla": _L, "z": _L, "forma": _L, "r": _L, "theta": _L, "k": _L,
+                "pas_cm": _L, "r_min_cm": _L, "r_max_cm": _L, "x": _L, "y": _L,
+                "anells": [{"r": _L, "n": _L, "phi": _L, "z": _L, "eix": _L, "fixats": _L, "tipus": _L, "cd": _CD,
+                            "parella": _L, "sep_parella_cm": _L}],
+                "punts": [{"x": _L, "y": _L, "z": _L, "eix": _L, "tipus_permesos": _L, "tipus": _L, "cd": _CD}],
+            },
+        }],
+    }},
+    "objectius": _L,
+    "avaluacio": {"xarxa": _L, "mode": _L, "n_cribratge": _L, "n_final": _L, "lot": _L, "geom_vect": _L, "ckpts": _L,
+                  "motors": _L, "geometria": _L},
+    "verificacio": {"hits": _L, "mon_mig_cm": _L},
+}
+
+
+def claus_no_editables(form: Any) -> List[str]:
+    """Les rutes (`domini.font.con`, `etapes.S1.motors`, …) d'un formulari que la UI no sap editar: es conserven tal com són en
+    desar, i la pantalla les ensenya. Les claus del formulari (que comencen per `_`) no hi compten."""
+    out: List[str] = []
+
+    def camina(x: Any, arbre: Any, ruta: str) -> None:
+        if arbre is None:
+            return
+        if isinstance(arbre, list):
+            for i, v in enumerate(x if isinstance(x, list) else []):
+                camina(v, arbre[0], "%s[%d]" % (ruta, i))
+            return
+        if not isinstance(x, dict):
+            return
+        for k, v in x.items():
+            if isinstance(k, str) and k.startswith("_") and not ruta:
+                continue
+            r = "%s.%s" % (ruta, k) if ruta else str(k)
+            sub = arbre.get(k, arbre.get("*", False)) if "*" in arbre else arbre.get(k, False)
+            if sub is False:
+                out.append(r)
+            else:
+                camina(v, sub, r)
+
+    camina(form, _EDITABLE, "")
+    return out
+
+
+def marca_no_editables(form: Dict[str, Any]) -> Dict[str, Any]:
+    """Afegeix `_no_editables` (les rutes que la UI no edita) i `_conserva` (les claus que el desat ha de deixar tal com són:
+    `domini.tipus_tub`, que SIMPLIFICA treu quan les tongades són explícites, però en un yaml que ja el porta és seu)."""
+    if not isinstance(form, dict):
+        return form
+    ne = claus_no_editables(form)
+    if ne:
+        form[NO_EDITABLES] = ne
+    if isinstance((form.get("domini") or {}).get("tipus_tub"), (list, str)):
+        form[CONSERVA] = ["domini.tipus_tub"]
+    return form
 
 
 def _lletra(i: int) -> str:
@@ -633,8 +729,35 @@ def _errors_bloc(bloc: Dict[str, Any], ruta: str = "domini.bloc") -> List[str]:
                 e.append(f"{ruta}.{c}: només amb forma: cilindre; sense `forma: cilindre` no hi ha d'esser (§22)")
     if "forat_cm" in bloc and not (_num(bloc["forat_cm"]) and bloc["forat_cm"] >= 0):
         e.append(f"{ruta}.forat_cm: un número ≥ 0 (cm)")
+    e += _errors_forat(bloc, ruta)
     if bloc.get(COS_DENSITAT) is not None and not _pos(bloc.get(COS_DENSITAT)):
         e.append(f"{ruta}.{COS_DENSITAT}: un número positiu (g/cm³) o null")
+    return e
+
+
+def _errors_forat(bloc: Dict[str, Any], ruta: str) -> List[str]:
+    """MB01-PARELLES P3 (neudet, `candidat.violacions_forat`, `fitxa.FORAT_ALTERNATIVA`): `forat: {forma: quadrat, costat_cm}` o
+    `{forma: cilindre, radi_cm}`, alternatiu a `forat_cm` (mai els dos) i **sense valor per defecte** (ni la forma ni la mida)."""
+    f = bloc.get("forat")
+    if f is None:
+        return []
+    ref = f"{CANDIDAT_PY}:{FORAT_LINIA}"
+    if "forat_cm" in bloc:
+        return [f"{ruta}.forat: `forat` i `forat_cm` alhora: el forat es declara d'una sola manera ({ref})"]
+    if not isinstance(f, dict):
+        return [f"{ruta}.forat: cal {{forma: quadrat, costat_cm: <c>}} o {{forma: cilindre, radi_cm: <r>}} ({ref})"]
+    forma = f.get("forma")
+    if forma not in FORMA_FORAT:
+        return [f"{ruta}.forat.forma: cal {' o '.join(FORMA_FORAT)}, sense valor per defecte ({ref})"]
+    camp = "costat_cm" if forma == "quadrat" else "radi_cm"
+    e = []
+    altres = sorted(set(f) - {"forma", camp})
+    if altres:
+        e.append(f"{ruta}.forat: camps no reconeguts amb forma {forma}: {', '.join(altres)} (només `forma` i `{camp}`; {ref})")
+    if f.get(camp) is None:
+        e.append(f"{ruta}.forat.{camp}: obligatori amb forma: {forma}, sense valor per defecte ({ref})")
+    elif not _pos(f[camp]):
+        e.append(f"{ruta}.forat.{camp}: un número > 0 en cm ({ref})")
     return e
 
 
@@ -1122,6 +1245,10 @@ def _schema_objectius(obj) -> Dict[str, Any]:
     _linia(OBJECTIUS_PY, PESOS_LINIA["letargia"], 'w == "letargia"')
     _linia(OBJECTIUS_PY, PESOS_LINIA["uniforme"], 'w == "uniforme"')
     _linia(OBJECTIUS_PY, K_SIGMA_LINIA, 'pareto_k_sigma')
+    _linia(OBJECTIUS_PY, GRAELLA_PAPER_LINIA, "GRAELLA_PAPER_MEV")
+    _linia(OBJECTIUS_PY, PAPER_LINIA, "PAPER")
+    _linia(OBJECTIUS_PY, MAI_AUTO_LINIA, "MAI_AUTO")
+    _linia(OBJECTIUS_PY, PUNTS_PAPER_LINIA, "def _punts_paper")
     _linia(OBJECTIUS_PY, ENERGIES_LINIA, 'sel == "totes"')
     _linia(OBJECTIUS_PY, RESTRICCIO_LINIA, 'cfg.get("restriccio")')
     _linia(OBJECTIUS_PY, DEFECTE_NOMS_LINIA, 'cfg.get("metriques"')
@@ -1166,7 +1293,7 @@ def _schema_objectius(obj) -> Dict[str, Any]:
                           "fitxa": {"fitxer": FITXA_PY, "linia": 35}},
         "pareto": {"n": 2, "defecte": [list(x) for x in d.pareto],
                    "motiu": "campanya.py: els gràfics usen ob.pareto[-1] i [0]",
-                   "fitxer": CAMPANYA_PY, "linia": 295, "auto": {"fitxer": OBJECTIUS_PY, "linia": AUTO_LINIA}},
+                   "fitxer": CAMPANYA_PY, "linia": PARETO_ARRELS_LINIA, "auto": {"fitxer": OBJECTIUS_PY, "linia": AUTO_LINIA}},
         "pareto_k_sigma": {"defecte": float(d.k_sigma), "minim": 0, "fitxer": OBJECTIUS_PY,
                            "linia": K_SIGMA_LINIA,
                            "descripcio": "frontera robusta: només domina qui guanya per més de k·σ. "
@@ -1188,6 +1315,11 @@ def _schema_objectius(obj) -> Dict[str, Any]:
         ],
         # OBJ (contracte §14): el bloc del cicle nou, tal com el dona neudet (frases, preguntes, valors per defecte)
         "cicle_nou": dict(taula, fitxer=OBJECTIUS_PY, linia=TAULA_LINIA),
+        # MB01-PARELLES P4: les mètriques del paper sobre la graella de 24 energies, tal com les dona neudet (no una còpia)
+        "paper": {"metriques": {n: list(v) for n, v in obj.PAPER.items()},
+                  "graella_MeV": [float(x) for x in obj.GRAELLA_PAPER_MEV],
+                  "mai_auto": sorted(obj.MAI_AUTO), "fitxer": OBJECTIUS_PY, "linia": GRAELLA_PAPER_LINIA,
+                  "punts": PUNTS_PAPER_LINIA, "mai_auto_linia": MAI_AUTO_LINIA}
     }
 
 
@@ -1369,6 +1501,12 @@ def schema() -> Dict[str, Any]:
         tubs.append({"nom": nom, "alies": e.get("alies"), "validat": validat, "estat": estat,
                      "motiu": motiu, "mides": _mides_tub(e)})
     eg = estat_geometria_neudet()                         # §22/§25: què valida neudet avui, llegit del seu codi
+    _linia(FITXA_PY, FORAT_ALT_LINIA, "FORAT_ALTERNATIVA = [")
+    _linia(CANDIDAT_PY, FORAT_LINIA, "def violacions_forat")
+    _linia(CANDIDAT_PY, FORMES_FORAT_LINIA, "FORMES_FORAT = ")
+    _linia(GENERADORS_PY, PARELLA_LINIA, "def _parella_anell")
+    _linia(FITXA_PY, PARELLA_FALTA_LINIA, 'a.get("parella") and a.get("sep_parella_cm") is None')
+    _linia(CAMPANYA_PY, PARETO_ARRELS_LINIA, "ob.pareto[-1], ob.pareto[0]")
     _linia(CANDIDAT_PY, FONT_LINIA, "feix")
     _linia(CANDIDAT_PY, EIX_DEFECTE_LINIA, 'eix')
     _linia(CANDIDAT_PY, CD_FRACCIO_LINIA, "cd_fraction fora de")
@@ -1713,10 +1851,39 @@ def _errors_font(pos: Any, ruta: str, inventari: bool = False, total: Optional[i
                 e += _errors_rang(a["n"], f"{ra}.n", f"tubs de l'anell {i + 1}", enter=True, maxim=nt)
             if "phi" in a and a["phi"] != "mig_pas" and not _valor_o_rang(a["phi"]):
                 e.append(f"{ra}.phi: graus (un valor, llista o rang) o «mig_pas»")
+            e += _errors_parella(a, ra, i)
             e += _errors_atributs(a, ra)
     elif f == "dat":
         if not isinstance(pos.get("dat"), str) or not pos["dat"].strip():
             e.append(f"{ruta}.dat: el camí d'un fitxer .dat")
+    return e
+
+
+def _errors_parella(a: Dict[str, Any], ra: str, i: int) -> List[str]:
+    """MB01-PARELLES (neudet, `generadors._parella_anell`, `fitxa.falten`): `parella: true` (bool) = cada lloc és un forat amb DOS
+    tubs coaxials invertits; cal `sep_parella_cm` (valor, llista o {de, a, pas}, ≥ 0, **sense valor per defecte**), la `z` surt de
+    la separació (no es posa) i, sense parella, `sep_parella_cm` és un error (neudet no el llegeix en silenci)."""
+    e: List[str] = []
+    p, sp = a.get("parella"), a.get("sep_parella_cm")
+    nom = f"anell {i + 1}"
+    if p is not None and not isinstance(p, bool):
+        return [f"{ra}.parella: {p!r} (cal true o false; {GENERADORS_PY}:{PARELLA_LINIA})"]
+    if not p:
+        if sp is not None:
+            e.append(f"{ra}.sep_parella_cm: sense `parella: true` neudet ho refusa ({GENERADORS_PY}:{PARELLA_LINIA})")
+        return e
+    if sp is None:
+        return [f"{ra}.sep_parella_cm: `parella: true` necessita la separació entre els extrems actius enfrontats (cm), sense valor "
+                f"per defecte ({FITXA_PY}:{PARELLA_FALTA_LINIA})"]
+    if a.get("z") is not None:
+        e.append(f"{ra}.z: amb `parella` la z de cada tub surt de `sep_parella_cm` (simètrica respecte del centre); treu `z` "
+                 f"({GENERADORS_PY}:{PARELLA_LINIA})")
+    er = _errors_rang(sp, f"{ra}.sep_parella_cm", f"separació de la parella de l'{nom}")
+    e += er
+    if not er:
+        mn = min([sp["de"], sp["a"]] if isinstance(sp, dict) else sp if isinstance(sp, list) else [sp])
+        if mn < 0:
+            e.append(f"{ra}.sep_parella_cm: cal ≥ 0 i almenys un valor ({GENERADORS_PY}:{PARELLA_LINIA})")
     return e
 
 
@@ -1887,8 +2054,9 @@ def _errors_objectius(f: Dict[str, Any]) -> List[str]:
         e.append(f"objectius.pareto_k_sigma: un número ≥ 0 (objectius.py:{K_SIGMA_LINIA})")
     pa = ob.get("pareto")
     if pa is not None:
-        if not (isinstance(pa, list) and len(pa) == 2):
-            e.append("objectius.pareto: dos parells [mètrica, max|min] (campanya.py:295 n'usa el primer i l'últim)")
+        if not (isinstance(pa, list) and len(pa) >= 1):
+            e.append(f"objectius.pareto: una llista de parells [mètrica, max|min], almenys un (neudet n'usa el primer i l'últim: "
+                     f"{CAMPANYA_PY}:{PARETO_ARRELS_LINIA}; un de sol val: és l'eix X i l'Y alhora)")
         else:
             base = set(m) if isinstance(m, list) else set(DEFECTE_NOMS)
             for i, p in enumerate(pa):
@@ -1908,6 +2076,47 @@ def _errors_objectius(f: Dict[str, Any]) -> List[str]:
 
 def _nom_obj(x: Any, alies: Dict[str, str]) -> Any:
     return alies.get(x, x) if isinstance(x, str) else x
+
+
+def _errors_paper(noms: List[Any], graella: List[Any]) -> List[str]:
+    """MB01-PARELLES P4 (neudet, `objectius._punts_paper`): les mètriques del paper (`eps_av_10`, `F_5`, `F_8`, `F_10`) es calculen
+    sobre els 24 punts de `GRAELLA_PAPER_MEV` ≤ E_max; si al domini en falta un (o hi és repetit), neudet fa ⛔. Es diu abans,
+    en paraules. Els punts i les E_max són de neudet (`_mods_neudet`), no una còpia."""
+    ob = _mods_neudet()[0]
+    paper = [n for n in dict.fromkeys(noms) if isinstance(n, str) and n in ob.PAPER]
+    e: List[str] = []
+    for n in paper:
+        emax = ob.PAPER[n][1]
+        for g in ob.GRAELLA_PAPER_MEV:
+            if g > emax + 1e-12:
+                continue
+            k = sum(1 for x in graella if _num(x) and abs(x - g) <= 1e-9 * max(g, 1e-12))
+            if k == 0:
+                e.append(f"objectius: «{n}» és sobre els punts de la graella del paper ≤ {emax:g} MeV i a domini.energies_MeV falta "
+                         f"{g:g} MeV (objectius.py:{PUNTS_PAPER_LINIA}); poseu-hi la graella del paper (24 energies)")
+                break
+            if k > 1:
+                e.append(f"objectius: «{n}»: {g:g} MeV és repetida a domini.energies_MeV ({k} vegades; objectius.py:{PUNTS_PAPER_LINIA})")
+                break
+    return e
+
+
+def _noms_demanats(ob: Dict[str, Any], alies: Dict[str, str]) -> List[Any]:
+    """Els noms de mètrica que `normalitza` de neudet posaria a l'objectiu: els que decideixen, les informatives **demanades** (les
+    automàtiques no inclouen `MAI_AUTO`), la preferència i les restriccions."""
+    noms: List[Any] = []
+    for x in ob.get("objectius") or []:
+        noms.append(_nom_obj(x[0] if isinstance(x, list) and x else x, alies))
+    inf = ob.get("informatives", "auto")
+    if isinstance(inf, list):
+        noms += [_nom_obj(x, alies) for x in inf]
+    pref = ob.get("preferencia")
+    if isinstance(pref, dict):
+        noms += [_nom_obj(pref.get(k), alies) for k in ("maxim", "sobre")]
+    for r in ob.get("restriccions") or []:
+        if isinstance(r, list) and r:
+            noms.append(_nom_obj(r[0], alies))
+    return noms
 
 
 def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
@@ -2000,6 +2209,8 @@ def _errors_objectius_nou(ob: Dict[str, Any], graella: List[Any]) -> List[str]:
     for kk in ("comptes_ref", "N_font", "sE_obj", "delta_q"):
         if ob.get(kk) is not None and not (_num(ob[kk]) and ob[kk] > 0):
             e.append(f"objectius.{kk}: un número > 0")
+    en_ob = en if isinstance(en, list) else graella                  # neudet: `energies[idx]` = les energies triades de l'objectiu
+    e += _errors_paper(_noms_demanats(ob, alies), en_ob)
     return e
 
 
@@ -2184,12 +2395,16 @@ def to_yaml(form: Dict[str, Any]) -> str:
 def to_yaml_i_avisos(form: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     """(el yaml, els pendents retirats). El mateix que `to_yaml`, per a qui ha d'ensenyar l'avís."""
     form = _sense_pas_buit(copy.deepcopy(form))
+    conserva = []
     if isinstance(form, dict):
-        form.pop(CONVERSIO, None)                  # INV: la nota de conversió és del formulari, no del yaml
+        for k in CLAUS_FORMULARI:                  # INV: la nota de conversió i les marques són del formulari, no del yaml
+            v = form.pop(k, None)
+            if k == CONSERVA and isinstance(v, list):
+                conserva = v
     errs = _errors(form)
     if errs:
         raise FormError("formulari no vàlid:\n- " + "\n- ".join(errs))
-    if isinstance(form.get("domini"), dict) and _tipus_explicits(form):
+    if isinstance(form.get("domini"), dict) and "domini.tipus_tub" not in conserva and _tipus_explicits(form):
         form["domini"].pop("tipus_tub", None)      # derivat per neudet dels tipus (o inventaris) de les tongades (SIMPLIFICA)
     form, retirats = retira_pendents_orfes(form)
     return (CAPSALERA + yaml.dump(form, Dumper=_Dumper, sort_keys=False,
