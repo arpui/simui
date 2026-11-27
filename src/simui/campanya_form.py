@@ -65,8 +65,8 @@ PARELLA_FALTA_LINIA = 482                    # fitxa.py: parella sense sep_parel
 PARETO_ARRELS_LINIA = 955                    # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
-MAI_AUTO_LINIA = 113                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
-PUNTS_PAPER_LINIA = 332                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
+MAI_AUTO_LINIA = 117                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
+PUNTS_PAPER_LINIA = 336                      # objectius.py: _punts_paper (⛔ si falta un punt de la graella al domini)
 VERIFICA_G4_PY = "verifica_g4.py"
 #: contracte §4: fraccions axials d'exemple (NO és una llista de neudet: neudet accepta qualsevol (0, 1])
 CD_FRACCIONS = [0, 0.25, 0.5, 0.75, 1]
@@ -83,31 +83,31 @@ TUB = "__TUB__"                                                 # marca de la pl
 
 #: mètriques (objectius.py): el nom entre cometes, dins del registre
 METRIQUES_LINIA: Dict[str, int] = {
-    "eps_mitja": 71, "cv": 72, "rang": 73, "planor_f": 78, "eps_min": 80, "cd_cm2": 90, "eps_gamma": 91,   # METRIQUES
-    "eps_av_10": 85, "F_5": 87, "F_8": 88, "F_10": 89,                                # PAPER (MB01-PARELLES P4)
-    "q_rang": 119, "q_monoton": 120, "res_E": 121,                                    # METRIQUES_GRUP (MET2)
-    "N_obj": 148, "sE_N": 149, "n_ef": 150,                                           # METRIQUES_GRUP2 (IND)
-    "res_E_k": 189, "err_grups": 190,                                              # METRIQUES_GRUP3 (MET3)
+    "eps_mitja": 71, "cv": 72, "rang": 73, "planor_f": 78, "eps_min": 80, "cd_cm2": 94, "eps_gamma": 95,   # METRIQUES
+    "eps_av_10": 85, "eps_av_5": 89, "F_5": 91, "F_8": 92, "F_10": 93,                # PAPER (MB01-PARELLES P4; eps_av_5: COMPOSICIO, additiva)
+    "q_rang": 123, "q_monoton": 124, "res_E": 125,                                    # METRIQUES_GRUP (MET2)
+    "N_obj": 152, "sE_N": 153, "n_ef": 154,                                           # METRIQUES_GRUP2 (IND)
+    "res_E_k": 193, "err_grups": 194,                                              # METRIQUES_GRUP3 (MET3)
 }
 #: les mètriques que neudet afegeix soles al Pareto o a la restricció (objectius.py:257-259)
-AUTO_LINIA = 315
+AUTO_LINIA = 319
 #: sentit (objectius.py:425: `1 if s == "max" else -1`): «max»; qualsevol altra cosa és min
 SENTITS = ("max", "min")
-SENTITS_LINIA = 496
+SENTITS_LINIA = 500
 #: les mètriques que neudet afegeix soles (objectius.py: GEOMETRIQUES, GRUP, GRUP2, GRUP3)
 AUTO_NOMS = {"cd_cm2", "q_rang", "q_monoton", "res_E", "N_obj", "sE_N", "n_ef", "res_E_k", "err_grups"}
 #: les mètriques per defecte de l'objectiu (objectius.py:245): les que no són geomètriques ni de SOROLL
 DEFECTE_NOMS = ("eps_mitja", "cv", "rang", "eps_min")
 #: pesos (objectius.py): `cfg.get("pesos", "uniforme")` i el `elif` de letargia
-PESOS_LINIA: Dict[str, int] = {"uniforme": 290, "letargia": 292}
-PESOS_DEFECTE_LINIA = 288
+PESOS_LINIA: Dict[str, int] = {"uniforme": 294, "letargia": 296}
+PESOS_DEFECTE_LINIA = 292
 #: energies: «totes» (objectius.py:226); subconjunt dins de la graella (objectius.py:231)
-ENERGIES_LINIA = 282
+ENERGIES_LINIA = 286
 GRAELLA_LINIA = 287
-K_SIGMA_LINIA = 318
-ERR_GRUPS_CAL_LINIA = 232        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
+K_SIGMA_LINIA = 322
+ERR_GRUPS_CAL_LINIA = 236        # «err_grups: cal objectius.grups_MeV» (és l'única mètrica que en vol)
 #: ε-restricció per defecte (objectius.py:255)
-RESTRICCIO_LINIA = 313
+RESTRICCIO_LINIA = 317
 #: valors de la mètrica per defecte de l'objectiu, i què fa neudet si el camp manca
 DEFECTE_NOMS_LINIA = 301
 #: OBJ (contracte §14, cicle nou): la taula de neudet (`objectius.taula_objectius`) és la font de la llista de
@@ -116,8 +116,8 @@ DEFECTE_NOMS_LINIA = 301
 #: (`_errors_objectius_nou`) i `schema()` la llegeixen en directe; una mètrica nova a neudet s'accepta sense tocar simui.
 #: `schema()` només comprova el que no pot canviar sols: que cada mètrica que la taula declara existeixi a la llista
 #: de neudet, i que les línies citades siguin les reals.
-FINALITATS_LINIA = 591                       # FINALITATS: Dict[str, dict] = {
-TAULA_LINIA = 1359                           # def taula_objectius()
+FINALITATS_LINIA = 599                       # FINALITATS: Dict[str, dict] = {
+TAULA_LINIA = 1367                           # def taula_objectius()
 #: `eps_gamma` surt permesa perquè neudet la porta a `informatives` (família D «soroll»); NO pot decidir: la UI ho
 #: filtra amb `taula_objectius()["soroll"]["mai_decideix"]`, que ve de `SOROLL` de neudet (contracte §21)
 PESOS_NOUS = ("letargia", "uniforme")         # i {espectre: <fitxer>}
@@ -275,7 +275,7 @@ _EDITABLE: Dict[str, Any] = {
     "objectius": _L,
     "avaluacio": {"xarxa": _L, "mode": _L, "n_cribratge": _L, "n_final": _L, "lot": _L, "geom_vect": _L, "ckpts": _L,
                   "motors": _L, "geometria": _L},
-    "verificacio": {"hits": _L, "mon_mig_cm": _L},
+    "verificacio": {"hits": _L, "mon_mig_cm": _L, "energies_MeV": _L},         # energies_MeV: VER-24E (contracte §31 v1.30)
 }
 
 
@@ -1464,6 +1464,55 @@ def _mon_mig_cm() -> Dict[str, Any]:
     return d
 
 
+VERIF_ENERGIES_PY = "verif_energies.py"
+
+
+def _mod_verif_energies():
+    """`neudet.disseny.verif_energies` (VER-24E, contracte §31): `violacions` és seva. None si el neudet instal·lat encara no la té."""
+    try:
+        DES._neudet()
+        from neudet.disseny import verif_energies
+        return verif_energies
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _verif_energies() -> Dict[str, Any]:
+    """§31 (v1.30): `verificacio.energies_MeV` (opcional; llista estrictament creixent en MeV que ha de contenir les del domini). La
+    línia, de neudet si ja ho llegeix; la graella del paper que s'ofereix és la d'`objectius.py` (la mateixa del botó del domini)."""
+    d = {"llegit": True, "fitxer": VERIF_ENERGIES_PY,
+         "descripcio": "opcional (contracte §31): la graella pròpia de la verificació Geant4, en MeV, estrictament creixent; ha de contenir "
+                       "totes les energies del domini; no limita la xarxa. Buida = sense clau: Geant4 usa les del domini"}
+    m = _mod_verif_energies()
+    if m is None:
+        return dict(d, llegit=False, linia="?",
+                    descripcio=d["descripcio"] + " [neudet encara no ho llegeix: espera el pull de neudet]")
+    d["linia"] = _troba(VERIF_ENERGIES_PY, 1, "def violacions")
+    return d
+
+
+def _errors_verif_energies(f: Dict[str, Any]) -> List[str]:
+    """`verificacio.energies_MeV` (§31): les regles són de neudet (`verif_energies.violacions` i, per «ha de contenir les del domini»,
+    `fitxa.falten`); aquí només s'hi crida. Sense la clau no es diu res (el viatge no canvia)."""
+    ver = f.get("verificacio") if isinstance(f.get("verificacio"), dict) else None
+    if ver is None or ver.get("energies_MeV") is None:
+        return []
+    m = _mod_verif_energies()
+    if m is None:
+        return ["verificacio.energies_MeV: el neudet instal·lat encara no llegeix la clau (contracte §31, v1.30): treu-la o actualitza neudet"]
+    e = list(m.violacions(ver))
+    fx = _fitxa()
+    if not e and fx is not None:
+        cfg = copy.deepcopy(f)
+        for k in CLAUS_FORMULARI:
+            cfg.pop(k, None)
+        try:
+            e += [x for x in fx.falten(cfg) if x.startswith("verificacio.energies_MeV")]
+        except Exception:                                        # noqa: BLE001  (formulari incomplet: ja es queixaran els altres camps)
+            pass
+    return e
+
+
 def _schema_verificacio() -> Dict[str, Any]:
     _linia(VERIFICA_G4_PY, 398, '"--aleatoris"', _SCRIPTS)
     _linia(VERIFICA_G4_PY, 400, '"--n"', _SCRIPTS)
@@ -1480,6 +1529,7 @@ def _schema_verificacio() -> Dict[str, Any]:
                      "descripcio": "mode del bolcat de Geant4, obligatori (G4-COMPACT): «all» (tots els passos) o "
                                    "«detect» (només les files He3(n,p), ~60 vegades menys disc)"},
             "mon_mig_cm": _mon_mig_cm(),
+            "energies_MeV": _verif_energies(),
             "porta": {"llegit": False, "fitxer": FITXA_PY, "linia": 105,
                       "descripcio": "text lliure que neudet ja no exigeix (SIMPLIFICA, 2026-11-05); la porta que "
                                     "compta és la del PLA.md de la campanya"}}
@@ -2376,6 +2426,7 @@ def _errors(f: Any) -> List[str]:
     e += _errors_avaluacio(f)
     e += _errors_cerca(f)
     e += _errors_composicio(f)
+    e += _errors_verif_energies(f)
     return e
 
 
