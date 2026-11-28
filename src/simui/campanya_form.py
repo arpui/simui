@@ -62,7 +62,7 @@ FORMES_FORAT_LINIA = 220                    # candidat.py: FORMES_FORAT
 FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
 PARELLA_FALTA_LINIA = 513                    # fitxa.py: parella sense sep_parella_cm (falten)
-PARETO_ARRELS_LINIA = 955                    # campanya.py: ob.pareto[-1], ob.pareto[0]
+PARETO_ARRELS_LINIA = 1004                    # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
 MAI_AUTO_LINIA = 117                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
@@ -711,7 +711,7 @@ ESTAT_PIOM = (
 
 
 COMPOSICIO_PY = "composicio.py"
-COMPOSICIO_DE_LINIA = 433                    # campanya.py: composicio.de ha de ser una etapa de xarxa (no composició)
+COMPOSICIO_DE_LINIA = 479                    # campanya.py: composicio.de ha de ser una etapa de xarxa (no composició)
 
 
 def _mod_composicio():
@@ -741,7 +741,7 @@ def _errors_composicio(f: Dict[str, Any]) -> List[str]:
     return e
 
 
-TUB_SOL_LINIA = 332                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
+TUB_SOL_LINIA = 353                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
 
 
 def _errors_bloc_tub_sol(bloc: Dict[str, Any], ruta: str) -> List[str]:
