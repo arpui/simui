@@ -173,6 +173,19 @@ AVALUACIO_CAMPS: Dict[str, Dict[str, Any]] = {
 }
 GEOM_VECT_LINIA = 136
 GEOM_VECT_DEFECTE = True
+#: E12-CERT (2026-11-27): mode elàstic de la xarxa i les taules CM de H i C (campanya.py:427, avaluador.py:62)
+ELASTIC_KIN_MODES_LINIA = 62
+ELASTIC_KIN_YAML_LINIA = 427
+
+
+def _elastic_kin_modes() -> Optional[List[str]]:
+    """`ELASTIC_KIN_MODES` de neudet (`avaluador.py`), o None si el neudet instal·lat no ho publica."""
+    try:
+        DES._neudet()
+        from neudet.disseny.avaluador import ELASTIC_KIN_MODES
+        return list(ELASTIC_KIN_MODES)
+    except Exception:                                            # noqa: BLE001
+        return None
 
 #: Cd (candidat.py): fracció 0 = sense Cd; si no, (0, 1]. Arc (0, 360] (candidat.py:219-224)
 CD_FRACCIO_LINIA = 221
@@ -282,7 +295,8 @@ _EDITABLE: Dict[str, Any] = {
     }},
     "objectius": _L,
     "avaluacio": {"xarxa": _L, "mode": _L, "n_cribratge": _L, "n_final": _L, "lot": _L, "geom_vect": _L, "ckpts": _L,
-                  "motors": _L, "geometria": _L},
+                  "motors": _L, "geometria": _L, "elastic_kin_mode": _L,
+                  "elastic_cm_taules": {"H": _L, "C": _L}},
     "verificacio": {"hits": _L, "mon_mig_cm": _L, "energies_MeV": _L},         # energies_MeV: VER-24E (contracte §31 v1.30)
 }
 
@@ -1251,7 +1265,9 @@ def energies_domini() -> Optional[Dict[str, Any]]:
     d = ((reg or {}).get("domini") or {}).get("energies_MeV")
     if not (isinstance(d, dict) and isinstance(d.get("per_defecte"), list) and d["per_defecte"]):
         return None
-    return {"min": d.get("min"), "max": d.get("max"), "max_diagnostic": d.get("max_diagnostic"), "validat_PE_min": d.get("validat_PE_min"),
+    return {"min": d.get("min"), "max": d.get("max"), "max_diagnostic": d.get("max_diagnostic"),
+            "taula_cm_per_sobre_de_MeV": d.get("taula_cm_per_sobre_de_MeV"), "taula_cm_mode": d.get("taula_cm_mode"),
+            "validat_PE_min": d.get("validat_PE_min"),
             "per_defecte": [float(x) for x in d["per_defecte"]], "nota": d.get("nota"),
             "font": "validacions.json · domini.energies_MeV"}
 
@@ -1542,6 +1558,16 @@ def _schema_avaluacio() -> Dict[str, Any]:
                    "fitxer": "docs/site/contractes/simphy_ui.md", "dir": _CONTRACTES,
                    "linia": _troba("simphy_ui.md", 856, "openmc_gpu", _CONTRACTES),
                    "descripcio": "comparar motors: els mateixos candidats, energies i N per a tots; Geant4 verifica la unió dels finalistes"},
+        # E12-CERT (2026-11-27): el mode elàstic és opcional (None = neudet tal com és) i les taules, només amb `table`
+        "elastic_kin_mode": {"valors": [{"valor": m, "fitxer": AVALUADOR_PY,
+                                        "linia": _troba(AVALUADOR_PY, ELASTIC_KIN_MODES_LINIA, "ELASTIC_KIN_MODES")}
+                                       for m in (_elastic_kin_modes() or [])],
+                             "defecte": None, "fitxer": CAMPANYA_PY,
+                             "linia": _troba(CAMPANYA_PY, ELASTIC_KIN_YAML_LINIA, "elastic_kin_yaml"),
+                             "descripcio": "None = la xarxa tal com és, sense cap clau al `config`; \"off\"/\"table\" = valor explícit"},
+        "elastic_cm_taules": {"fitxer": CAMPANYA_PY,
+                             "linia": _troba(CAMPANYA_PY, ELASTIC_KIN_YAML_LINIA, "elastic_kin_yaml"),
+                             "descripcio": "taules CM elàstiques {H: csv, C: csv}, camins relatius a simnet; obligatòries amb elastic_kin_mode: table"},
     }
 
 
@@ -2460,6 +2486,23 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
             for m, v in ck.items():
                 if disp is not None and v not in (disp.get(m) or []):
                     e.append(f"avaluacio.ckpts.{m} = {v}: neudet no el troba (n'hi ha: {', '.join(disp.get(m) or []) or 'cap'})")
+    # E12-CERT (2026-11-27): el mode elàstic només off | table; taules només amb table; table obliga a les taules
+    modes = _elastic_kin_modes()
+    if "elastic_kin_mode" in av:
+        mk = av["elastic_kin_mode"]
+        if mk is not None and (modes is None or mk not in modes):
+            e.append(f"avaluacio.elastic_kin_mode: cal {' o '.join(modes or ['off', 'table'])} (avaluador.py:{ELASTIC_KIN_MODES_LINIA})")
+    if "elastic_cm_taules" in av:
+        taules = av["elastic_cm_taules"]
+        if "elastic_kin_mode" not in av or av.get("elastic_kin_mode") is None:
+            e.append("avaluacio.elastic_cm_taules sense avaluacio.elastic_kin_mode (cal el mode explícit)")
+        elif av["elastic_kin_mode"] == "off":
+            e.append("avaluacio.elastic_kin_mode: off amb elastic_cm_taules: les taules només amb `table`")
+        elif av["elastic_kin_mode"] == "table":
+            t = taules if isinstance(taules, dict) else {}
+            faltants = [k for k in ("H", "C") if not (isinstance(t.get(k), str) and t[k].strip())]
+            if faltants:
+                e.append(f"avaluacio.elastic_kin_mode: table sense avaluacio.elastic_cm_taules {', '.join(faltants)} (csv, campanya.py:{ELASTIC_KIN_YAML_LINIA})")
     return e
 
 

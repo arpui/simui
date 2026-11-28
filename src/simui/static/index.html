@@ -1901,7 +1901,7 @@ function cAvalHtml(f){
   const opt = (lst, cur) => lst.map(o => ({valor: o.valor})).map(o => `<option value="${escD(o.valor)}" ${o.valor === cur ? 'selected' : ''}>${escD(o.valor)}</option>`).join('');
   const xarxaV = av.xarxa ?? A.xarxa.defecte, modeV = av.mode ?? A.mode.defecte;
   const xa = A.xarxa.valors.find(o => o.valor === xarxaV), mo = A.mode.valors.find(o => o.valor === modeV);
-  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts', 'motors'];
+  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts', 'motors', 'elastic_kin_mode', 'elastic_cm_taules'];
   const extra = Object.keys(av).filter(k => !known.includes(k));
   return `
   <div class="row">${cLab('xarxa', `<select data-p="avaluacio.xarxa" data-t="str">${opt(A.xarxa.valors, xarxaV)}</select>`)}
@@ -1914,10 +1914,35 @@ function cAvalHtml(f){
   <div class="hint">${escD(A.geom_vect.descripcio)}</div>
   <div class="row">${cLab('motor (neudet no el llegeix; el tria «xarxa»)', cRO(av.motor ?? '—'))}${cLab('gpus (només mode continu)', cRO(av.gpus ?? '—'))}</div>
   <div class="hint">gpus: ${escD(A.gpus.descripcio)} <span class="src">(${escD(cSrc(A.fitxer, A.gpus.linia))})</span></div>
+  <h2 style="margin-top:18px">Mode elàstic (E12-CERT)</h2>
+  ${cElasticHtml(f, av, A)}
   <h2 style="margin-top:18px">Motors</h2>
   ${cMotorsHtml(CP.motorsSel ?? av.motors, A.motors)}
   ${cMotAvisos()}
   ${extra.length ? `<div class="panel warn">Claus d'avaluació que el formulari no coneix: ${extra.map(k => `<code>${escD(k)}</code>`).join(', ')}</div>` : ''}`;
+}
+
+// E12-CERT (2026-11-27): el mode elàstic només té els valors de neudet; les taules {H, C} només amb `table`. El
+// llindar (`taula_cm_per_sobre_de_MeV`) i el mode (`taula_cm_mode`) els dona neudet (`energies_domini`, validacions.json).
+function cElasticHtml(f, av, A){
+  const S = A.elastic_kin_mode || {valors: [], descripcio: '', fitxer: '', linia: null};
+  const vals = S.valors || [];
+  const cur = av.elastic_kin_mode ?? '';
+  const opts = [`<option value="">— (sense clau: neudet usa el seu comportament de sempre) —</option>`]
+    .concat(vals.map(o => `<option value="${escD(o.valor)}" ${o.valor === cur ? 'selected' : ''}>${escD(o.valor)}</option>`));
+  const T = A.elastic_cm_taules || {linia: null, fitxer: '', descripcio: ''};
+  const tab = av.elastic_cm_taules || {};
+  const G = CP.schema.energies_domini || {}, th = G.taula_cm_per_sobre_de_MeV, mT = G.taula_cm_mode;
+  const en = [...((f.domini || {}).energies_MeV || []), ...((f.verificacio || {}).energies_MeV || [])]
+    .map(Number).filter(Number.isFinite);
+  const sobre = th != null ? en.filter(e => e > th) : [];
+  const avisa = sobre.length > 0 && cur !== mT && mT != null;
+  return `<div class="row">${cLab('elastic_kin_mode (mode elàstic; neudet no tria res per defecte)', `<select data-p="avaluacio.elastic_kin_mode" data-t="ostr">${opts.join('')}</select>`)}</div>
+  <div class="hint"><b>mode elàstic:</b> ${escD(S.descripcio || '')} <span class="src">(${escD(cSrc(S.fitxer, S.linia))})</span></div>
+  <div class="row3">${cLab('taules H (.csv, relatiu a simnet)', cIn('avaluacio.elastic_cm_taules.H', tab.H, 'ostr', 'H csv'))}
+    ${cLab('taules C (.csv, relatiu a simnet)', cIn('avaluacio.elastic_cm_taules.C', tab.C, 'ostr', 'C csv'))}</div>
+  <div class="hint"><b>elastic_cm_taules:</b> ${escD(T.descripcio || '')} <span class="src">(${escD(cSrc(T.fitxer, T.linia))})</span></div>
+  ${avisa ? `<div class="panel bad"><b>⚠ Aviso de comprovació (E12-CERT):</b> energies per sobre de <b>${fmtE(th)}</b> — ${sobre.map(e => fmtE(e)).join(', ')} — només surten validades amb <code>elastic_kin_mode: ${escD(mT)}</code> + taules H/C declarades; sense, la xarxa surt baixa (control BASELINE −5…−12 % de 8 MeV amunt). Neudet el diu al «Comprova» (fitxa.py); aquí només és informatiu.</div>` : ''}`;
 }
 
 // MOTORS-UI (contracte §26): la llista de motors la dona neudet (`schema().avaluacio.motors`); aquí només es marca i
@@ -2253,8 +2278,9 @@ function cFormHtml(){
   <h2>Verificació (Geant4)</h2>
   ${cVerifHtml(f)}
 
-  ${cEsComposicio(et) ? '' : `<h2>Cerca · etapa ${escD(E)}</h2>
-  ${cCercaHtml(E, et)}`}`;
+  ${cEsComposicio(et) ? '' : (et.cerca ? `<h2>Cerca · etapa ${escD(E)}</h2>
+  ${cCercaHtml(E, et)}` : `<h2>Referència · etapa ${escD(E)}</h2>
+  <div class="panel ajuda"><b>Etapa de referència</b>: sense clau «cerca» — neudet la té com a etapa sense cerca (un sol candidat, p. ex. un punt d'anàlisi del paper); no es pot triar tipus de cerca ni fer-ne cap selecció aquí. El nom de l'etapa i el text «que» són els del formulari; la llista de tongades (candidats definits) ja surt més amunt.</div>`)}`;
 }
 
 // UI-PLEGA: cada h2 del formulari és un apartat plegable; el cos (els fills fins a l'h2 següent, o el final) es plega
