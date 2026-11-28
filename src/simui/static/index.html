@@ -802,6 +802,22 @@ const cMidesTxt = m => m ? ` · TUB SENCER (envolupant del catàleg: la que ha d
 const cDimTub = tipus => { const q = cMidesTub(tipus);
   return q ? {R: q.diametre_cm / 2, zlo: q.z_min_cm ?? -q.llargada_total_cm / 2, zhi: q.z_max_cm ?? q.llargada_total_cm / 2, Lt: q.llargada_total_cm, La: q.llargada_activa_cm, za: q.z_activa_cm || 0, real: true}
     : {R: R_TUB_VISTA, zlo: -L_TUB_VISTA / 2, zhi: L_TUB_VISTA / 2, Lt: L_TUB_VISTA, La: 0, za: 0, real: false}; };
+// PARELLES (MB10): un punt del dibuix és un FORAT. Per a un parell, els dos tubs (sentit ±1) comparteixen x, y, nom i tipus;
+// cada tub té la seva pròpia z: el del +z a `zc` (`z_centre_parella` de neudet: sep/2 + Lactive/2 − dZav) i l'altre a −zc,
+// emmirallat (zlo/zhi i za també emmirallats). UI-AFINA: només es dibuixa; neudet és qui posa les z reals.
+// Sense les dades del catàleg (o sense la separació), un parell es dibuixa com un tub orientatiu — mai un número inventat.
+const cTubsPunt = p => {
+  const mm = cMidesTub(p.tipus), q = cDimTub(p.tipus), z = p.z || 0;
+  if(!p.parella) return [{z, sentit: 1, R: q.R, zlo: q.zlo, zhi: q.zhi, za: q.za, La: q.La, Rg: mm ? (mm.radi_gas_cm || 0) : 0, Lt: q.Lt, real: q.real}];
+  const sep = Number(p.sep);
+  if(!(sep >= 0) || !mm || mm.lactive_cm === null || mm.lactive_cm === undefined || mm.dZav_cm === null || mm.dZav_cm === undefined){
+    return [{z, sentit: 1, R: q.R, zlo: q.zlo, zhi: q.zhi, za: q.za, La: q.La, Rg: 0, Lt: q.Lt, real: false}];
+  }
+  const zc = sep / 2 + mm.lactive_cm / 2 - mm.dZav_cm;
+  const Rg = mm.radi_gas_cm || 0;
+  return [{z: zc, sentit: 1, R: q.R, zlo: q.zlo, zhi: q.zhi, za: q.za, La: q.La, Rg, Lt: q.Lt, real: q.real},
+          {z: -zc, sentit: -1, R: q.R, zlo: -q.zhi, zhi: -q.zlo, za: -q.za, La: q.La, Rg, Lt: q.Lt, real: q.real}];
+};
 function cTubOpts(valor){
   const tubs = CP.schema.tipus_tub, trobat = tubs.some(t => t.nom === valor);
   const opts = tubs.map(t => `<option value="${escD(t.nom)}" ${t.nom === valor ? 'selected' : ''}>${escD(t.nom)}${t.alies ? ' · ' + escD(t.alies) : ''} — ${escD(cMarca(t))}${escD(cMidesTxt(t.mides))}</option>`);
@@ -985,6 +1001,8 @@ function cMallaHtml(p, pos, inv){
 }
 // MB01-PARELLES (neudet generadors.py:615, fitxa.py:482): `parella: true` = cada lloc de l'anell és un forat amb DOS tubs coaxials invertits,
 // simètrics respecte del centre; `sep_parella_cm` (valor, llista o rang; SENSE valor per defecte) és la separació entre els extrems actius enfrontats.
+// Els comptadors (k, n, inventari, fixats) compten FORATS; amb `parella` cada forat és 2 tubs.
+const cFontParella = (t, pos) => (((pos || (t && t.posicions) || {}).anells) || []).some(a => a && a.parella);
 function cParellaHtml(ap, a){
   const sp = a.sep_parella_cm;
   return `<label class="chk"><input type="checkbox" data-parella="${escD(ap)}" ${a.parella ? 'checked' : ''}> parella: cada lloc és un forat amb dos tubs coaxials invertits (connectors cap a fora)</label>
@@ -1004,7 +1022,7 @@ function cAnellsHtml(p, pos, inv){
     return `<div class="anell"><div class="anell-h"><b>Anell ${i + 1}</b>
         <button class="x" data-act="anell-" data-p="${escD(p + '.anells')}" data-i="${i}">treu</button></div>
       ${rngHtml('r', 'r (cm)', R, okR)}
-      ${inv ? '' : rngHtml('n', 'n (tubs; 0 = anell buit)', N, okN)}
+      ${inv ? '' : rngHtml('n', `n (${a.parella ? 'forats' : 'tubs'}; 0 = anell buit)`, N, okN)}
       <div class="row">${cLab('φ (graus, o mig pas)', `<select data-phisel="${ap}.phi">
           <option value="graus" ${phiMig ? '' : 'selected'}>graus (número)</option>
           <option value="mig_pas" ${phiMig ? 'selected' : ''}>mig pas (180/n)</option></select>`)}
@@ -1012,9 +1030,10 @@ function cAnellsHtml(p, pos, inv){
       ${cParellaHtml(ap, a)}
       ${inv ? cEixHtml(ap, a) : `<div class="hint">Els tubs d'aquest anell (tot el que posis aquí és només per a l'anell ${i + 1}):</div>${cAtrsHtml(ap, a, true, false)}`}</div>`;
   }).join('');
+  const parella = cFontParella(null, pos);
   return `${blocs}<div class="bar"><button class="ghost" data-act="anell+" data-p="${escD(p + '.anells')}">+ anell</button></div>
     <h3>Filtres sobre els anells <span class="hint">(opcionals; valen per a tots els anells)</span></h3>
-    ${inv ? `<div class="hint">El nombre de tubs de cada anell es tria al pas 3 (assignació); el total és el dels recursos (${cInvTotal(inv)} tubs).</div>` : cLab('n_total: la suma de tubs de tots els anells ha de ser… (buit = sense filtre)', cNumIn(p + '.n_total', pos.n_total, {ph: 'buit'}))}
+    ${inv ? `<div class="hint">El nombre de ${parella ? 'forats' : 'tubs'} de cada anell es tria al pas 3 (assignació); el total és el dels recursos (${cInvTotal(inv)} ${parella ? `forats (${2 * cInvTotal(inv)} tubs)` : 'tubs'}).</div>` : cLab(`n_total: la suma de ${parella ? 'forats' : 'tubs'} de tots els anells ha de ser… (buit = sense filtre)`, cNumIn(p + '.n_total', pos.n_total, {ph: 'buit'}))}
     <label class="chk"><input type="checkbox" data-p="${p}.ordenats" data-t="bool" ${pos.ordenats ? 'checked' : ''}> ordenats (els radis creixen d'un anell al següent)</label>`;
 }
 // ── Recursos i assignació (INV, contracte UI §10c): primer els tubs disponibles, després on van ──
@@ -1037,7 +1056,7 @@ function cCdMode(cd){
 function cEixHtml(p, o){
   return cAtrLlista(cLlig(o.eix) ? `${p}.eix.valors` : `${p}.eix`, cAtrVals(o.eix), 'eix del tub (z = dret; x, y = horitzontal)', (pp, v) => cSel(pp, cEixOpts, v), 'z');
 }
-function cRecursHtml(tp, r, j, nRec){
+function cRecursHtml(tp, r, j, nRec, parella){
   const rp = `${tp}.inventari.${j}`, nom = cRecNom(r, j), mode = cCdMode(r.cd), cd = r.cd || {};
   const opt = (v, t) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${t}</option>`;
   let cdh = '';
@@ -1046,15 +1065,15 @@ function cRecursHtml(tp, r, j, nRec){
       <div class="row">${cLab('centre (°)', cNumIn(rp + '.cd.centre', cd.centre, {ph: '0'}))}${cLab(`dins d'un candidat, els ${r.quantitat ?? ''} tubs de ${nom}`, `<select data-reclig="${escD(rp)}"><option value="global" ${(cd.lligam || 'global') === 'global' ? 'selected' : ''}>porten tots el mateix valor</option><option value="tub" ${cd.lligam === 'tub' ? 'selected' : ''}>cada tub el seu</option></select>`)}</div>`;
   return `<div class="anell recurs" data-recurs="${escD(nom)}"><div class="anell-h"><b class="recnom">${escD(nom)}</b>
       <button class="x" data-act="rec-" data-p="${escD(tp)}" data-i="${j}">treu</button></div>
-    <div class="row3">${cLab('tipus de tub (catàleg, amb les mides)', cSelTub(rp + '.tipus', r.tipus, 'data-s="1"'))}${cLab('quantitat', cNumS(rp + '.quantitat', r.quantitat, {min: 1, ph: '1'}))}
+    <div class="row3">${cLab('tipus de tub (catàleg, amb les mides)', cSelTub(rp + '.tipus', r.tipus, 'data-s="1"'))}${cLab(parella ? 'quantitat (forats)' : 'quantitat', cNumS(rp + '.quantitat', r.quantitat, {min: 1, ph: '1'}))}
       ${cLab('Cd', `<select data-reccd="${escD(rp)}">${opt('sense', 'sense Cd')}${opt('fix', 'fix (fracció, arc, centre)')}${opt('variable', "variable (l'optimitzador prova un ventall)")}</select>`)}</div>
     ${cdh}</div>`;
 }
 function cRecursosHtml(tp, t){
-  const rs = cInvList(t.inventari);
-  return `${rs.map((r, j) => cRecursHtml(tp, r, j, rs.length)).join('')}
+  const rs = cInvList(t.inventari), parella = cFontParella(t);
+  return `${rs.map((r, j) => cRecursHtml(tp, r, j, rs.length, parella)).join('')}
     <div class="bar"><button class="ghost" data-act="rec+" data-p="${escD(tp)}">+ recurs (tipus i quantitat)</button></div>
-    <div class="hint">${rs.length ? `Total: <b>${cInvTotal(t.inventari)}</b> tubs (${rs.map((r, j) => `${escD(cRecNom(r, j))} = ${escD(r.quantitat ?? '?')} × ${escD(r.tipus)}`).join(' · ')}): és el nombre de tubs de cada candidat; tots s'hi fan servir, exactament.
+    <div class="hint">${rs.length ? `Total: <b>${cInvTotal(t.inventari)}</b> ${parella ? `forats (${2 * cInvTotal(t.inventari)} tubs)` : 'tubs'} (${rs.map((r, j) => `${escD(cRecNom(r, j))} = ${escD(r.quantitat ?? '?')} × ${escD(r.tipus)}`).join(' · ')}): és el nombre de ${parella ? 'forats' : 'tubs'} de cada candidat; tots s'hi fan servir, exactament.
       Un mateix tipus pot sortir en dues files (p. ex. sense Cd i amb Cd).` : 'Encara no hi ha cap recurs.'}</div>`;
 }
 // Pas 3, per grup: nombre de tubs (lliure | fix N), tubs fixats i tipus permesos (plegats).
@@ -1065,7 +1084,7 @@ function cPermesosHtml(p, o, inv){
 }
 function cFixatsHtml(ap, a, inv){
   const fx = a.fixats || {}, rs = cInvList(inv), n = Object.values(fx).reduce((s, q) => s + (Number(q) || 0), 0);
-  return `<details class="fold" ${n ? 'open' : ''}><summary>tubs fixats ${n ? `(${escD(Object.entries(fx).filter(([, q]) => q).map(([k, q]) => q + ' de ' + k).join(', '))})` : '(cap)'}</summary><div class="row3">` +
+  return `<details class="fold" ${n ? 'open' : ''}><summary>${a.parella ? 'forats' : 'tubs'} fixats ${n ? `(${escD(Object.entries(fx).filter(([, q]) => q).map(([k, q]) => q + ' de ' + k).join(', '))})` : '(cap)'}</summary><div class="row3">` +
     rs.map((r, j) => { const k = cRecNom(r, j); return cLab(`${k} (${r.tipus})`, cNumS(`${ap}.fixats.${k}`, fx[k], {min: 0, max: r.quantitat, ph: '0'})); }).join('') +
     `</div><div class="hint">Els que hi van segur; la resta dels recursos es reparteix lliure.</div></details>`;
 }
@@ -1074,8 +1093,8 @@ function cAssigHtml(tp, t){
   let grups = '';
   if(pos.font === 'anells') grups = (pos.anells || []).map((a, i) => {
     const ap = `${p}.anells.${i}`, lliure = a.n === undefined || a.n === null, rang = !lliure && typeof a.n !== 'number';
-    const nh = rang ? cLab('nombre de tubs', cRO(a.n) + ' <span class="hint">rang: com abans</span>')
-      : cLab('nombre de tubs', `<select data-nmode="${escD(ap)}"><option value="lliure" ${lliure ? 'selected' : ''}>lliure (el tria l'optimitzador)</option><option value="fix" ${lliure ? '' : 'selected'}>fix</option></select>`) +
+    const nh = rang ? cLab(a.parella ? 'nombre de forats' : 'nombre de tubs', cRO(a.n) + ' <span class="hint">rang: com abans</span>')
+      : cLab(a.parella ? 'nombre de forats' : 'nombre de tubs', `<select data-nmode="${escD(ap)}"><option value="lliure" ${lliure ? 'selected' : ''}>lliure (el tria l'optimitzador)</option><option value="fix" ${lliure ? '' : 'selected'}>fix</option></select>`) +
         (lliure ? '' : cLab('N', cNumS(`${ap}.n`, a.n, {min: 0})));
     return `<div class="anell grup"><div class="anell-h"><b>Anell ${i + 1}</b> <span class="hint">r ${escD(cEsRang(a.r) ? `${a.r.de}–${a.r.a}` : a.r)} cm</span></div>
       <div class="row">${nh}</div>${cFixatsHtml(ap, a, inv)}${cPermesosHtml(ap, a, inv)}</div>`;
@@ -1310,7 +1329,10 @@ function cTubsVista(){
           const pv = cVals(a.phi), phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : (pv.length ? cTria(rng, pv) : 0));
           for(let k = 0; k < n && k < 60; k++){
             const th = (phi + 360 * k / n) * Math.PI / 180;
-            out.punts.push({x: r * Math.cos(th), y: r * Math.sin(th), z: 0, eix, tong: ti, tenue: false, tipus: L[k].tipus, nom: L[k].nom});
+            // PARELLES: cada forat és un punt (no un punt per tub); la separació és la primera `sep_parella_cm` de l'anell.
+            const punt = {x: r * Math.cos(th), y: r * Math.sin(th), z: 0, eix, tong: ti, tenue: false, tipus: L[k].tipus, nom: L[k].nom};
+            if(a.parella){ punt.parella = true; const sp = cVals(a.sep_parella_cm); punt.sep = sp.length ? Number(sp[0]) : undefined; }
+            out.punts.push(punt);
           }
         });
       } else {
@@ -1336,7 +1358,10 @@ function cTubsVista(){
           const phi = a.phi === 'mig_pas' ? 180 / n : (typeof a.phi === 'number' ? a.phi : (cVals(a.phi)[0] ?? 0));
           for(let k = 0; k < n && k < 60; k++){
             const th = (phi + 360 * k / n) * Math.PI / 180;
-            out.punts.push({x: r * Math.cos(th), y: r * Math.sin(th), z: 0, eix, tong: ti, tenue: false, tipus: first(a.tipus, first(t.tipus, cInv0(t)))});
+            // PARELLES: cada forat és un punt (no un punt per tub); la separació és la primera `sep_parella_cm` de l'anell.
+            const punt = {x: r * Math.cos(th), y: r * Math.sin(th), z: 0, eix, tong: ti, tenue: false, tipus: first(a.tipus, first(t.tipus, cInv0(t)))};
+            if(a.parella){ punt.parella = true; const sp = cVals(a.sep_parella_cm); punt.sep = sp.length ? Number(sp[0]) : undefined; }
+            out.punts.push(punt);
           }
         });
       }
@@ -1446,14 +1471,20 @@ const cCosMal = c => !c.forma || cFormesReservades.includes(c.forma) || c.reserv
 function cBlocSvg(id = 'c-bloc'){
   const d = CP.f.domini, V = cTubsVista();
   const tubs = V.punts.filter(p => !p.tenue);
-  V.exSig = tubs.length ? JSON.stringify([tubs.map(p => [p.x, p.y, p.z || 0, p.eix || 'z', p.tipus].map(v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v)), d.bloc, d.restriccions, d.font]) : '';     // el bloc, les restriccions i la font també compten
+  // PARELLES (MB10): l'exemple s'valida per TUB (cada forat porta els seus dos tubs); els rebutjats es comproven per forat.
+  const perTub = tubs.flatMap(p => cTubsPunt(p).map(t => ({x: p.x, y: p.y, z: t.z || 0, eix: p.eix || 'z', tipus: p.tipus, sentit: t.sentit ?? 1})));
+  V.exSig = perTub.length ? JSON.stringify([perTub.map(t => [t.x, t.y, t.z, t.eix || 'z', t.tipus, t.sentit].map(v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v)), d.bloc, d.restriccions, d.font]) : '';     // el bloc, les restriccions i la font també compten
   const res = V.exSig && CP.exRes && CP.exRes.sig === V.exSig ? CP.exRes.res : null;
-  tubs.forEach((p, k) => { p.num = k + 1; p.rebutjat = !!(res && res.rebutjats.includes(k + 1)); });
-  if(V.exSig && !(CP.exRes && CP.exRes.sig === V.exSig)) cExempleValida(V.exSig, tubs.map(p => ({x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', tipus: p.tipus})));
+  let base = 0;
+  tubs.forEach((p, k) => { p.num = k + 1; const n = cTubsPunt(p).length, ixs = Array.from({length: n}, (_, j) => base + j + 1); p.rebutjat = !!(res && res.rebutjats.some(x => ixs.includes(x))); base += n; });
+  if(V.exSig && !(CP.exRes && CP.exRes.sig === V.exSig)) cExempleValida(V.exSig, perTub.map(t => ({x: t.x, y: t.y, z: t.z || 0, eix: t.eix || 'z', tipus: t.tipus, sentit: t.sentit})));
   const D = cVistaDims(V), pos = d.font.pos_cm || [0, 0, 0], iso = d.font.tipus === 'iso';
   const aps = V.ordre.filter(t => V.punts.some(p => p.tipus === t));
   const nomsDe = t => [...new Set(V.punts.filter(p => p.tipus === t && p.nom).map(p => p.nom))];
   const leg = aps.map(t => `<span class="leg"><i style="background:${cColor(V, t)}"></i>${escD(t)}${nomsDe(t).length ? ` <span class="hint">(${nomsDe(t).map(escD).join(', ')})</span>` : ''} <span class="hint">${(m => m ? `Ø ${m.diametre_cm} × ${m.llargada_total_cm} cm · gas ${m.llargada_activa_cm} cm` : 'sense mides')(cMidesTub(t))}</span></span>`).join('');
+  // PARELLES: un parell es dibuixa com un forat — la llegenda el diu (forat i separació).
+  const parells = V.punts.filter(p => p.parella && !p.tenue);
+  const legParells = parells.length ? parells.map(p => `<span class="leg"><i style="background:${cColP(V, p)}"></i>forat ${p.num} · parella · sep ${p.sep} cm</span>`).join('') : '';
   const E = cBlocExt(d), cossos = cCossosEscena(d);
   const legCos = cossos.map(c => `<span class="leg"><i style="background:${cColMat(c.material)}"></i>${escD(c.nom)} <span class="hint">${escD(c.material || 'sense material')} · ${escD(c.forma || 'sense forma')}${c.reservats.length ? ` · <b>${c.reservats.join('/')}: reservat §25</b>` : ''} · només Geant4</span></span>`).join('');
   const avisBloc = E.sense ? `<div class="panel warn">El bloc és ${E.forma === 'cilindre' ? 'cilíndric però encara no hi ha `radi_cm` i `alzada_cm` escrites' : 'de forma cub i encara no hi ha les tres mides escrites'}: el dibuix és orientatiu, no és la teva geometria (§22: aquestes mides no tenen valor per defecte).</div>` : '';
@@ -1463,7 +1494,7 @@ function cBlocSvg(id = 'c-bloc'){
       <span class="hint">${E.forma === 'cilindre' ? `bloc cilíndric Ø ${cG(2 * E.radi)} × ${cG(E.alzada)} cm` : `bloc cub ${E.m.map(x => cG(Number(x) || 0)).join(' × ')} cm`} <span class="hint">(forma: ${escD(E.forma)}${E.forma === 'cub' ? ' — per defecte de neudet, el camp no escrit' : ''})</span></span>
       <span class="hint">${iso ? `font a (${[0, 1, 2].map(i => Number(pos[i]) || 0).join(', ')}) cm` : 'font de feix'}</span>
       ${iso && !CP.congelat ? `<button type="button" class="ghost${CP.movFont ? ' on' : ''}" data-act="movfont">${CP.movFont ? 'deixa de moure la font' : 'mou la font'}</button>` : ''}</div>
-    ${avisBloc}${leg ? `<div class="legend">${leg}</div>` : ''}${legCos ? `<div class="legend">${legCos}</div>` : ''}${cExempleHtml(V)}`;
+    ${avisBloc}${leg || legParells ? `<div class="legend">${leg}${legParells}</div>` : ''}${legCos ? `<div class="legend">${legCos}</div>` : ''}${cExempleHtml(V)}`;
 }
 // ── Visor 3D isomètric (VISTA-3D): una escena {bloc, forat, font, tubs[]} en cm (centre del bloc a l'origen), sense llibreries ──
 // Cada tub és un cilindre a mida real (el volum que ocupa) amb el gas actiu a dins. Es gira arrossegant; la roda del
@@ -1664,8 +1695,7 @@ function cEscena(V){
   const d = CP.f.domini, E = cBlocExt(d), pos = d.font.pos_cm || [0, 0, 0];
   return {bloc: E.m.map(Number), forma: E.forma, radi: E.radi, alzada: E.alzada, cossos: cCossosEscena(d),
     forat: cForat(d.bloc).forma === 'cilindre' ? cForat(d.bloc).m : 0, foratQ: cForat(d.bloc).forma === 'quadrat' ? cForat(d.bloc).m : 0, font: d.font.tipus === 'iso' ? [0, 1, 2].map(i => Number(pos[i]) || 0) : null,
-    tubs: V.punts.map(p => { const q = cDimTub(p.tipus), mm = cMidesTub(p.tipus);
-      return {index: p.num, x: p.x, y: p.y, z: p.z || 0, eix: p.eix || 'z', color: cColP(V, p), R: q.R, zlo: q.zlo, zhi: q.zhi, Rg: mm ? (mm.radi_gas_cm || 0) : 0, La: q.La, za: q.za, real: q.real, tenue: !!p.tenue}; })};
+    tubs: V.punts.flatMap(p => cTubsPunt(p).map(t => ({index: p.num, x: p.x, y: p.y, z: t.z, eix: p.eix || 'z', color: cColP(V, p), R: t.R, zlo: t.zlo, zhi: t.zhi, Rg: t.Rg, La: t.La, za: t.za, real: t.real, tenue: !!p.tenue, sentit: t.sentit})))};
 }
 
 // Les tres vistes a la MATEIXA escala (px per cm), per poder-les comparar: les extensions (cm, centrades a 0) de cada una es calculen
@@ -1675,8 +1705,10 @@ function cVistaDims(V){
   const cap = 3 * Math.max(hx, hy, hz);
   let xy = Math.max(hx, hy), wxz = hx, wyz = hy, h = hz;
   V.punts.forEach(p => {
-    const q = cDimTub(p.tipus), e = Math.max(-q.zlo, q.zhi);
-    const ex = Math.abs(p.x) + (p.eix === 'x' ? e : q.R), ey = Math.abs(p.y) + (p.eix === 'y' ? e : q.R), ez = Math.abs(p.z || 0) + (p.eix === 'z' ? e : q.R);
+    const ts = cTubsPunt(p), q = cDimTub(p.tipus);
+    const e = Math.max(...ts.map(t => Math.max(-t.zlo, t.zhi)));
+    const ex = Math.abs(p.x) + (p.eix === 'x' ? e : q.R), ey = Math.abs(p.y) + (p.eix === 'y' ? e : q.R);
+    const ez = Math.max(...ts.map(t => Math.abs(t.z) + (p.eix === 'z' ? Math.max(-t.zlo, t.zhi) : q.R)));
     xy = Math.max(xy, Math.min(ex, cap), Math.min(ey, cap)); wxz = Math.max(wxz, Math.min(ex, cap)); wyz = Math.max(wyz, Math.min(ey, cap)); h = Math.max(h, Math.min(ez, cap));
   });
   cCossosEscena(d).forEach(c => {                                                     // §25: els cossos també amplien el dibuix (`pos_cm` centre)
@@ -1724,18 +1756,22 @@ function cBlocLateral(id, pla, V0, D0){
   const dim = p => cDimTub(p.tipus);
   // «com en la (x,y) també a les altres projeccions» (l'Albert, 15-11): el tub de `punts` amb x, y fixos s'agafa
   // també a la lateral i s'escriuen l'eix del pla i z; i els cossos §25 també (escrivim el centre `pos_cm`).
-  const tubs = V.punts.map(p => {
-    const q = dim(p), c = p[h], z = p.z || 0, col = cColP(V, p), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${p.rebutjat ? sw * 2 : sw}"`;
+  const tubs = V.punts.flatMap(p => {
+    // PARELLES: cada forat dibuixa els seus dos tubs (els extrems en z canvien; la vista lateral hi veu els dos).
+    const col = cColP(V, p), f = `fill="${col}" fill-opacity="${p.tenue ? 0.2 : 0.4}" stroke="${col}" stroke-width="${p.rebutjat ? sw * 2 : sw}"`;
     const dr = p.drag ? ` data-drag="${escD(p.drag)}" style="cursor:grab"` : '';
-    if(p.eix === 'z'){
-      const act = q.La ? `<rect x="${c - q.R}" y="${-z - q.za - q.La / 2}" width="${2 * q.R}" height="${q.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g${dr}><rect x="${c - q.R}" y="${-z - q.zhi}" width="${2 * q.R}" height="${q.zhi - q.zlo}" ${f}/>${act}</g>`;
-    }
-    if(p.eix === h){
-      const act = q.La ? `<rect x="${c + q.za - q.La / 2}" y="${-z - q.R}" width="${q.La}" height="${2 * q.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
-      return `<g${dr}><rect x="${c + q.zlo}" y="${-z - q.R}" width="${q.zhi - q.zlo}" height="${2 * q.R}" ${f}/>${act}</g>`;
-    }
-    return `<g${dr}><circle cx="${c}" cy="${-z}" r="${q.R}" ${f}/></g>`;
+    return cTubsPunt(p).map(t => {
+      const c = p[h], z = t.z, qq = t;
+      if(p.eix === 'z'){
+        const act = qq.La ? `<rect x="${c - qq.R}" y="${-z - qq.za - qq.La / 2}" width="${2 * qq.R}" height="${qq.La}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+        return `<g${dr}><rect x="${c - qq.R}" y="${-z - qq.zhi}" width="${2 * qq.R}" height="${qq.zhi - qq.zlo}" ${f}/>${act}</g>`;
+      }
+      if(p.eix === h){
+        const act = qq.La ? `<rect x="${c + qq.za - qq.La / 2}" y="${-z - qq.R}" width="${qq.La}" height="${2 * qq.R}" fill="${col}" fill-opacity="${p.tenue ? 0.3 : 0.7}"/>` : '';
+        return `<g${dr}><rect x="${c + qq.zlo}" y="${-z - qq.R}" width="${qq.zhi - qq.zlo}" height="${2 * qq.R}" ${f}/>${act}</g>`;
+      }
+      return `<g${dr}><circle cx="${c}" cy="${-z}" r="${qq.R}" ${f}/></g>`;
+    });
   }).join('');
   const F = cForat(d.bloc), fh = F.forma === 'quadrat' ? F.m / 2 : F.m;                                  // semiample del forat al tall lateral
   const forat = F.forma ? `<rect x="${-fh}" y="${-hz}" width="${2 * fh}" height="${2 * hz}" fill="none" stroke="#999" stroke-width="${sw}" stroke-dasharray="${4 / D.k} ${4 / D.k}"/>` : '';

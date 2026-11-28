@@ -441,13 +441,14 @@ def test_schema_porta_les_mides_dels_tubs_llegides_del_cataleg_de_neudet():
     assert m["diametre_cm"] == 2.54 and m["llargada_activa_cm"] == 60.0 and m["pressio_atm"] == 8.0 and m["paret"] == "SST"
     assert m["llargada_total_cm"] > m["llargada_activa_cm"]
     assert all(t["mides"] is None or set(t["mides"]) == {"diametre_cm", "llargada_activa_cm", "llargada_total_cm", "z_min_cm", "z_max_cm",
-                                                         "z_activa_cm", "radi_gas_cm", "llargada_paret_cm", "pressio_atm", "paret"}
+                                                         "z_activa_cm", "radi_gas_cm", "llargada_paret_cm", "pressio_atm", "paret",
+                                                         "dZav_cm", "lactive_cm"}
                for t in tubs.values())
 
 
 def test_la_llargada_total_del_tub_es_la_que_neudet_fa_servir_per_col_locar_lo():
-    """Bessó de la confusió de la proposta: el tub que ha de CABRE és el de `candidat.DIMS` (68 cm el LND-252285), no el de la paret
-    d'acer (63,72) ni el del gas (60); el selector i el dibuix han de dir el mateix que neudet."""
+    """Bessó de la confusió de la proposta: el total mostrat és el físic del catàleg (`L_total_cm`, connectors inclòs) quan el catàleg el declara,
+    i l'envolupant de `candidat.DIMS` (68 cm el LND-252285) en cas contrari; el selector i el dibuix han de dir el mateix que neudet."""
     _neudet_o_skip()
     from neudet.disseny import candidat as CAND
     tubs = {t["nom"]: t for t in CF.schema()["tipus_tub"]}
@@ -455,7 +456,10 @@ def test_la_llargada_total_del_tub_es_la_que_neudet_fa_servir_per_col_locar_lo()
         d, m = CAND.DIMS.get(nom), t["mides"]
         if d and m:
             assert m["diametre_cm"] == round(2 * d["r_ext"], 3)
-            assert m["llargada_total_cm"] == round(d.get("z_max", d["mitja_llargada"]) - d.get("z_min", -d["mitja_llargada"]), 3)
+            if nom == "lnd_252399":     # declara L_total_cm al catàleg: el total és el físic, no l'envolupant de DIMS
+                assert m["llargada_total_cm"] == 37.62 and m["z_min_cm"] == -17.22 and m["z_max_cm"] == 20.40
+            else:
+                assert m["llargada_total_cm"] == round(d.get("z_max", d["mitja_llargada"]) - d.get("z_min", -d["mitja_llargada"]), 3)
     m = tubs["lnd_252285"]["mides"]
     assert m["llargada_total_cm"] == 68.0 and m["llargada_paret_cm"] == 63.72 and m["llargada_activa_cm"] == 60.0
 

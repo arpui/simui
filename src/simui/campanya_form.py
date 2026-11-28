@@ -1692,7 +1692,11 @@ def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Les dimensions d'un tub del catàleg, llegides d'on les llegeixen Geant4 i neudet (res no es copia).
     Les que importen per saber si el tub CAP són les de `neudet.disseny.candidat.DIMS` (les que neudet fa servir per col·locar-lo:
     radi exterior i extensió en z de tot el tub, que no és la de la paret d'acer ni la del gas); el gas actiu, la paret i la pressió
-    surten de `DC.TUBE_TYPES` (`tubs.json` i `tubGeneric.cc`). `None` si el tipus no es pot resoldre."""
+    surten de `DC.TUBE_TYPES` (`tubs.json` i `tubGeneric.cc`). `None` si el tipus no es pot resoldre.
+
+    Si el catàleg declara `L_total_cm` (longitud física total, connectors inclòs), el total i els extrems en z venen d'aquí: el
+    cos d'acer va de `dZpv − (Lpassive/2 + ZwallD)` fins a `dZpv + (Lpassive/2 + ZwallD)` i el connector el estén fins al total.
+    `DIMS` (el forat) no és la longitud total física ni s'hi ha de fer servir per al total."""
     DES._neudet()
     from neudet.disseny import candidat as CAND
     for nom in (e.get("nom"), e.get("alies")):
@@ -1707,12 +1711,29 @@ def _mides_tub(e: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             r_ext, zlo, zhi = d["r_ext"], d.get("z_min", -d["mitja_llargada"]), d.get("z_max", d["mitja_llargada"])
         else:                                               # el forat del tub: el que ocupa dins del bloc
             r_ext, zlo, zhi = tt.hole_radius_cm, -tt.hole_length_cm / 2, tt.hole_length_cm / 2
-        return {"diametre_cm": round(2 * r_ext, 3), "llargada_total_cm": round(zhi - zlo, 3),
+        l_total = e.get("L_total_cm")
+        if isinstance(l_total, (int, float)) and not isinstance(l_total, bool) and l_total > 0:
+            l_total = float(l_total)
+            dZpv, Lpassive, ZwallD = e.get("dZpv"), e.get("Lpassive"), e.get("ZwallD")
+            if dZpv is not None and Lpassive is not None and ZwallD is not None:
+                env = float(Lpassive) / 2 + float(ZwallD)
+                zlo = float(dZpv) - env                     # el cos d'acer comença aquí
+                zhi = zlo + l_total                          # l'extrem físic (connector); amb el catàleg: = conn_z_hi_cm
+            else:
+                zhi = zlo + l_total                         # el zlo de DIMS i la longitud total del catàleg
+            llargada_total_cm = l_total
+        else:
+            llargada_total_cm = zhi - zlo
+        return {"diametre_cm": round(2 * r_ext, 3), "llargada_total_cm": round(llargada_total_cm, 3),
                 "z_min_cm": round(zlo, 3), "z_max_cm": round(zhi, 3),
                 "llargada_activa_cm": round(tt.gas_length_cm, 3), "z_activa_cm": round(tt.gas_dz_cm, 3), "radi_gas_cm": round(tt.gas_radius_cm, 3),
                 "llargada_paret_cm": round(tt.wall_length_cm, 3),
                 "pressio_atm": (round(tt.gas_pressure_atm, 3) if tt.gas_pressure_atm else None),
-                "paret": e.get("material_paret") or None}
+                "paret": e.get("material_paret") or None,
+                # PARELLES: els dos camps que neudet llegeix de la zona activa (`ACTIU_CAT`); la UI només els mostra per
+                # dibuixar la z de cada parella (`zc = sep/2 + Lactive/2 − dZav`, UI-AFINA; neudet en posa la z real).
+                "dZav_cm": (float(e.get("dZav")) if e.get("dZav") is not None else None),
+                "lactive_cm": (float(e.get("Lactive")) if e.get("Lactive") is not None else None)}
     return None
 
 

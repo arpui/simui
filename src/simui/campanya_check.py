@@ -304,7 +304,7 @@ def compta(yaml_text: str, etapa: Optional[str] = None) -> Dict[str, Any]:
 
 
 def exemple(yaml_text: str, tubs: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """UI-DIB2: els tubs d'un dibuix d'exemple (`[{x, y, z, eix, tipus}]`, a l'ordre del dibuix) passats per `candidat.violacions`
+    """UI-DIB2: els tubs d'un dibuix d'exemple (`[{x, y, z, eix, tipus, sentit?}]`, a l'ordre del dibuix; `sentit` opcional, `+1 | -1`, per defecte `1`) passats per `candidat.violacions`
     de neudet, amb el bloc, les restriccions i la font de la campanya: la UI no calcula res d'això. → `violacions` [{tubs, motiu}]
     (els números de tub, a 1; el motiu és el de neudet), `rebutjats` (els números de tub que en tenen) i `n`.
     Un error de neudet arriba tal com és (`ValueError`)."""
@@ -322,7 +322,17 @@ def exemple(yaml_text: str, tubs: List[Dict[str, Any]]) -> Dict[str, Any]:
             from neudet.disseny.campanya import Campanya
             from neudet.disseny.candidat import Candidat, Tub, violacions
             C = Campanya(dir_)
-            ts = tuple(Tub(float(t["x"]), float(t["y"]), str(t["tipus"]), float(t.get("z") or 0), eix=t.get("eix") or "z") for t in tubs)
+            ts = tuple(
+                Tub(
+                    float(t["x"]),
+                    float(t["y"]),
+                    str(t["tipus"]),
+                    float(t.get("z") or 0),
+                    eix=t.get("eix") or "z",
+                    sentit=(1 if t.get("sentit") is None else (t["sentit"] if isinstance(t["sentit"], bool) else int(t["sentit"]))),
+                )
+                for t in tubs
+            )
             mots = violacions(Candidat(C.bloc, ts), C.restr, C.tipus, C.font)
         except (SystemExit, Exception) as exc:              # noqa: BLE001 — el missatge de neudet, verbatim
             raise ValueError(_motiu_de(exc)) from None
