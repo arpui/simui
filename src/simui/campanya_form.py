@@ -52,17 +52,21 @@ GENERADORS_PY = "generadors.py"
 OBJECTIUS_PY = "objectius.py"
 CERCA_PY = "cerca.py"
 CAMPANYA_PY = "campanya.py"
+CAIXA_10A_PY = "caixa_10a.py"
 AVALUADOR_PY = "avaluador.py"
 CANDIDAT_PY = "candidat.py"
 FITXA_PY = "fitxa.py"
 # MB01-PARELLES (neudet 26-11): les línies d'on neudet diu cada regla; el test bessó i `_linia` les segueixen si neudet es mou
 FORAT_ALT_LINIA = 32                         # fitxa.py: FORAT_ALTERNATIVA (forat {forma, costat_cm|radi_cm}, alternatiu a forat_cm)
 FORAT_LINIA = 390                             # candidat.py: def violacions_forat
+#: MB10A (neudet 27-11): les línies de fitxa.py on neudet diu el què és cada camp de `domini.bloc.reflectors` i `domini.bloc.barres`
+EXTRES_10A_REFLECTORS_LINIA = 45                    # fitxa.py: EXTRES_10A («domini.bloc.reflectors»)
+EXTRES_10A_BARRES_LINIA = 52                         # fitxa.py: EXTRES_10A («domini.bloc.barres»)
 FORMES_FORAT_LINIA = 220                    # candidat.py: FORMES_FORAT
 FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
 PARELLA_FALTA_LINIA = 513                    # fitxa.py: parella sense sep_parella_cm (falten)
-PARETO_ARRELS_LINIA = 1004                    # campanya.py: ob.pareto[-1], ob.pareto[0]
+PARETO_ARRELS_LINIA = 1004                   # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
 MAI_AUTO_LINIA = 117                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
@@ -252,7 +256,11 @@ _EDITABLE: Dict[str, Any] = {
     "deriva_de": _L, "substituïda_per": _L, "substituïda_data": _L, "substituïda_motiu": _L,
     "domini": {
         "bloc": {"material": _L, "densitat_gcm3": _L, "mides_cm": _L, "forat_cm": _L, "forma": _L, "radi_cm": _L, "alzada_cm": _L,
-                 "forat": {"forma": _L, "costat_cm": _L, "radi_cm": _L}},
+                 "forat": {"forma": _L, "costat_cm": _L, "radi_cm": _L},
+                 "reflectors": {"material": _L, "densitat_gcm3": _L, "gruix_cm": _L, "llarg_cm": _L,
+                                "descobert_davant_cm": _L, "davant": _L, "cares": _L, "font": _L},
+                 "barres": {"material": _L, "densitat_gcm3": _L, "radi_cm": _L, "alzada_cm": _L,
+                            "posicions_cm": [[_L, _L]], "font": _L}},
         "energies_MeV": _L, "entre": _L, "tipus_tub": _L, "diagnostic": _L, "cossos": _L, "humitat_relativa_pct": _L, "temperatura_C": _L,
         "font": {"tipus": _L, "pos_cm": _L},
         "restriccions": {"n_tubs": _L, "marge_bloc_cm": _L, "sep_min_cm": _L, "r_min_font_cm": _L},
@@ -885,6 +893,30 @@ def _errors_cossos(cossos: Any, ruta: str = "domini.cossos") -> List[str]:
     return e
 
 
+def _errors_caixa_10a(bloc: Dict[str, Any]) -> List[str]:
+    """§26 (MB10A): si `domini.bloc.reflectors` o `domini.bloc.barres` hi són, neudet valida el
+    contingut amb `violacions_reflectors`/`violacions_barres` de `caixa_10a.py` (neudet 27-11).
+    Ausents = cap fila: mai s'inventa un reflector ni una barra. El veredicte de neudet surt tal com és."""
+    if not isinstance(bloc, dict):
+        return []
+    reflectors = bloc.get("reflectors")
+    barres = bloc.get("barres")
+    if reflectors is None and barres is None:
+        return []
+    try:
+        import importlib
+        DES._neudet()
+        c = importlib.import_module("neudet.disseny.caixa_10a")
+    except Exception:                                          # noqa: BLE001  (neudet absent o vell: mai s'inventa)
+        return []
+    e: List[str] = []
+    if reflectors is not None:
+        e += c.violacions_reflectors(reflectors)
+    if barres is not None:
+        e += c.violacions_barres(barres)
+    return e
+
+
 def font_defecte_bloc(bloc: Dict[str, Any]) -> Dict[str, Any]:
     """§19 amb la forma del bloc: amb `cilindre` el recalcul és −(`alzada_cm`/2 + 5) (§6 E de `cilindre_i_plom.md`).
     No inventiona res: si falta la llargada, peta dient quin camp."""
@@ -1048,6 +1080,66 @@ def cosos_info(neudet: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
 
 #: on simphy guarda els escenaris com a dada (a l'arrel de simphy, no aquí); els vells són de §24
 ESCENARIS_SIMPHY = ("data", "mcgen", "escenarios")
+
+
+def caixa_10a_info() -> Dict[str, Any]:
+    """Què fa neudet, AVUI, amb els camps de `domini.bloc.reflectors` i `domini.bloc.barres` — llegit del seu
+    codi (`neudet/disseny/caixa_10a.py`), no decidit aquí. Es llegeix el fitxer cada cop: si neudet es mou, el
+    rètol de la UI es mou amb ell."""
+    out: Dict[str, Any] = {"reflectors": {}, "barres": {}}
+    try:
+        text = _neudet_path(FITXA_PY).read_text(encoding="utf-8").splitlines()
+    except DES.DesignError as exc:
+        return {"error": str(exc)}
+    hi = lambda token: next((i + 1 for i, l in enumerate(text) if token in l), None)
+    lin_r = hi("domini.bloc.reflectors")
+    lin_b = hi("domini.bloc.barres")
+    try:
+        import importlib
+        DES._neudet()                                        # és el que posa neudet a l'abast
+        c = importlib.import_module("neudet.disseny.caixa_10a")
+    except Exception:                                          # noqa: BLE001  (neudet absent o vell)
+        c = None
+    costat = None
+    if c is not None:
+        costat = {"claus_reflectors": list(getattr(c, "CLAUS_REFLECTORS", ())),
+                  "claus_barres": list(getattr(c, "CLAUS_BARRES", ())),
+                  "cares": list(getattr(c, "CARES", ())),
+                  "davants": list(getattr(c, "DAVANTS", ())),
+                  "materials_reflectors": list(getattr(c, "MATERIAL_REFLECTORS", ())),
+                  "materials_barres": list(c.materials_barres()) if hasattr(c, "materials_barres") else [],
+                  "material_barres_defecte": getattr(c, "MATERIAL_BARRES_DEFECTE", None),
+                  "on": "disseny/caixa_10a.py"}
+    out["reflectors"] = {"validat": lin_r is not None, "on": f"{FITXA_PY}:{lin_r}" if lin_r else None,
+                          "sidecar": costat,
+                          "text": (f"neudet valida «domini.bloc.reflectors» ({FITXA_PY}:{lin_r}) amb el vocabulari de "
+                                   f"`caixa_10a.py` ({'|'.join(costat['claus_reflectors']) if costat else ''}); "
+                                   f"el veredicte complet — el registre de materials i les ρ — el dona «Comprova» "
+                                   f"tal com surt de neudet" if lin_r else
+                                   AVIS_NEUDET_CAMPS + ": neudet no llegeix `domini.bloc.reflectors` del campanya.yaml")}
+    out["barres"] = {"validat": lin_b is not None, "on": f"{FITXA_PY}:{lin_b}" if lin_b else None,
+                     "sidecar": costat,
+                     "text": (f"neudet valida «domini.bloc.barres» ({FITXA_PY}:{lin_b}) amb el vocabulari de "
+                              f"`caixa_10a.py` ({'|'.join(costat['claus_barres']) if costat else ''}); "
+                              f"el veredicte complet el dona «Comprova» tal com surt de neudet" if lin_b else
+                              AVIS_NEUDET_CAMPS + ": neudet no llegeix `domini.bloc.barres` del campanya.yaml")}
+    return out
+
+
+def caixa_10a_info_ui() -> Dict[str, Any]:
+    """El vocabulari de `domini.bloc.reflectors` i `domini.bloc.barres` per al formulari i el visor.
+    Les llistes tancades són de neudet (`caixa_10a.py`): es llegeixen live, no se'n copien."""
+    info = caixa_10a_info()
+    sidecar = (info.get("reflectors") or {}).get("sidecar") or {}
+    return {"claus_reflectors": sidecar.get("claus_reflectors"),
+            "claus_barres": sidecar.get("claus_barres"),
+            "cares": sidecar.get("cares"),
+            "davants": sidecar.get("davants"),
+            "materials_reflectors": sidecar.get("materials_reflectors"),
+            "materials_barres": sidecar.get("materials_barres"),
+            "material_barres_defecte": sidecar.get("material_barres_defecte"),
+            "fitxer": "disseny/caixa_10a.py",
+            "neudet": info}
 
 
 def _carpeta_escenaris() -> Optional[Path]:
@@ -1664,6 +1756,7 @@ def schema() -> Dict[str, Any]:
                          "`cub`, els yaml vells no el porten i els seus fitxers i hashos no canvien. No té res a veure "
                          "amb `generador.posicions.forma` (la malla). `radi_cm` i `alzada_cm` no tenen valor per defecte."},
         "cossos": cosos_info(eg.get("cossos")),
+        "caixa_10a": caixa_10a_info_ui(),
         "escenaris": escenaris_simphy(),
         "objectius": _schema_objectius(obj),
         "cerca": _schema_cerca(cer, _entrades_docstring(CERCA_PY)),
@@ -1720,6 +1813,7 @@ def _errors_domini(dom: Dict[str, Any], tub_sol: bool = False) -> List[str]:
         e.append("domini.bloc: falta el bloc (material, la forma amb les seves mides, forat_cm, densitat_gcm3)")
     e += _errors_bloc(bloc, tub_sol=tub_sol)    # §22: forma del bloc (absent = cub) i les seves mides
     e += _errors_cossos(dom.get("cossos"))      # §25: la llista explícita de cossos (absent = cap cos)
+    e += _errors_caixa_10a(bloc)                # §26 (MB10A): reflectors i barres — absent = cap fila
     mon = dom.get("mon")
     if mon is not None:
         if not isinstance(mon, dict):

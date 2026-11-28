@@ -2144,6 +2144,52 @@ function cCossosHtml(d){
     ${(S.materials_contracte || []).map(m => `<div class="hint warn">«${escD(m.nom)}» és un material decidit al contracte, encara no registrat: ${escD(m.motiu || '')} <span class="src">(${escD(m.on || '')})</span> «Comprova» en dona el veredicte de neudet tal com surt.</div>`).join('')}`;
 }
 
+// ── §26 (MB10A, neudet 27-11): reflectors i barres del bloc — domini.bloc.reflectors i domini.bloc.barres ──
+// Cap fila ni camp per defecte: la UI no n'inventa cap i no n'emplenja cap (com §25: absent = cap reflector/barra).
+// Els materials surten de neudet (caixa_10a.py: MATERIAL_REFLECTORS / materials_barres()), mai es copien.
+function cPosicionsHtml(v){
+  const arr = Array.isArray(v) ? v : [];
+  return `<div class="nl"><div class="nl-h">posicions_cm (cm; centre de cada barra en [x, y])</div>${arr.map((q, i) =>
+    `<span class="nlc nl-pos">${cNumIn(`domini.bloc.barres.posicions_cm.${i}.0`, (q || [])[0])}${cNumIn(`domini.bloc.barres.posicions_cm.${i}.1`, (q || [])[1])}<button class="x" data-act="barres-" data-i="${i}">×</button></span>`).join('')}
+    <button class="ghost" data-act="barres+">+ posició</button></div>`;
+}
+function cCaixa10aHtml(d){
+  const S = CP.schema.caixa_10a || {}, b = d.bloc, R = b.reflectors, B = b.barres;
+  const matOpts = (arr, v) => (arr || []).map(n => ({valor: n, text: n})).concat(v && !(arr || []).includes(v) ? [{valor: v, text: String(v) + ' (no és a la llista de neudet)'}] : []);
+  const cares = S.cares || [], davants = S.davants || [];
+  const refl = R ? `<div class="panel">
+      <h3>Reflectors <span class="hint">(domini.bloc.reflectors · plaques de PE; ${escD(S.fitxer || '')})</span></h3>
+      <div class="row3">${cLab('material (neudet)', cSel('domini.bloc.reflectors.material', matOpts(S.materials_reflectors, R.material), R.material, 'str', 'data-s'))}
+        ${cLab('densitat (g/cm³)', cNumIn('domini.bloc.reflectors.densitat_gcm3', R.densitat_gcm3, {min: 0, ph: 'densitat_gcm3'}))}
+        ${cLab('gruix (cm)', cNumIn('domini.bloc.reflectors.gruix_cm', R.gruix_cm, {min: 0, ph: 'gruix_cm'}))}</div>
+      <div class="row3">${cLab('llarg (cm; des de la cara davant cap endins)', cNumIn('domini.bloc.reflectors.llarg_cm', R.llarg_cm, {min: 0, ph: 'llarg_cm'}))}
+        ${cLab('descobert davant (cm; 0 = la placa arrenca a la cara)', cNumIn('domini.bloc.reflectors.descobert_davant_cm', R.descobert_davant_cm, {min: 0, ph: 'descobert_davant_cm'}))}
+        ${cLab('davant', davants.length ? cSel('domini.bloc.reflectors.davant', davants.map(v => ({valor: v, text: v})), R.davant, 'str', 'data-s') : cIn('domini.bloc.reflectors.davant', R.davant, 'ostr', 'davant'))}</div>
+      <div class="row">${cLab('cares (quina care cobren les plaques)', `<span>${cares.map(c => `<label class="chk"><input type="checkbox" data-p="domini.bloc.reflectors.cares" data-t="multi" data-val="${escD(c)}" ${(Array.isArray(R.cares) ? R.cares : []).includes(c) ? 'checked' : ''}> ${escD(c)}</label>`).join(' ')}</span>`)}</div>
+      <div class="row3">${cLab('font (d\'on surt la mida: paper, estimat, Albert…)', cIn('domini.bloc.reflectors.font', R.font, 'ostr', 'font'))}</div>
+      <div class="row"><button type="button" class="ghost" data-act="refl-">treu els reflectors</button></div>
+    </div>`
+    : `<div class="hint"><b>Absent = cap reflector.</b> La UI no en posa cap per defecte; prem «+ afegeix els reflectors» i omple\'ls, o no n\'hi ha cap.</div>
+       <div class="row"><button type="button" class="ghost" data-act="refl+">+ afegeix els reflectors</button></div>`;
+  const barr = B ? `<div class="panel">
+      <h3>Barres <span class="hint">(domini.bloc.barres · cilindres d\'acer sota el bloc; ${escD(S.fitxer || '')})</span></h3>
+      <div class="row3">${cLab('material (neudet)', cSel('domini.bloc.barres.material', matOpts(S.materials_barres, B.material), B.material, 'str', 'data-s'))}
+        ${cLab('densitat (g/cm³)', cNumIn('domini.bloc.barres.densitat_gcm3', B.densitat_gcm3, {min: 0, ph: 'densitat_gcm3'}))}
+        ${cLab('radi (cm)', cNumIn('domini.bloc.barres.radi_cm', B.radi_cm, {min: 0, ph: 'radi_cm'}))}
+        ${cLab('alzada (cm)', cNumIn('domini.bloc.barres.alzada_cm', B.alzada_cm, {min: 0, ph: 'alzada_cm'}))}</div>
+      ${cPosicionsHtml(B.posicions_cm)}
+      <div class="row">${cLab('font (d\'on surten posicions i ⌀: Fig. 6, estimat, FLUKA d\'Albert…)', cIn('domini.bloc.barres.font', B.font, 'ostr', 'font'))}</div>
+      <div class="row"><button type="button" class="ghost" data-act="barr-">treu les barres</button></div>
+    </div>`
+    : `<div class="hint"><b>Absent = cap barra.</b> La UI no n\'emplenja cap camp; el material neix amb el defecte de neudet; la resta queda buida. Prem «+ afegeix les barres» i omple\'ls, o no n\'hi ha cap.</div>
+       <div class="row"><button type="button" class="ghost" data-act="barr+">+ afegeix les barres</button></div>`;
+  const n = (S.neudet || {}), r = (n.reflectors || {}), b2 = (n.barres || {});
+  const reBot = (r.validat || b2.validat) ? '' : `<div class="panel warn"><b>${escD((r.text) || (b2.text) || 'neudet no valida encara aquests camps')}</b> <span class="hint">(${escD(S.fitxer || '')})</span></div>`;
+  return `<h2>Reflectors i barres <span class="hint">(domini.bloc.reflectors i domini.bloc.barres · MB10A, neudet 27-11; absent = cap)</span></h2>
+    ${reBot}
+    ${refl}
+    ${barr}`;
+}
 function cFormHtml(){
   const f = CP.f, d = f.domini, E = CP.etapa, et = f.etapes[E] || {}, S = CP.schema;
   return `
@@ -2165,6 +2211,7 @@ function cFormHtml(){
     : `<div class="row3">${['x', 'y', 'z'].map((c, i) => cLab(`mida ${c} (cm)`, cNumIn('domini.bloc.mides_cm.' + i, (Array.isArray(d.bloc.mides_cm) ? d.bloc.mides_cm : [null, null, null])[i], {min: 0}))).join('')}</div>`}
   ${cForatHtml(d.bloc)}
   ${d.bloc.forma === 'cilindre' ? `<div class="panel${S.bloc.neudet && S.bloc.neudet.validat ? '' : ' warn'}" data-bloc-neudet><b>${escD(S.bloc.avis_neudet)}</b> — ${escD(S.bloc.nota)}</div>` : ''}
+  ${cCaixa10aHtml(d)}
   ${cCossosHtml(d)}
 
   <h2>Font</h2>
@@ -2638,6 +2685,12 @@ function cAccio(act, ds){
   if(act === 'cos+')(CP.f.domini.cossos = CP.f.domini.cossos || []).push({});   // §25: la fila nova és buida, cap valor per defecte
   if(act === 'cos-')(CP.f.domini.cossos || []).splice(+ds.i, 1);
   if((act === 'cos+' || act === 'cos-') && !(CP.f.domini.cossos || []).length) delete CP.f.domini.cossos;   // §25: l'absència és cap cos
+  if(act === 'refl+') CP.f.domini.bloc.reflectors = {};                    // §26: la fila nova és buida, cap valor per defecte
+  if(act === 'refl-') delete CP.f.domini.bloc.reflectors;
+  if(act === 'barr+'){ const def = (CP.schema.caixa_10a || {}).material_barres_defecte; CP.f.domini.bloc.barres = def ? {material: def} : {}; }   // §26: el defecte és el de neudet, mai inventat aquí
+  if(act === 'barr-') delete CP.f.domini.bloc.barres;
+  if(act === 'barres+'){ const b = CP.f.domini.bloc.barres = CP.f.domini.bloc.barres || {}; (b.posicions_cm = b.posicions_cm || []).push([null, null]); }   // §26: la posició nova no porta cap valor inventat; l'ompleix qui la posarà
+  if(act === 'barres-'){ const b = CP.f.domini.bloc.barres; b.posicions_cm = (b.posicions_cm || []).filter((_, i) => i !== +ds.i); if(!b.posicions_cm.length) delete b.posicions_cm; }
   if(act === 'cos-esc'){ CP.escPend = ds.nom; cPintaForm(); cCarregaEscenari(ds.nom); return; }             // §25: l'escenari ve de simphy, no d'aquí
   if(act === 'rec-'){ const t = cGetS(CP.f, ds.p); cSyncInv(t); t.inventari.splice(+ds.i, 1); cSyncInv(t); }
   if(act === 'nl+') cArr(ds.p).push(ds.d === undefined ? 0 : Number(ds.d));
