@@ -6,7 +6,7 @@ i `informatiu` tal com són: la predicció és informativa i **no citable**; el 
 
 Test bessó: l'etapa de composició de l'exemple dels docs de neudet (`docs/site/detector/composicio.md`) sobre el `c04_draft` és
 vàlida a la UI i a neudet (`fitxa.falten`); i els casos erronis donen a la UI el mateix que a neudet. Divergència fixada: neudet
-(`campanya.py:433`) exigeix que `de` sigui una etapa de xarxa; la UI ho diu abans de desar.
+(`campanya.py:548`) exigeix que `de` sigui una etapa de xarxa; la UI ho diu abans de desar.
 """
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def test_composicio_amb_tongades_es_rebutjada_com_a_neudet():
 
 
 def test_de_ha_de_ser_una_etapa_de_xarxa_i_la_linia_de_neudet_es_la_real():
-    """`campanya.py:433` (neudet): `de` no pot ser una altra composició. La UI ho diu abans de desar."""
+    """`campanya.py:548` (neudet): `de` no pot ser una altra composició. La UI ho diu abans de desar."""
     f = _form()
     f["etapes"]["C2"] = {"composicio": dict(EXEMPLE["composicio"], de="C1")}
     ui = [x for x in CF._errors(f) if "composicio.de" in x]

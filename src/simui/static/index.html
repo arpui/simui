@@ -1901,7 +1901,7 @@ function cAvalHtml(f){
   const opt = (lst, cur) => lst.map(o => ({valor: o.valor})).map(o => `<option value="${escD(o.valor)}" ${o.valor === cur ? 'selected' : ''}>${escD(o.valor)}</option>`).join('');
   const xarxaV = av.xarxa ?? A.xarxa.defecte, modeV = av.mode ?? A.mode.defecte;
   const xa = A.xarxa.valors.find(o => o.valor === xarxaV), mo = A.mode.valors.find(o => o.valor === modeV);
-  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts', 'motors', 'elastic_kin_mode', 'elastic_cm_taules'];
+  const known = ['xarxa', 'mode', 'n_cribratge', 'n_final', 'lot', 'geom_vect', 'motor', 'gpus', 'ckpts', 'motors', 'elastic_kin_mode', 'elastic_cm_taules', 'xarxa_per_energia'];
   const extra = Object.keys(av).filter(k => !known.includes(k));
   return `
   <div class="row">${cLab('xarxa', `<select data-p="avaluacio.xarxa" data-t="str">${opt(A.xarxa.valors, xarxaV)}</select>`)}
@@ -1914,12 +1914,59 @@ function cAvalHtml(f){
   <div class="hint">${escD(A.geom_vect.descripcio)}</div>
   <div class="row">${cLab('motor (neudet no el llegeix; el tria «xarxa»)', cRO(av.motor ?? '—'))}${cLab('gpus (només mode continu)', cRO(av.gpus ?? '—'))}</div>
   <div class="hint">gpus: ${escD(A.gpus.descripcio)} <span class="src">(${escD(cSrc(A.fitxer, A.gpus.linia))})</span></div>
-  <h2 style="margin-top:18px">Mode elàstic (E12-CERT)</h2>
-  ${cElasticHtml(f, av, A)}
+  ${av.xarxa_per_energia ? `<h2 style="margin-top:18px">Xarxa per energia</h2>
+  ${cXarxaPerEnergiaHtml(f, A)}` : `<h2 style="margin-top:18px">Mode elàstic (E12-CERT)</h2>
+  ${cElasticHtml(f, av, A)}`}
   <h2 style="margin-top:18px">Motors</h2>
   ${cMotorsHtml(CP.motorsSel ?? av.motors, A.motors)}
   ${cMotAvisos()}
   ${extra.length ? `<div class="panel warn">Claus d'avaluació que el formulari no coneix: ${extra.map(k => `<code>${escD(k)}</code>`).join(', ')}</div>` : ''}`;
+}
+
+// XARXA-PER-ENERGIA (coordinador 2026-11-28): llindar + els dos braços (baix = E ≤ llindar, alt = E > llindar). Cada
+// braç declara els seus ckpts i el seu mode elàstic; la graella de neudet (`xarxa_per_energia.zona`) decideix.
+function cXarxaPerEnergiaHtml(f, A){
+  const av = f.avaluacio || {}, x = av.xarxa_per_energia || {}, D = CP.schema.diagnostic || {};
+  const R = A.xarxa_per_energia || {}, regla = R.regla;
+  const ll = x.llindar_MeV, baix = x.baix || {}, alt = x.alt || {};
+  const en = [...((f.domini || {}).energies_MeV || []), ...((f.verificacio || {}).energies_MeV || [])].map(Number).filter(Number.isFinite);
+  const sobre = ll != null ? en.filter(e => e > ll) : [];
+  const llista = D.ckpts || {}, base = D.base || '';
+  const modeVals = ((A.elastic_kin_mode || {}).valors || []).map(o => o.valor);
+  const escP = (b, clau) => `avaluacio.xarxa_per_energia.${b}.${clau}`;
+  const ckpts = (b, ck) => {
+    const ll = llista;
+    const r = Object.keys(ll).map(m => {
+      const v = (ck || {})[m] != null ? ck[m] : '';
+      const opts = (v === '' ? `<option value="" selected>— triï —</option>` : '')
+        + (ll[m] || []).map(n => `<option value="${escD(n)}" ${v === n ? 'selected' : ''}>${escD(n)}${n === base ? ' (per defecte)' : ''}</option>`).join('');
+      return cLab(`ckpt ${escD(m)}`, `<select data-p="${escP(b, 'ckpts.' + m)}" data-t="ostr">${opts}</select>`);
+    }).join('');
+    const extra = Object.keys(ck || {}).filter(m => !ll.hasOwnProperty(m));
+    return `<div class="row3">${r}</div>${extra.length ? `<div class="hint"><b>${escD(extra.join(', '))}</b> no llistats per simnet: <code>${extra.map(m => escD((ck || {})[m])).join(', ')}</code> — neudet els resol des de simnet.</div>` : ''}`;
+  };
+  const bra = (b, etiqueta, cond, cfg) => {
+    const mc = modeVals.map(o => `<option value="${escD(o)}" ${cfg.elastic_kin_mode === o ? 'selected' : ''}>${escD(o)}</option>`).join('');
+    const taules = cfg.elastic_cm_taules || {}, taulesOn = cfg.elastic_kin_mode === 'table';
+    const condTxt = ll != null ? cond(fmtE(ll)) : (b === 'baix' ? 'E ≤ llindar' : 'E > llindar');
+    return `<h3 style="margin:14px 0 4px">Braç ${escD(etiqueta)}</h3>
+    <div class="hint">${escD(etiqueta)}: ${escD(condTxt)}</div>
+    ${ckpts(b, cfg.ckpts || {})}
+    <div class="row">${cLab('elastic_kin_mode', `<select data-p="${escP(b, 'elastic_kin_mode')}" data-t="ostr">${mc}</select>`)}</div>
+    ${taulesOn ? `<div class="row3">${cLab('taules H (.csv, relatiu a simnet)', cIn(escP(b, 'elastic_cm_taules.H'), taules.H, 'ostr', 'H csv'))}
+      ${cLab('taules C (.csv, relatiu a simnet)', cIn(escP(b, 'elastic_cm_taules.C'), taules.C, 'ostr', 'C csv'))}</div>` : ''}
+    ${!taulesOn && cfg.elastic_cm_taules && typeof cfg.elastic_cm_taules === 'object' ? `<div class="hint"><b>elastic_cm_taules està declarat en mode off</b> — neudet no ho acceptaria.</div>` : ''}`;
+  };
+  const modeA = alt.elastic_kin_mode, modeB = baix.elastic_kin_mode, tabA = alt.elastic_cm_taules || {};
+  const faltants = sobre.length > 0 && modeA === 'table' ? ['H', 'C'].filter(k => !(tabA[k] && String(tabA[k]).trim())) : (sobre.length > 0 ? ['H', 'C'] : []);
+  const avisa = sobre.length > 0 && (modeA !== 'table' || faltants.length > 0);
+  const src = R.fitxer && R.linia ? ` (${escD(cSrc(R.fitxer, R.linia))})` : '';
+  const reglaHtml = regla == null ? `<div class="panel warn">neudet no publica <code>xarxa_per_energia.regla</code> (REGLA de neudet, xarxa_energia.py) — no el puc escriure.</div>` : `<div class="hint"><b>Regla:</b> ${escD(regla)} <span class="src">${src}</span></div>`;
+  return `${reglaHtml}
+  <div class="row">${cLab('llindar_MeV', cNumIn('avaluacio.xarxa_per_energia.llindar_MeV', ll, {min: 0.01, ph: '(MeV)'}))}</div>
+  ${baix ? bra('baix', 'baix', ll => `E ≤ ${ll}`, baix) : ''}
+  ${alt ? bra('alt', 'alt', ll => `E > ${ll}`, alt) : ''}
+  ${avisa ? `<div class="panel bad"><b>⚠ Aviso de comprovació (E12-CERT / xarxa per energia):</b> energies per sobre del llindar (<b>${fmtE(ll)}</b>) — ${sobre.map(e => fmtE(e)).join(', ')} — només surten amb <code>elastic_kin_mode: table</code> + taules H/C al braç «alt»; mode actual: <code>${escD(String(modeA))}</code>. Neudet ho valida al «Comprova»; aquí només és informatiu.</div>` : ''}`;
 }
 
 // E12-CERT (2026-11-27): el mode elàstic només té els valors de neudet; les taules {H, C} només amb `table`. El

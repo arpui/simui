@@ -66,7 +66,7 @@ FORMES_FORAT_LINIA = 220                    # candidat.py: FORMES_FORAT
 FORMA_FORAT = ("quadrat", "cilindre")
 PARELLA_LINIA = 615                          # generadors.py: def _parella_anell
 PARELLA_FALTA_LINIA = 513                    # fitxa.py: parella sense sep_parella_cm (falten)
-PARETO_ARRELS_LINIA = 1004                   # campanya.py: ob.pareto[-1], ob.pareto[0]
+PARETO_ARRELS_LINIA = 1092                   # campanya.py: ob.pareto[-1], ob.pareto[0]
 GRAELLA_PAPER_LINIA = 33                     # objectius.py: GRAELLA_PAPER_MEV (24 energies del paper)
 PAPER_LINIA = 35                             # objectius.py: PAPER {mètrica: (tipus, E_max)}
 MAI_AUTO_LINIA = 117                          # objectius.py: MAI_AUTO (no surten soles a `informatives: auto`)
@@ -176,6 +176,8 @@ GEOM_VECT_DEFECTE = True
 #: E12-CERT (2026-11-27): mode elàstic de la xarxa i les taules CM de H i C (campanya.py:427, avaluador.py:62)
 ELASTIC_KIN_MODES_LINIA = 62
 ELASTIC_KIN_YAML_LINIA = 427
+#: XARXA-PER-ENERGIA (coordinador 2026-11-28): estructura i exclusivitat (campanya.py:495, xarxa_per_energia_cfg)
+XARXA_PER_ENERGIA_LINIA = 495
 
 
 def _elastic_kin_modes() -> Optional[List[str]]:
@@ -184,6 +186,16 @@ def _elastic_kin_modes() -> Optional[List[str]]:
         DES._neudet()
         from neudet.disseny.avaluador import ELASTIC_KIN_MODES
         return list(ELASTIC_KIN_MODES)
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _xarxa_regla() -> Optional[str]:
+    """`REGLA` de neudet (`xarxa_energia.py`), o None si el neudet instal·lat no ho publica."""
+    try:
+        DES._neudet()
+        from neudet.disseny.xarxa_energia import REGLA
+        return str(REGLA)
     except Exception:                                            # noqa: BLE001
         return None
 
@@ -296,7 +308,10 @@ _EDITABLE: Dict[str, Any] = {
     "objectius": _L,
     "avaluacio": {"xarxa": _L, "mode": _L, "n_cribratge": _L, "n_final": _L, "lot": _L, "geom_vect": _L, "ckpts": _L,
                   "motors": _L, "geometria": _L, "elastic_kin_mode": _L,
-                  "elastic_cm_taules": {"H": _L, "C": _L}},
+                  "elastic_cm_taules": {"H": _L, "C": _L},
+                  "xarxa_per_energia": {"llindar_MeV": _L,
+                                        "baix": {"ckpts": _L, "elastic_kin_mode": _L, "elastic_cm_taules": {"H": _L, "C": _L}},
+                                        "alt": {"ckpts": _L, "elastic_kin_mode": _L, "elastic_cm_taules": {"H": _L, "C": _L}}}},
     "verificacio": {"hits": _L, "mon_mig_cm": _L, "energies_MeV": _L},         # energies_MeV: VER-24E (contracte §31 v1.30)
 }
 
@@ -733,7 +748,7 @@ ESTAT_PIOM = (
 
 
 COMPOSICIO_PY = "composicio.py"
-COMPOSICIO_DE_LINIA = 479                    # campanya.py: composicio.de ha de ser una etapa de xarxa (no composició)
+COMPOSICIO_DE_LINIA = 548                    # campanya.py: composicio.de ha de ser una etapa de xarxa (no composició)
 
 
 def _mod_composicio():
@@ -763,7 +778,7 @@ def _errors_composicio(f: Dict[str, Any]) -> List[str]:
     return e
 
 
-TUB_SOL_LINIA = 353                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
+TUB_SOL_LINIA = 375                          # campanya.py: `if self.geometria == "tub_sol":` (E12-BANC)
 
 
 def _errors_bloc_tub_sol(bloc: Dict[str, Any], ruta: str) -> List[str]:
@@ -1568,6 +1583,12 @@ def _schema_avaluacio() -> Dict[str, Any]:
         "elastic_cm_taules": {"fitxer": CAMPANYA_PY,
                              "linia": _troba(CAMPANYA_PY, ELASTIC_KIN_YAML_LINIA, "elastic_kin_yaml"),
                              "descripcio": "taules CM elàstiques {H: csv, C: csv}, camins relatius a simnet; obligatòries amb elastic_kin_mode: table"},
+        # XARXA-PER-ENERGIA (coordinador 2026-11-28): llindar + ckpts/mode/taules per braç; neudet ho llegeix a campanya.py:495
+        "xarxa_per_energia": {"fitxer": CAMPANYA_PY,
+                              "linia": _troba(CAMPANYA_PY, XARXA_PER_ENERGIA_LINIA, "xarxa_per_energia_cfg"),
+                              "llindar_MeV": {"linia": _troba(CAMPANYA_PY, XARXA_PER_ENERGIA_LINIA, "xarxa_per_energia_cfg"),
+                                                "descripcio": "E ≤ llindar → braç `baix`; E > llindar → braç `alt` (neudet: zona(), xarxa_energia.py)"},
+                              "regla": _xarxa_regla()},
     }
 
 
@@ -2475,7 +2496,10 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
             fora = [x for x in ms if x not in MOTORS_CONTRACTE]
             if fora:
                 e.append(f"avaluacio.motors: {' '.join(fora)} no són a la llista del contracte ({' · '.join(MOTORS_CONTRACTE)}) — {MOTORS_FONT_CONTRACTE}")
-    if "ckpts" in av:                                           # DIAG-UI (§18): un ckpt per material, de la llista de neudet
+    # XARXA-PER-ENERGIA (coordinador 2026-11-28): quan la xarxa per energia existeix, els ckpts/el mode elàstic globals
+    # són incoherents (cada braç declara els seus); la exclusió es diu a continuació, amb un sol missatge.
+    si_xarxa = "xarxa_per_energia" in av
+    if "ckpts" in av and not si_xarxa:                           # DIAG-UI (§18): un ckpt per material, de la llista de neudet
         ck = av["ckpts"]
         if not (isinstance(ck, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in ck.items())):
             e.append("avaluacio.ckpts: un diccionari {material: nom_de_ckpt} (campanya.py)")
@@ -2488,11 +2512,12 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
                     e.append(f"avaluacio.ckpts.{m} = {v}: neudet no el troba (n'hi ha: {', '.join(disp.get(m) or []) or 'cap'})")
     # E12-CERT (2026-11-27): el mode elàstic només off | table; taules només amb table; table obliga a les taules
     modes = _elastic_kin_modes()
-    if "elastic_kin_mode" in av:
+    si_global = not si_xarxa
+    if "elastic_kin_mode" in av and si_global:
         mk = av["elastic_kin_mode"]
         if mk is not None and (modes is None or mk not in modes):
             e.append(f"avaluacio.elastic_kin_mode: cal {' o '.join(modes or ['off', 'table'])} (avaluador.py:{ELASTIC_KIN_MODES_LINIA})")
-    if "elastic_cm_taules" in av:
+    if "elastic_cm_taules" in av and si_global:
         taules = av["elastic_cm_taules"]
         if "elastic_kin_mode" not in av or av.get("elastic_kin_mode") is None:
             e.append("avaluacio.elastic_cm_taules sense avaluacio.elastic_kin_mode (cal el mode explícit)")
@@ -2503,6 +2528,46 @@ def _errors_avaluacio(f: Dict[str, Any]) -> List[str]:
             faltants = [k for k in ("H", "C") if not (isinstance(t.get(k), str) and t[k].strip())]
             if faltants:
                 e.append(f"avaluacio.elastic_kin_mode: table sense avaluacio.elastic_cm_taules {', '.join(faltants)} (csv, campanya.py:{ELASTIC_KIN_YAML_LINIA})")
+    # XARXA-PER-ENERGIA (coordinador 2026-11-28): estructura i exclusivitat, com neudet (campanya.py:495)
+    if "xarxa_per_energia" in av:
+        x = av["xarxa_per_energia"]
+        if not isinstance(x, dict) or set(x) != {"llindar_MeV", "baix", "alt"}:
+            e.append(f"avaluacio.xarxa_per_energia: calen exactament {{llindar_MeV, baix, alt}} (campanya.py:{XARXA_PER_ENERGIA_LINIA})")
+        else:
+            glob = [k for k in ("ckpts", "elastic_kin_mode", "elastic_cm_taules") if k in av]
+            if glob:
+                e.append("avaluacio.xarxa_per_energia amb avaluacio.%s global: cada braç (baix/alt) declara els seus" % ", ".join(glob))
+            try:
+                ll = float(x["llindar_MeV"])
+            except (TypeError, ValueError):
+                e.append("avaluacio.xarxa_per_energia.llindar_MeV: cal un nombre (MeV)")
+                ll = None
+            else:
+                if not ll > 0:
+                    e.append(f"avaluacio.xarxa_per_energia.llindar_MeV = {x['llindar_MeV']!r}: cal > 0")
+            md = modes or ["off", "table"]
+            for b in ("baix", "alt"):
+                v = x[b]
+                if not isinstance(v, dict) or not set(v) <= {"ckpts", "elastic_kin_mode", "elastic_cm_taules"}:
+                    e.append(f"avaluacio.xarxa_per_energia.{b}: només ckpts, elastic_kin_mode, elastic_cm_taules")
+                    continue
+                ck = v.get("ckpts")
+                if not (isinstance(ck, dict) and ck and all(isinstance(k, str) and isinstance(w, str) for k, w in ck.items())):
+                    e.append(f"avaluacio.xarxa_per_energia.{b}.ckpts: cal un diccionari {{material: nom_o_camí}} explícit")
+                mk = v.get("elastic_kin_mode")
+                if mk is None:
+                    e.append(f"avaluacio.xarxa_per_energia.{b}.elastic_kin_mode: cal declarar-lo (off | table)")
+                else:
+                    if mk not in md:
+                        e.append(f"avaluacio.xarxa_per_energia.{b}.elastic_kin_mode: cal {' o '.join(md)} (avaluador.py:{ELASTIC_KIN_MODES_LINIA})")
+                    tb = v.get("elastic_cm_taules")
+                    if mk == "off" and tb is not None:
+                        e.append(f"avaluacio.xarxa_per_energia.{b}.elastic_kin_mode: off amb elastic_cm_taules: les taules només amb `table`")
+                    elif mk == "table":
+                        t = tb if isinstance(tb, dict) else {}
+                        faltants = [k for k in ("H", "C") if not (isinstance(t.get(k), str) and t[k].strip())]
+                        if faltants:
+                            e.append(f"avaluacio.xarxa_per_energia.{b}.elastic_kin_mode: table sense elastic_cm_taules {', '.join(faltants)} (csv, campanya.py:{ELASTIC_KIN_YAML_LINIA})")
     return e
 
 
